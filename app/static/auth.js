@@ -51,8 +51,9 @@
         window.location.assign(result.url);
       } catch (error) {
         const provider = button.dataset.provider;
+        const providerName = { github: "GitHub", gitlab: "GitLab", google: "Google" }[provider] || provider;
         notice(error.message.includes("PROVIDER_NOT_SUPPORTED") || error.message.includes("not supported")
-          ? `${provider[0].toUpperCase() + provider.slice(1)} sign-in needs provider activation. Use email or Google for now; connect your source host in the workspace.`
+          ? `${providerName} sign-in needs provider activation. Use email or Google for now; connect your source host in the workspace.`
           : error.message);
         button.disabled = false;
       }

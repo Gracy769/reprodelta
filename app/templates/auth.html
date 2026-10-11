@@ -45,6 +45,7 @@
           <button type="button" class="social-button" data-provider="gitlab"><span class="provider-icon gitlab">GL</span> Continue with GitLab <span aria-hidden="true">↗</span></button>
           <button type="button" class="social-button" data-provider="google"><span class="provider-icon google">G</span> Continue with Google <span aria-hidden="true">↗</span></button>
         </div>
+        <p class="provider-note">Google is ready. GitHub and GitLab sign-in await provider activation; you can still connect either source after email or Google sign-in.</p>
         <div class="divider"><span>or continue with email</span></div>
         <form id="account-form" novalidate>
           {% if mode == 'signup' %}<label for="name">Your name</label><input id="name" name="name" autocomplete="name" required maxlength="100" placeholder="Ada Lovelace" />{% endif %}

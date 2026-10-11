@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     neon_auth_base_url: str | None = None
     neon_auth_jwks_url: str | None = None
     app_url: str | None = None
+    auth_allowed_origin: str | None = None
 
     # Logging
     log_level: str = "INFO"

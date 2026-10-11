@@ -39,7 +39,8 @@ async def bridge_auth(request: Request, path: str) -> Response:
         if not origin:
             raise HTTPException(403, "Origin is required")
         parts = urlsplit(origin)
-        public_host = urlsplit(settings.app_url).netloc if settings.app_url else ""
+        configured_origin = settings.auth_allowed_origin or settings.app_url
+        public_host = urlsplit(configured_origin).netloc if configured_origin else ""
         host = public_host or request.headers.get("host", "")
         scheme_ok = parts.scheme == "https" or (
             parts.scheme == "http" and parts.hostname in {"localhost", "127.0.0.1"}

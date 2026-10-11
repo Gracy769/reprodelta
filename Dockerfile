@@ -26,6 +26,7 @@ RUN pip install --no-cache-dir . \
     && chmod -R a+rX /app
 
 ENV RUNNER_MODE=worker_http \
+    AUTH_ALLOWED_ORIGIN=https://reprodelta.antideploy.app \
     WORKER_OLD_URL=http://127.0.0.1:9001/run \
     WORKER_NEW_URL=http://127.0.0.1:9002/run \
     INVESTIGATION_STORE=postgres \

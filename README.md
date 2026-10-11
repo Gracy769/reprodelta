@@ -50,7 +50,9 @@ repositories requires the isolation and contract-approval gates in
 The Auth service URL and JWKS URL are supplied to the deployed API as
 `NEON_AUTH_BASE_URL` and `NEON_AUTH_JWKS_URL`. Local development can read those
 from an ignored `.env`; never commit Auth cookies, personal access tokens, or
-the app's `SECRET_KEY`.
+the app's `SECRET_KEY`. The deployment pins `AUTH_ALLOWED_ORIGIN` to
+`https://reprodelta.antideploy.app` for sign-in request validation; update it
+when changing the public address.
 
 ## Quick start (Docker)
 

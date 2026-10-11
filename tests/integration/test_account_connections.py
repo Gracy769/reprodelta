@@ -38,7 +38,9 @@ async def test_auth_bridge_rejects_other_origins_and_unlisted_paths(monkeypatch)
     monkeypatch.setattr(
         auth_bridge,
         "get_settings",
-        lambda: SimpleNamespace(neon_auth_base_url="https://auth.example.test", app_url=None),
+        lambda: SimpleNamespace(
+            neon_auth_base_url="https://auth.example.test", app_url=None, auth_allowed_origin=None
+        ),
     )
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1:8002") as client:
@@ -59,7 +61,8 @@ async def test_auth_bridge_preserves_http_only_session_cookie(monkeypatch):
         "get_settings",
         lambda: SimpleNamespace(
             neon_auth_base_url="https://auth.example.test",
-            app_url="https://reprodelta.antideploy.app",
+            app_url="https://internal.local",
+            auth_allowed_origin="https://reprodelta.antideploy.app",
         ),
     )
 

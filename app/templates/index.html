@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}Agent Replay Lab — Workbench{% endblock %}
+
+{% block extra_style %}
+  .hero {
+    padding: var(--sp-8) 0 var(--sp-6);
+    border-bottom: 1px solid var(--border);
+    margin-bottom: var(--sp-8);
+  }
+  .hero h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: var(--sp-3);
+  }
+  .hero p {
+    font-size: 16px;
+    color: var(--text-muted);
+    max-width: 65ch;
+    line-height: 1.7;
+  }
+
+  /* Status badge */
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    font-size: 13px;
+    font-family: var(--font-mono);
+    padding: var(--sp-1) var(--sp-3);
+    border-radius: 4px;
+    border: 1px solid;
+    margin-bottom: var(--sp-4);
+  }
+  .status-badge.ok {
+    color: var(--supported);
+    border-color: var(--supported);
+    background: #f0fdf4;
+  }
+  .status-badge.ok::before {
+    content: "●";
+    font-size: 10px;
+  }
+
+  /* Navigation cards */
+  .nav-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: var(--sp-4);
+    margin-top: var(--sp-6);
+  }
+  .nav-card {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: var(--sp-6);
+    text-decoration: none;
+    color: var(--text);
+    background: var(--surface);
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .nav-card:hover {
+    border-color: var(--accent);
+    background: var(--surface-muted);
+  }
+  .nav-card:focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  .nav-card h2 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: var(--sp-2);
+  }
+  .nav-card p {
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  .section-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: var(--sp-4);
+    color: var(--text);
+  }
+{% endblock %}
+
+{% block content %}
+  <section class="hero" aria-labelledby="hero-heading">
+    <div class="status-badge ok" role="status" aria-live="polite">
+      service ok — v0.1.0
+    </div>
+    <h1 id="hero-heading">Agent Replay Lab</h1>
+    <p>
+      Investigates conclusion changes across Python dependency upgrades.
+      Replays immutable inputs in two environments, searches for a valid
+      counterexample, tests a suspected mechanism, and checks a proposed
+      repair against frozen independent cases.
+    </p>
+    <p style="margin-top:var(--sp-4);">
+      <a href="/investigations/new"
+         style="display:inline-block;padding:var(--sp-2) var(--sp-6);background:var(--accent);color:#fff;text-decoration:none;border-radius:4px;font-size:15px;font-weight:600;">
+        Start Demo Investigation
+      </a>
+    </p>
+  </section>
+
+  <section aria-labelledby="demo-heading" style="margin-bottom:var(--sp-8);">
+    <h2 id="demo-heading" class="section-title">Demo Project</h2>
+    <div style="border:1px solid var(--border);border-radius:6px;padding:var(--sp-6);background:var(--surface-muted);">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:var(--sp-4);">
+        <div>
+          <h3 style="font-size:16px;font-weight:600;margin-bottom:var(--sp-2);">Signal Classifier (NumPy 1.26 → 2.0)</h3>
+          <p style="font-size:14px;color:var(--text-muted);max-width:60ch;line-height:1.6;">
+            Curated fixture demonstrating a NumPy NEP-50 scalar promotion change that flips a
+            classification near the decision threshold. The investigation finds the exact
+            8-element signal, explains the mechanism, and verifies a correct repair against
+            frozen holdout inputs.
+          </p>
+          <p style="font-size:13px;color:var(--text-muted);margin-top:var(--sp-3);">
+            Witness input: <code style="font-family:var(--font-mono);">[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0000001192]</code>
+          </p>
+        </div>
+        <a href="/investigations/new"
+           style="display:inline-block;padding:var(--sp-2) var(--sp-4);border:1px solid var(--accent);color:var(--accent);text-decoration:none;border-radius:4px;font-size:14px;font-weight:600;white-space:nowrap;">
+          Start Investigation →
+        </a>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-4);margin-top:var(--sp-4);">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:var(--sp-3);">
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:var(--sp-1);">Old environment</div>
+          <div style="font-family:var(--font-mono);font-size:13px;">NumPy 1.26.4</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">float32 / Python float → float64 (NEP 50 pre-change)</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:var(--sp-3);">
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:var(--sp-1);">New environment</div>
+          <div style="font-family:var(--font-mono);font-size:13px;">NumPy 2.0.2</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">float32 / Python float → float32 (NEP 50 change)</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="nav-heading">
+    <h2 id="nav-heading" class="section-title">Workbench</h2>
+    <nav class="nav-cards" aria-label="Workbench sections">
+      <a href="/investigations/new" class="nav-card">
+        <h2>New Investigation</h2>
+        <p>Review the signal classifier contract and start the full investigation loop.</p>
+      </a>
+      <a href="/docs" class="nav-card">
+        <h2>API Reference</h2>
+        <p>Interactive OpenAPI documentation for all backend endpoints.</p>
+      </a>
+      <a href="/health" class="nav-card">
+        <h2>Health</h2>
+        <p>Service liveness check — returns version and current status.</p>
+      </a>
+    </nav>
+  </section>
+{% endblock %}

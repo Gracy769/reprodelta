@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}Investigation Running — Agent Replay Lab{% endblock %}
+
+{% block extra_style %}
+  .timeline { list-style: none; padding: 0; margin: var(--sp-6) 0; }
+  .timeline li {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--sp-4);
+    padding: var(--sp-3) 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .timeline li:last-child { border-bottom: none; }
+  .stage-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    background: var(--surface-muted);
+    border: 2px solid var(--border);
+    color: var(--text-muted);
+  }
+  .stage-icon.running  { border-color: var(--accent); color: var(--accent); }
+  .stage-icon.done     { border-color: var(--supported); background: var(--supported); color: #fff; }
+  .stage-icon.failed   { border-color: var(--failure); background: var(--failure); color: #fff; }
+  .stage-label { font-size: 15px; font-weight: 600; }
+  .stage-detail { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+  .counts-row {
+    display: flex;
+    gap: var(--sp-6);
+    flex-wrap: wrap;
+    margin: var(--sp-4) 0;
+    padding: var(--sp-4);
+    background: var(--surface-muted);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+  .count-item { display: flex; flex-direction: column; gap: 2px; }
+  .count-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+  .count-value { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  #status-msg { font-size: 14px; color: var(--text-muted); margin-top: var(--sp-4); }
+{% endblock %}
+
+{% block content %}
+<h1 style="font-size:24px;font-weight:700;margin-bottom:var(--sp-2);">Investigation</h1>
+<p style="font-size:14px;color:var(--text-muted);margin-bottom:var(--sp-6);">
+  ID: <code>{{ investigation_id }}</code>
+</p>
+
+<div class="counts-row" id="counts-row" aria-live="polite">
+  <div class="count-item"><span class="count-label">Attempted</span><span class="count-value" id="cnt-attempted">—</span></div>
+  <div class="count-item"><span class="count-label">Valid</span><span class="count-value" id="cnt-valid">—</span></div>
+  <div class="count-item"><span class="count-label">Invalid</span><span class="count-value" id="cnt-invalid">—</span></div>
+  <div class="count-item"><span class="count-label">Budget remaining</span><span class="count-value" id="cnt-budget">—</span></div>
+</div>
+
+<ul class="timeline" id="run-timeline" aria-label="Investigation stages">
+  <li id="stage-preflight">
+    <div class="stage-icon" id="icon-preflight">1</div>
+    <div>
+      <div class="stage-label">Preflight &amp; controls</div>
+      <div class="stage-detail" id="detail-preflight">Waiting…</div>
+    </div>
+  </li>
+  <li id="stage-search">
+    <div class="stage-icon" id="icon-search">2</div>
+    <div>
+      <div class="stage-label">Search</div>
+      <div class="stage-detail" id="detail-search">Waiting…</div>
+    </div>
+  </li>
+  <li id="stage-reduction">
+    <div class="stage-icon" id="icon-reduction">3</div>
+    <div>
+      <div class="stage-label">Witness reduction</div>
+      <div class="stage-detail" id="detail-reduction">Waiting…</div>
+    </div>
+  </li>
+  <li id="stage-intervention">
+    <div class="stage-icon" id="icon-intervention">4</div>
+    <div>
+      <div class="stage-label">Intervention</div>
+      <div class="stage-detail" id="detail-intervention">Waiting…</div>
+    </div>
+  </li>
+  <li id="stage-repair">
+    <div class="stage-icon" id="icon-repair">5</div>
+    <div>
+      <div class="stage-label">Patch repair</div>
+      <div class="stage-detail" id="detail-repair">Waiting…</div>
+    </div>
+  </li>
+  <li id="stage-complete">
+    <div class="stage-icon" id="icon-complete">6</div>
+    <div>
+      <div class="stage-label">Complete</div>
+      <div class="stage-detail" id="detail-complete">Waiting…</div>
+    </div>
+  </li>
+</ul>
+
+<p id="status-msg">Starting investigation…</p>
+<div id="complete-links" style="display:none;margin-top:var(--sp-4);">
+  <a id="evidence-link" href="#"
+     style="display:inline-block;padding:var(--sp-2) var(--sp-4);background:var(--accent);color:#fff;text-decoration:none;border-radius:4px;font-size:14px;font-weight:600;margin-right:var(--sp-3);">
+    View Evidence
+  </a>
+  <a id="report-link" href="#"
+     style="display:inline-block;padding:var(--sp-2) var(--sp-4);border:1px solid var(--accent);color:var(--accent);text-decoration:none;border-radius:4px;font-size:14px;font-weight:600;">
+    Download Report
+  </a>
+</div>
+
+<script>
+(function () {
+  var invId = {{ investigation_id | tojson }};
+  var pollUrl = "/api/investigations/" + invId + "/progress";
+  var evidenceUrl = "/investigations/" + invId + "/evidence";
+  var reportUrl = "/investigations/" + invId + "/report";
+  var pollInterval = 2000;
+  var timer = null;
+
+  function setText(id, text) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = text;
+  }
+
+  function setClass(id, cls) {
+    var el = document.getElementById(id);
+    if (el) { el.className = "stage-icon " + (cls || ""); }
+  }
+
+  function poll() {
+    fetch(pollUrl)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var status = data.status || "unknown";
+        setText("status-msg", "Status: " + status);
+
+        if (status === "running" || status === "completed" || status === "failed") {
+          setClass("icon-preflight", "running");
+          setText("detail-preflight", "Running controls…");
+        }
+        if (status === "completed") {
+          setClass("icon-preflight", "done");
+          setText("detail-preflight", "Controls complete");
+          setClass("icon-search", "done");
+          setText("detail-search", "Search complete");
+          setClass("icon-reduction", data.witness_found ? "done" : "done");
+          setText("detail-reduction", data.witness_found ? "Witness found and reduced" : "No witness found");
+          setClass("icon-intervention", "done");
+          setText("detail-intervention", "Intervention complete");
+          setClass("icon-repair", "done");
+          setText("detail-repair", "Patch verification complete");
+          setClass("icon-complete", "done");
+          setText("detail-complete", "Verdict: " + (data.verdict || "unknown"));
+          setText("status-msg", "Investigation complete.");
+
+          // Show links
+          var links = document.getElementById("complete-links");
+          if (links) {
+            links.style.display = "";
+            document.getElementById("evidence-link").href = evidenceUrl;
+            document.getElementById("report-link").href = reportUrl;
+          }
+          clearInterval(timer);
+          setTimeout(function () { window.location.href = evidenceUrl; }, 1500);
+        } else if (status === "failed") {
+          setClass("icon-preflight", "failed");
+          setText("detail-preflight", "Investigation failed: " + (data.error || "unknown error"));
+          clearInterval(timer);
+          setText("status-msg", "Investigation failed: " + (data.error || ""));
+        } else {
+          setClass("icon-search", "running");
+          setText("detail-search", "Searching for witness…");
+        }
+      })
+      .catch(function () {
+        setText("status-msg", "Polling failed — retrying…");
+      });
+  }
+
+  timer = setInterval(poll, pollInterval);
+  poll(); // immediate first call
+}());
+</script>
+{% endblock %}

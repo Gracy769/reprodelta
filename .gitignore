@@ -1,0 +1,44 @@
+﻿# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment — never commit real secrets
+.env
+
+# Test / coverage
+.pytest_cache/
+.benchmarks/
+.coverage
+coverage.xml
+htmlcov/
+*.prof
+
+# Ruff / mypy
+.ruff_cache/
+.mypy_cache/
+
+# Node / frontend
+node_modules/
+web/dist/
+
+# Docker
+*.tar
+
+# macOS
+.DS_Store
+
+# Artifacts directory (large binary content)
+/data/
+/artifacts/

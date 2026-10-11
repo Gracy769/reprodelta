@@ -1,0 +1,436 @@
+{% extends "base.html" %}
+
+{% block title %}Evidence Report — Agent Replay Lab{% endblock %}
+
+{% block extra_style %}
+  .report-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--sp-4);
+    margin-bottom: var(--sp-8);
+    padding-bottom: var(--sp-6);
+    border-bottom: 1px solid var(--border);
+  }
+  .report-title { font-size: 24px; font-weight: 700; margin-bottom: var(--sp-2); }
+  .report-meta { font-size: 13px; color: var(--text-muted); }
+  .report-actions { display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap; }
+  .btn {
+    display: inline-block;
+    padding: var(--sp-2) var(--sp-4);
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    border: none;
+    font-family: var(--font-sans);
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { opacity: 0.88; }
+  .btn-secondary { background: var(--surface-muted); border: 1px solid var(--border); color: var(--text); }
+  .btn-secondary:hover { background: var(--border); }
+  .btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+  .section { margin-bottom: var(--sp-8); }
+  .section-heading {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: var(--sp-2);
+    margin-bottom: var(--sp-4);
+  }
+  .kv-grid {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: var(--sp-1) var(--sp-4);
+    font-size: 14px;
+  }
+  .kv-key { color: var(--text-muted); padding: var(--sp-1) 0; }
+  .kv-val { font-family: var(--font-mono); word-break: break-all; padding: var(--sp-1) 0; font-size: 13px; }
+
+  .verdict-badge {
+    display: inline-block;
+    padding: 3px var(--sp-3);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    background: var(--surface-muted);
+  }
+  .badge {
+    display: inline-block;
+    padding: 1px var(--sp-2);
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: var(--font-mono);
+  }
+  .badge-mock { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+  .badge-live { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+  .badge-pass { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+  .badge-fail { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+  .badge-not-run { background: #f3f4f6; color: var(--text-muted); border: 1px solid var(--border); }
+  .badge-supported { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+  .badge-contradicted { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+  .badge-inconclusive { background: #f3f4f6; color: var(--text-muted); border: 1px solid var(--border); }
+
+  table.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-bottom: var(--sp-4);
+  }
+  table.data-table th, table.data-table td {
+    text-align: left;
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: 1px solid var(--border);
+  }
+  table.data-table th {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    background: var(--surface-muted);
+  }
+
+  pre.replay-block {
+    background: var(--surface-muted);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: var(--sp-4);
+    font-size: 12px;
+    font-family: var(--font-mono);
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .limitations-list {
+    list-style: disc;
+    padding-left: var(--sp-6);
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.7;
+  }
+  .limitations-list li { margin-bottom: var(--sp-1); }
+
+  .proposal-card {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: var(--sp-4);
+    margin-bottom: var(--sp-3);
+    background: var(--surface-muted);
+  }
+  .proposal-header {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    margin-bottom: var(--sp-3);
+    font-size: 13px;
+  }
+  .proposal-text {
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 180px;
+    overflow-y: auto;
+  }
+  .patch-card {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: var(--sp-4);
+    margin-bottom: var(--sp-4);
+  }
+
+  #loading-msg { color: var(--text-muted); font-size: 14px; }
+  #report-root { display: none; }
+
+  @media print {
+    nav, footer, .report-actions { display: none !important; }
+    #report-root { display: block !important; }
+    .section { page-break-inside: avoid; }
+  }
+{% endblock %}
+
+{% block content %}
+<p id="loading-msg">Loading report…</p>
+
+<div id="report-root">
+  <div class="report-header">
+    <div>
+      <h1 class="report-title">Investigation Evidence Report</h1>
+      <p class="report-meta" id="rpt-meta"></p>
+    </div>
+    <div class="report-actions">
+      <a id="dl-json-btn" href="#" class="btn btn-primary">Download JSON</a>
+      <a href="/investigations/{{ investigation_id }}/evidence" class="btn btn-secondary">Evidence View</a>
+    </div>
+  </div>
+
+  <!-- Verdict -->
+  <div class="section">
+    <p class="section-heading">Verdict</p>
+    <p><span class="verdict-badge" id="rpt-verdict"></span></p>
+    <p style="font-size:13px;color:var(--text-muted);margin-top:var(--sp-3);" id="rpt-scope"></p>
+  </div>
+
+  <!-- Metadata -->
+  <div class="section">
+    <p class="section-heading">Metadata</p>
+    <div class="kv-grid" id="rpt-meta-kv"></div>
+  </div>
+
+  <!-- Witness -->
+  <div class="section" id="rpt-witness-section">
+    <p class="section-heading">Witness</p>
+    <div class="kv-grid" id="rpt-witness-kv"></div>
+  </div>
+
+  <!-- Controls -->
+  <div class="section">
+    <p class="section-heading">Repeatability Controls</p>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Environment</th>
+          <th>Run 1 conclusion</th>
+          <th>Run 2 conclusion</th>
+          <th>Repeatable</th>
+        </tr>
+      </thead>
+      <tbody id="rpt-controls-tbody"></tbody>
+    </table>
+  </div>
+
+  <!-- Model Proposals -->
+  <div class="section" id="rpt-proposals-section" style="display:none;">
+    <p class="section-heading">Model Proposals</p>
+    <div id="rpt-proposals-container"></div>
+  </div>
+
+  <!-- Intervention -->
+  <div class="section" id="rpt-intervention-section" style="display:none;">
+    <p class="section-heading">Controlled Intervention</p>
+    <div class="kv-grid" id="rpt-intervention-kv"></div>
+  </div>
+
+  <!-- Patch verification -->
+  <div class="section" id="rpt-patches-section" style="display:none;">
+    <p class="section-heading">Patch Verification</p>
+    <div id="rpt-patches-container"></div>
+  </div>
+
+  <!-- Replay instructions -->
+  <div class="section">
+    <p class="section-heading">Replay Instructions</p>
+    <pre class="replay-block" id="rpt-replay"></pre>
+  </div>
+
+  <!-- Limitations -->
+  <div class="section">
+    <p class="section-heading">Scope &amp; Limitations</p>
+    <ul class="limitations-list" id="rpt-limitations"></ul>
+  </div>
+
+  <!-- Export info -->
+  <div class="section">
+    <p class="section-heading">Export</p>
+    <div class="kv-grid" id="rpt-export-kv"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var invId = {{ investigation_id | tojson }};
+  var reportUrl = "/api/investigations/" + invId + "/report";
+
+  function t(text) { return document.createTextNode(String(text)); }
+  function el(tag, attrs, children) {
+    var e = document.createElement(tag);
+    if (attrs) Object.keys(attrs).forEach(function (k) { e.setAttribute(k, attrs[k]); });
+    if (children) children.forEach(function (c) { e.appendChild(typeof c === "string" ? t(c) : c); });
+    return e;
+  }
+  function setText(id, text) {
+    var node = document.getElementById(id);
+    if (node) node.textContent = String(text);
+  }
+  function show(id) {
+    var node = document.getElementById(id);
+    if (node) node.style.display = "";
+  }
+  function addKv(containerId, key, value) {
+    var c = document.getElementById(containerId);
+    if (!c) return;
+    c.appendChild(el("div", {"class": "kv-key"}, [key]));
+    c.appendChild(el("div", {"class": "kv-val"}, [String(value)]));
+  }
+  function badge(text, cls) {
+    return el("span", {"class": "badge " + cls}, [text]);
+  }
+
+  function renderReport(data) {
+    // Download button
+    document.getElementById("dl-json-btn").href = reportUrl;
+
+    // Meta line
+    setText("rpt-meta", "Investigation: " + data.investigation_id
+      + "  ·  Contract: " + (data.contract_hash || "").slice(0, 16) + "…"
+      + "  ·  " + (data.timestamp || ""));
+
+    // Verdict
+    setText("rpt-verdict", data.verdict || "unknown");
+    setText("rpt-scope", data.scope || "");
+
+    // Metadata kv
+    addKv("rpt-meta-kv", "Investigation ID", data.investigation_id || "—");
+    addKv("rpt-meta-kv", "Project", data.project_name || "—");
+    addKv("rpt-meta-kv", "Contract hash", data.contract_hash || "—");
+    addKv("rpt-meta-kv", "Timestamp", data.timestamp || "—");
+    addKv("rpt-meta-kv", "Schema version", data.schema_version || "—");
+
+    // Witness
+    if (data.witness) {
+      var w = data.witness;
+      var sig = (w.input_json || {}).signal || [];
+      addKv("rpt-witness-kv", "Signal", sig.join(", "));
+      addKv("rpt-witness-kv", "Input SHA-256", w.input_sha256 || "—");
+      addKv("rpt-witness-kv", "Old env conclusion", (w.old_run && w.old_run.conclusion) || "—");
+      addKv("rpt-witness-kv", "Old env ratio", (w.old_run && w.old_run.ratio !== null) ? String(w.old_run.ratio) : "—");
+      addKv("rpt-witness-kv", "Old env dtype", (w.old_run && w.old_run.intermediate_dtype) || "—");
+      addKv("rpt-witness-kv", "New env conclusion", (w.new_run && w.new_run.conclusion) || "—");
+      addKv("rpt-witness-kv", "New env ratio", (w.new_run && w.new_run.ratio !== null) ? String(w.new_run.ratio) : "—");
+      addKv("rpt-witness-kv", "New env dtype", (w.new_run && w.new_run.intermediate_dtype) || "—");
+      addKv("rpt-witness-kv", "Conclusion changed", String(w.conclusion_changed));
+    } else {
+      addKv("rpt-witness-kv", "Result", "No conclusion-changing input found within the search budget.");
+    }
+
+    // Controls
+    var tbody = document.getElementById("rpt-controls-tbody");
+    (data.controls || []).forEach(function (ctrl) {
+      var repeatable = ctrl.repeatability_confirmed;
+      tbody.appendChild(el("tr", null, [
+        el("td", null, [(ctrl.run1 && ctrl.run1.environment) || "—"]),
+        el("td", {"class": "kv-val"}, [(ctrl.run1 && ctrl.run1.conclusion) || "—"]),
+        el("td", {"class": "kv-val"}, [(ctrl.run2 && ctrl.run2.conclusion) || "—"]),
+        el("td", null, [repeatable ? "✓ Yes" : "✗ No"])
+      ]));
+    });
+
+    // Model proposals
+    var proposals = data.model_proposals || [];
+    if (proposals.length > 0) {
+      show("rpt-proposals-section");
+      var pc = document.getElementById("rpt-proposals-container");
+      proposals.forEach(function (p, i) {
+        var card = el("div", {"class": "proposal-card"}, []);
+        var header = el("div", {"class": "proposal-header"}, [
+          el("strong", null, ["Proposal " + (i + 1)]),
+          badge(p.is_mock ? "MOCK" : "LIVE", p.is_mock ? "badge-mock" : "badge-live"),
+          el("span", {"style": "color:var(--text-muted);font-size:12px;font-family:var(--font-mono);"}, [
+            "model: " + (p.model_id || "?")
+          ])
+        ]);
+        var text = el("pre", {"class": "proposal-text"}, [(p.response_text || "").slice(0, 600)]);
+        card.appendChild(header);
+        card.appendChild(text);
+        pc.appendChild(card);
+      });
+    }
+
+    // Intervention
+    if (data.intervention) {
+      show("rpt-intervention-section");
+      var intv = data.intervention;
+      var assessCls = intv.assessment === "supported" ? "badge-supported"
+                    : intv.assessment === "contradicted" ? "badge-contradicted"
+                    : "badge-inconclusive";
+      addKv("rpt-intervention-kv", "Kind", intv.kind || "—");
+      addKv("rpt-intervention-kv", "Assessment", intv.assessment || "—");
+      addKv("rpt-intervention-kv", "Prediction supported", String(intv.prediction_supported));
+      addKv("rpt-intervention-kv", "Old conclusion (patched)", (intv.old_run && intv.old_run.conclusion) || "—");
+      addKv("rpt-intervention-kv", "New conclusion (patched)", (intv.new_run && intv.new_run.conclusion) || "—");
+    }
+
+    // Patches
+    var patchResults = data.patch_results || [];
+    if (patchResults.length > 0) {
+      show("rpt-patches-section");
+      var patchCon = document.getElementById("rpt-patches-container");
+      patchResults.forEach(function (pr) {
+        var isPass = pr.verdict === "repair_passes_stated_checks";
+        var verdictCls = isPass ? "badge-pass"
+                       : pr.verdict === "inconclusive" ? "badge-not-run"
+                       : "badge-fail";
+        var card = el("div", {"class": "patch-card"}, []);
+        card.appendChild(el("div", {"style": "display:flex;gap:var(--sp-2);margin-bottom:var(--sp-3);"}, [
+          badge(pr.patch_kind || "?", "badge-mock"),
+          badge(pr.verdict || "?", verdictCls)
+        ]));
+        card.appendChild(el("p", {"style": "font-size:13px;color:var(--text-muted);"}, [pr.details || ""]));
+        if (pr.holdout_results && pr.holdout_results.length > 0) {
+          var tbl = el("table", {"class": "data-table"}, []);
+          tbl.appendChild(el("thead", null, [el("tr", null, [
+            el("th", null, ["#"]), el("th", null, ["Baseline OK"]),
+            el("th", null, ["Patched old"]), el("th", null, ["Patched new"]),
+            el("th", null, ["Status"])
+          ])]));
+          var tb = el("tbody", null, []);
+          pr.holdout_results.forEach(function (hr, i) {
+            var sc = hr.check_status === "pass" ? "badge-pass"
+                   : hr.check_status === "fail" ? "badge-fail" : "badge-not-run";
+            tb.appendChild(el("tr", null, [
+              el("td", null, [String(i)]),
+              el("td", null, [hr.conclusion_consistent ? "✓" : "✗"]),
+              el("td", {"class": "kv-val"}, [hr.patched_old_conclusion || "—"]),
+              el("td", {"class": "kv-val"}, [hr.patched_new_conclusion || "—"]),
+              el("td", null, [badge(hr.check_status || "?", sc)])
+            ]));
+          });
+          tbl.appendChild(tb);
+          card.appendChild(tbl);
+        }
+        patchCon.appendChild(card);
+      });
+    }
+
+    // Replay instructions
+    setText("rpt-replay", data.replay_instructions || "");
+
+    // Limitations
+    var limList = document.getElementById("rpt-limitations");
+    (data.limitations || []).forEach(function (lim) {
+      limList.appendChild(el("li", null, [lim]));
+    });
+
+    // Export kv
+    addKv("rpt-export-kv", "Export timestamp", data.export_timestamp || "—");
+    addKv("rpt-export-kv", "Schema version", data.schema_version || "—");
+    addKv("rpt-export-kv", "JSON download", reportUrl);
+
+    // Show report
+    document.getElementById("loading-msg").style.display = "none";
+    show("report-root");
+  }
+
+  fetch(reportUrl)
+    .then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    })
+    .then(renderReport)
+    .catch(function (err) {
+      document.getElementById("loading-msg").textContent =
+        "Failed to load report: " + err.message +
+        ". The investigation may still be running. Go back and wait for it to complete.";
+    });
+}());
+</script>
+{% endblock %}

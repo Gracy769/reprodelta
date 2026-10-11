@@ -1,0 +1,75 @@
+services:
+
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: replay
+      POSTGRES_PASSWORD: replay
+      POSTGRES_DB: replay
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U replay -d replay"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      RUNNER_MODE: worker_http
+    volumes:
+      - artifacts:/data/artifacts
+    depends_on:
+      db:
+        condition: service_healthy
+      worker-old:
+        condition: service_started
+      worker-new:
+        condition: service_started
+    networks:
+      - default
+      - runner_net
+    # Explicitly no Docker socket mount.
+
+  worker-old:
+    build:
+      context: .
+      dockerfile: Dockerfile.runner-old
+    restart: unless-stopped
+    networks:
+      - runner_net
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 512m
+    pids_limit: 64
+
+  worker-new:
+    build:
+      context: .
+      dockerfile: Dockerfile.runner-new
+    restart: unless-stopped
+    networks:
+      - runner_net
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 512m
+    pids_limit: 64
+
+volumes:
+  pgdata:
+  artifacts:
+
+networks:
+  runner_net:
+    internal: true

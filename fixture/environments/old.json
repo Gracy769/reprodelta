@@ -1,0 +1,10 @@
+{
+  "schema_version": "1",
+  "label": "numpy-1.26",
+  "python_version": "3.12",
+  "packages": [
+    {"name": "numpy", "version": "1.26.4"}
+  ],
+  "image_tag": "agent-replay-lab/worker-old:latest",
+  "description": "NumPy 1.26.4 environment — pre-NEP50 scalar promotion"
+}

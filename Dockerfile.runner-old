@@ -1,0 +1,17 @@
+FROM python:3.12-slim
+
+# Install numpy 1.26.4 (old environment) — stdlib only, no network, no secrets.
+RUN pip install --no-cache-dir numpy==1.26.4
+
+WORKDIR /runner
+
+COPY runner/entrypoint.py ./entrypoint.py
+COPY runner/server.py ./server.py
+COPY fixture/project/ /fixture/project/
+ENV FIXTURE_DIR=/fixture/project EXPECTED_RUNNER_KIND=old
+
+# Non-root user
+RUN useradd -m -u 1000 runner && chown -R runner:runner /runner /fixture/project
+USER runner
+
+CMD ["python", "server.py"]

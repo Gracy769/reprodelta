@@ -52,7 +52,7 @@ The Auth service URL and JWKS URL are supplied to the deployed API as
 `NEON_AUTH_BASE_URL` and `NEON_AUTH_JWKS_URL`. Local development can read those
 from an ignored `.env`; never commit Auth cookies, personal access tokens, or
 the app's `SECRET_KEY`. The deployment pins `AUTH_ALLOWED_ORIGIN` to
-`https://reprodelta.antideploy.app` for sign-in request validation; update it
+`https://reprodelta-lab.antideploy.app` for sign-in request validation; update it
 when changing the public address.
 
 ## Quick start (Docker)
@@ -103,7 +103,7 @@ included beside the assets in `app/static/api-docs/`. The project mark is a
 small SVG at `app/static/favicon.svg`, also used in the browser tab.
 
 The curated demo is configured for one Antideploy application at
-<https://reprodelta.antideploy.app>. The root `Dockerfile` starts two local HTTP
+<https://reprodelta-lab.antideploy.app>. The root `Dockerfile` starts two local HTTP
 workers in separate Python 3.12 virtual environments, pinned to NumPy 1.26.4
 and 2.0.2, and the FastAPI website on Antideploy's `PORT`. The workers run under
 different unprivileged users with a minimal environment and listen on loopback.
@@ -120,7 +120,7 @@ do not commit the file or include it in a deployment archive.
 To deploy a new version, follow <https://antideploy.com/agent.md> using the
 application ID in `.antideploy.json`, and upload the project archive excluding
 `.env`, `.git`, virtual environments, and caches. The Antideploy dashboard is
-<https://antideploy.com/app/11615d32-135e-4cb5-81e4-cfb0c583ee69>.
+<https://antideploy.com/app/19229ee6-89a2-4fda-a94a-ef605175f84b>.
 
 `NEBIUS_API_KEY` is deliberately absent from the deploy. Without it, the model
 proposal is labeled mock mode. When a live model is ready, add the key as an

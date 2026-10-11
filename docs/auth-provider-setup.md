@@ -15,10 +15,10 @@ Users connect GitHub or GitLab in the workspace after signing in.
    ask Antideploy to enable a custom GitHub provider for this Auth instance or
    to provide the matching Neon project access.
 2. In GitHub, open **Settings → Developer settings → OAuth Apps → New OAuth App**.
-   Name it ReproDelta. Use `https://reprodelta.antideploy.app` for the homepage.
+   Name it ReproDelta. Use `https://reprodelta-lab.antideploy.app` for the homepage.
    Use the exact callback `NEON_AUTH_BASE_URL + /callback/github`, including the
    `/neondb/auth` path. For the current instance this is
-   `https://ep-holy-tree-b32gw5c8.neonauth.c-4.ap-southeast-1.aws.neon.tech/neondb/auth/callback/github`.
+   `https://ep-square-waterfall-b3uff38x.neonauth.c-4.ap-southeast-1.aws.neon.tech/neondb/auth/callback/github`.
    Check the instance URL in Antideploy before saving in case it changed.
 3. Copy the GitHub Client ID and generate a Client Secret. In the **matching**
    Neon Console branch, open Auth → OAuth providers, enable GitHub, and save
@@ -26,7 +26,7 @@ Users connect GitHub or GitLab in the workspace after signing in.
    Git repository. Neon's CLI also documents
    `neon neon-auth oauth-provider add --provider-id github --oauth-client-id ... --oauth-client-secret ...`
    after selecting the correct project and branch.
-4. Ensure `https://reprodelta.antideploy.app` is a trusted Auth domain. Test
+4. Ensure `https://reprodelta-lab.antideploy.app` is a trusted Auth domain. Test
    GitHub sign-in in a fresh browser session, then test returning to the
    workspace after reload. GitHub sign-in does **not** automatically connect
    private repositories; use the workspace's limited read token flow.

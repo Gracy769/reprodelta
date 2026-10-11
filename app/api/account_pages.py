@@ -11,7 +11,7 @@ from app.config import get_settings
 router = APIRouter()
 
 
-def _context() -> dict[str, str | bool | None]:
+def _context() -> dict[str, object]:
     settings = get_settings()
     firebase_config = None
     if all((settings.firebase_api_key, settings.firebase_auth_domain,

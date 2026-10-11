@@ -45,7 +45,7 @@
           {% if gitlab_oauth_enabled %}<button type="button" class="social-button" data-provider="gitlab"><span class="provider-icon gitlab" aria-hidden="true">GL</span> Continue with GitLab <span aria-hidden="true">↗</span></button>{% endif %}
           <button type="button" class="social-button" data-provider="google" {% if not firebase_config and not auth_base_url %}disabled title="Google sign-in is being configured for this domain"{% endif %}><img class="provider-logo" src="/assets/google.svg" alt="" /> Continue with Google <span aria-hidden="true">↗</span></button>
         </div>
-        <p class="provider-note">GitHub grants access to your repositories so you can choose a change to inspect. {% if not firebase_config and not auth_base_url %}Google sign-in is being configured for this domain.{% endif %}{% if not auth_base_url %} Email sign-in is not available yet.{% endif %}</p>
+        <p class="provider-note">GitHub grants access to your repositories so you can choose a change to inspect. {% if not firebase_config and not auth_base_url %}Google and email sign-in are being configured for this domain.{% endif %}</p>
         <div class="divider"><span>or continue with email</span></div>
         <form id="account-form" novalidate>
           {% if mode == 'signup' %}<label for="name">Your name</label><input id="name" name="name" autocomplete="name" required maxlength="100" placeholder="Ada Lovelace" />{% endif %}
@@ -53,7 +53,7 @@
           <div class="password-label"><label for="password">Password</label></div>
           <div class="password-wrap"><input id="password" name="password" type="password" autocomplete="{{ 'new-password' if mode == 'signup' else 'current-password' }}" required minlength="8" placeholder="At least 8 characters" /><button type="button" id="toggle-password" aria-label="Show password">Show</button></div>
           {% if mode == 'signup' %}<p class="field-note">Use at least 8 characters. Keep this password unique to ReproDelta.</p>{% endif %}
-          <button id="submit-account" class="submit-button" type="submit" {% if not auth_base_url %}disabled title="Email sign-in is being configured for this domain"{% endif %}>{{ 'Create account' if mode == 'signup' else 'Sign in' }} <span aria-hidden="true">↗</span></button>
+          <button id="submit-account" class="submit-button" type="submit" {% if not firebase_config and not auth_base_url %}disabled title="Email sign-in is being configured for this domain"{% endif %}>{{ 'Create account' if mode == 'signup' else 'Sign in' }} <span aria-hidden="true">↗</span></button>
         </form>
         <p class="form-foot">Your connected source tokens stay server side and are encrypted. ReproDelta never runs repository code in the website process.</p>
       </div>

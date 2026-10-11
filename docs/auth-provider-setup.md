@@ -38,24 +38,25 @@ configured, GitLab sign-in returns a clear unavailable message; a signed-in
 user may still connect GitLab with a `read_api` personal token. The app encrypts
 GitLab refresh tokens and rotates them when access tokens expire.
 
-## Google with Firebase
+## Google and email with Firebase
 
 1. Create a Firebase project on the no-cost Spark plan and register a Web app.
    Spark does not require a payment method for Google Authentication.
-2. In **Authentication → Sign-in method**, enable Google. Add
+2. In **Authentication → Sign-in method**, enable Google and Email/Password. Add
    `reprodelta-web-production.up.railway.app` to **Authentication → Settings →
    Authorized domains**.
 3. In Railway's `reprodelta-web` service, set the Web app's public config fields
    as `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`, and
    `FIREBASE_APP_ID`. The API key is a public browser identifier, not an admin
    credential. Railway redeploys the app after variable changes.
-4. Test **Continue with Google** on `/signin`. The app uses a popup, verifies
-   the Firebase ID token server side, and stores a Secure, HttpOnly ReproDelta
-   session cookie. Then connect GitHub on `/workspace` to show repositories
-   without replacing that Google session.
+4. Test **Continue with Google** on `/signin`. The app uses a popup. Test
+   email sign-up by verifying the address from the email Firebase sends, then
+   signing in. The app verifies either Firebase ID token server side and stores
+   a Secure, HttpOnly ReproDelta session cookie. Then connect GitHub on
+   `/workspace` to show repositories without replacing that session.
 
-Email/password remains on the older managed Neon Auth bridge and is unavailable
-unless `NEON_AUTH_BASE_URL` and `NEON_AUTH_JWKS_URL` are configured.
+The older managed Neon Auth bridge remains as a fallback only when Firebase
+Web app variables are absent and `NEON_AUTH_BASE_URL` is configured.
 
 Sources: [GitHub OAuth web flow](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps),
 [GitHub OAuth scopes](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps),

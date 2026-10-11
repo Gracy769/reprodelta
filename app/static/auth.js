@@ -6,6 +6,37 @@
   const message = document.getElementById("auth-message");
   const submit = document.getElementById("submit-account");
   const firebaseConfig = document.getElementById("firebase-config");
+  const firebaseAuth = () => {
+    if (!firebaseConfig || !window.firebase?.auth) throw new Error("Firebase sign-in could not load. Refresh and try again.");
+    if (!firebase.apps.length) firebase.initializeApp(JSON.parse(firebaseConfig.textContent));
+    return firebase.auth();
+  };
+  async function exchangeFirebase(user) {
+    const idToken = await user.getIdToken(true);
+    const response = await fetch("/firebase/session", {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id_token: idToken }),
+    });
+    if (!response.ok) {
+      const detail = await response.json().catch(() => ({}));
+      throw new Error(detail.detail || "Sign-in could not be completed.");
+    }
+  }
+  function authError(error) {
+    const messages = {
+      "auth/popup-blocked": "Allow the Google sign-in popup and try again.",
+      "auth/unauthorized-domain": "Add this Railway domain in Firebase Authentication → Settings → Authorized domains.",
+      "auth/operation-not-allowed": "Enable this sign-in method in Firebase Authentication → Sign-in method.",
+      "auth/invalid-api-key": "Check that all four Firebase Web app settings in Railway come from the same project.",
+      "auth/email-already-in-use": "This email already has an account. Sign in instead.",
+      "auth/invalid-email": "Enter a valid email address.",
+      "auth/weak-password": "Choose a stronger password.",
+      "auth/invalid-credential": "The email or password is incorrect.",
+      "auth/too-many-requests": "Too many attempts. Wait a little and try again.",
+    };
+    return messages[error.code] || error.message || "Sign-in could not be completed.";
+  }
   function notice(text, good = false) {
     message.textContent = text;
     message.classList.toggle("success", good);
@@ -36,11 +67,34 @@
     submit.disabled = true;
     notice("Checking your account…", true);
     try {
+      if (firebaseConfig) {
+        const authClient = firebaseAuth();
+        if (mode === "signup") {
+          const result = await authClient.createUserWithEmailAndPassword(email, password);
+          await result.user.updateProfile({ displayName: name });
+          await result.user.sendEmailVerification({ url: window.location.origin + "/signin" });
+          await authClient.signOut();
+          notice("Account created. Check your email, verify your address, then sign in.", true);
+          submit.disabled = false;
+          return;
+        }
+        const result = await authClient.signInWithEmailAndPassword(email, password);
+        await result.user.reload();
+        if (!authClient.currentUser.emailVerified) {
+          await authClient.currentUser.sendEmailVerification({ url: window.location.origin + "/signin" });
+          await authClient.signOut();
+          throw new Error("Verify your email first. We sent a new verification link.");
+        }
+        await exchangeFirebase(authClient.currentUser);
+        await authClient.signOut().catch(() => {});
+        window.location.assign("/workspace");
+        return;
+      }
       const data = mode === "signup" ? { name, email, password } : { email, password };
       await auth(mode === "signup" ? "/sign-up/email" : "/sign-in/email", data);
       window.location.assign("/workspace");
     } catch (error) {
-      notice(error.message);
+      notice(authError(error));
       submit.disabled = false;
     }
   });
@@ -53,20 +107,10 @@
           return;
         }
         if (button.dataset.provider === "google" && firebaseConfig) {
-          if (!window.firebase?.auth) throw new Error("Google sign-in could not load. Refresh and try again.");
-          if (!firebase.apps.length) firebase.initializeApp(JSON.parse(firebaseConfig.textContent));
-          const result = await firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider());
-          const idToken = await result.user.getIdToken();
-          const exchanged = await fetch("/firebase/session", {
-            method: "POST", credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id_token: idToken }),
-          });
-          if (!exchanged.ok) {
-            const detail = await exchanged.json().catch(() => ({}));
-            throw new Error(detail.detail || "Google sign-in could not be completed.");
-          }
-          await firebase.auth().signOut().catch(() => {});
+          const authClient = firebaseAuth();
+          const result = await authClient.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+          await exchangeFirebase(result.user);
+          await authClient.signOut().catch(() => {});
           window.location.assign("/investigations/new");
           return;
         }
@@ -79,13 +123,9 @@
       } catch (error) {
         const provider = button.dataset.provider;
         const providerName = { github: "GitHub", gitlab: "GitLab", google: "Google" }[provider] || provider;
-        notice(error.code === "auth/popup-blocked" ? "Allow the Google sign-in popup and try again." :
-          error.code === "auth/unauthorized-domain" ? "Add this Railway domain in Firebase Authentication → Settings → Authorized domains." :
-          error.code === "auth/operation-not-allowed" ? "Enable Google under Firebase Authentication → Sign-in method." :
-          error.code === "auth/invalid-api-key" ? "Check that all four Firebase Web app settings in Railway come from the same project." :
-          error.message.includes("PROVIDER_NOT_SUPPORTED") || error.message.includes("not supported")
+        notice(error.message?.includes("PROVIDER_NOT_SUPPORTED") || error.message?.includes("not supported")
           ? `${providerName} sign-in needs provider activation. Choose another sign-in method for now.`
-          : error.message);
+          : authError(error));
         button.disabled = false;
       }
     });

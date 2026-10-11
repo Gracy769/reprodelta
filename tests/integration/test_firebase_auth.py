@@ -42,10 +42,16 @@ async def test_firebase_verifies_signature_project_and_google_provider(monkeypat
         return jwt.encode(payload, key, algorithm="RS256", headers={"kid": "test-key"})
 
     assert (await firebase_auth._verified_claims(signed(claims), "reprodelta-firebase"))["sub"] == "uid-123"
+    assert (await firebase_auth._verified_claims(
+        signed({**claims, "firebase": {"sign_in_provider": "password"}}),
+        "reprodelta-firebase",
+    ))["sub"] == "uid-123"
     with pytest.raises(HTTPException):
         await firebase_auth._verified_claims(signed(claims), "another-project")
     with pytest.raises(HTTPException):
-        await firebase_auth._verified_claims(signed({**claims, "firebase": {"sign_in_provider": "password"}}), "reprodelta-firebase")
+        await firebase_auth._verified_claims(signed({**claims, "email_verified": False}), "reprodelta-firebase")
+    with pytest.raises(HTTPException):
+        await firebase_auth._verified_claims(signed({**claims, "firebase": {"sign_in_provider": "anonymous"}}), "reprodelta-firebase")
 
 
 @pytest.mark.asyncio

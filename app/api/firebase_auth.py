@@ -1,4 +1,4 @@
-"""Exchange a verified Firebase Google identity for a ReproDelta session."""
+"""Exchange a verified Firebase identity for a ReproDelta session."""
 
 from __future__ import annotations
 
@@ -59,8 +59,8 @@ async def _verified_claims(token: str, project_id: str) -> dict:
         )
         if not claims["sub"] or claims.get("email_verified") is not True:
             raise ValueError("Unverified identity")
-        if claims.get("firebase", {}).get("sign_in_provider") != "google.com":
-            raise ValueError("Google sign-in required")
+        if claims.get("firebase", {}).get("sign_in_provider") not in {"google.com", "password"}:
+            raise ValueError("Unsupported sign-in provider")
         if not isinstance(claims["auth_time"], int) or claims["auth_time"] > time.time():
             raise ValueError("Invalid authentication time")
         return claims

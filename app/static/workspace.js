@@ -44,6 +44,8 @@
     card.querySelector(".source-account").textContent = connected?.account_name || "";
     card.querySelector(".source-account").hidden = !connected;
     card.querySelector(".connect-form").hidden = Boolean(connected);
+    const oauthLink = card.querySelector(".oauth-source-link");
+    if (oauthLink) oauthLink.hidden = Boolean(connected);
     card.querySelector(".disconnect").hidden = !connected;
   }
   async function loadConnections() {

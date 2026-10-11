@@ -11,7 +11,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi import HTTPException
 
-from app.api import auth_bridge, connections
+from app.api import auth_bridge, connections, source_oauth
 from app.main import app
 
 
@@ -31,6 +31,40 @@ async def test_account_pages_expose_real_forms_and_assets():
     assert "Connect GitHub" in workspace.text
     assert "never sent to the runner" in workspace.text
     assert css.status_code == js.status_code == 200
+    assert '/assets/github.svg' in signup.text
+    assert '/assets/google.svg' in signup.text
+
+
+@pytest.mark.asyncio
+async def test_source_oauth_requires_configuration_and_rejects_state_mismatch(monkeypatch):
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="https://reprodelta.example") as client:
+        missing = await client.get("/oauth/github/start", follow_redirects=False)
+    assert missing.status_code == 503
+
+    monkeypatch.setattr(source_oauth, "get_settings", lambda: SimpleNamespace(
+        github_oauth_client_id="id", github_oauth_client_secret="secret",
+        gitlab_oauth_client_id=None, gitlab_oauth_client_secret=None,
+        secret_key="test-secret-that-is-long-enough-for-hs256", app_url="https://reprodelta.example",
+    ))
+    async with httpx.AsyncClient(transport=transport, base_url="https://reprodelta.example") as client:
+        started = await client.get("/oauth/github/start?next=/investigations/new", follow_redirects=False)
+        mismatched = await client.get("/oauth/github/callback?code=unused&state=wrong", follow_redirects=False)
+    assert started.status_code == 303
+    assert "github.com/login/oauth/authorize" in started.headers["location"]
+    assert "HttpOnly" in started.headers["set-cookie"]
+    assert mismatched.status_code == 400
+
+
+def test_first_party_source_jwt_has_scoped_identity(monkeypatch):
+    monkeypatch.setattr(connections, "get_settings", lambda: SimpleNamespace(
+        secret_key="test-secret-that-is-long-enough-for-hs256", neon_auth_base_url=None, neon_auth_jwks_url=None,
+    ))
+    token = jwt.encode({"sub": "github:123", "iss": "reprodelta", "aud": "reprodelta",
+                        "exp": datetime.now(UTC) + timedelta(minutes=5)}, "test-secret-that-is-long-enough-for-hs256", algorithm="HS256")
+    assert connections.current_user("Bearer " + token) == "github:123"
+    with pytest.raises(HTTPException):
+        connections.current_user("Bearer " + token + "tampered")
 
 
 @pytest.mark.asyncio

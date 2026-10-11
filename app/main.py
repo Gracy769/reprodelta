@@ -16,6 +16,7 @@ from app.api.health import router as health_router
 from app.api.investigations import router as investigations_router
 from app.api.pages import router as pages_router
 from app.api.pages import templates
+from app.api.source_oauth import router as source_oauth_router
 from app.config import get_settings
 
 
@@ -56,6 +57,7 @@ def create_app() -> FastAPI:
     app.include_router(pages_router)
     app.include_router(account_pages_router)
     app.include_router(auth_bridge_router)
+    app.include_router(source_oauth_router)
     app.include_router(connections_router)
 
     @app.get("/docs", response_class=HTMLResponse, include_in_schema=False)

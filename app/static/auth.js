@@ -47,6 +47,10 @@
     button.addEventListener("click", async () => {
       button.disabled = true;
       try {
+        if (button.dataset.provider === "github") {
+          window.location.assign("/oauth/github/start?next=/investigations/new");
+          return;
+        }
         const result = await auth("/sign-in/social", {
           provider: button.dataset.provider,
           callbackURL: window.location.origin + "/workspace",

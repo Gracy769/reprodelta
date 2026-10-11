@@ -6,7 +6,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends util-linux \
     && rm -rf /var/lib/apt/lists/*
 
-# Antideploy runs one container. Each curated NumPy environment gets its own
+# The hosted service runs one container. Each curated NumPy environment gets its own
 # interpreter and an unprivileged worker process inside that container.
 RUN python -m venv /opt/worker-old \
     && /opt/worker-old/bin/pip install --no-cache-dir numpy==1.26.4 \
@@ -26,7 +26,6 @@ RUN pip install --no-cache-dir . \
     && chmod -R a+rX /app
 
 ENV RUNNER_MODE=worker_http \
-    AUTH_ALLOWED_ORIGIN=https://reprodelta-lab.antideploy.app \
     WORKER_OLD_URL=http://127.0.0.1:9001/run \
     WORKER_NEW_URL=http://127.0.0.1:9002/run \
     INVESTIGATION_STORE=postgres \

@@ -2,7 +2,7 @@
   const root = document.getElementById("workspace-root");
   const base = root.dataset.authBase?.replace(/\/$/, "");
   const alertBox = document.getElementById("workspace-alert");
-  const state = { jwt: null, repositories: [], currentRepo: null, currentChange: null };
+  const state = { jwt: null, repositories: [], currentRepo: null, currentChange: null, filter: "all" };
   const $ = (id) => document.getElementById(id);
   const show = (message, success = false) => {
     alertBox.textContent = message;
@@ -65,14 +65,14 @@
   function renderRepos() {
     const list = $("repo-list"); clear(list);
     const query = $("repo-search").value.toLowerCase().trim();
-    const filtered = state.repositories.filter((repo) => repo.name.toLowerCase().includes(query));
-    $("repo-count").textContent = `${filtered.length} shown${state.repositories.length >= 100 ? " · first 100 per source" : ""}`;
+    const filtered = state.repositories.filter((repo) => repo.name.toLowerCase().includes(query) && (state.filter === "all" || Boolean(repo[state.filter])));
+    $("repo-count").textContent = `${filtered.length} shown${state.repositories.length >= 100 ? " · first 100 owned and starred per source" : ""}`;
     if (!filtered.length) { empty(list, state.repositories.length ? "No repositories match your filter." : "Connect GitHub or GitLab to see your repositories."); return; }
     for (const repo of filtered) {
       const button = document.createElement("button"); button.type = "button"; button.className = "repo-item";
       button.setAttribute("aria-selected", String(state.currentRepo?.provider === repo.provider && state.currentRepo?.key === repo.key));
       const body = document.createElement("span"); const name = document.createElement("strong"); name.textContent = repo.name;
-      const details = document.createElement("small"); details.textContent = `${repo.provider.toUpperCase()} · ${repo.description || "No description"}`;
+      const details = document.createElement("small"); details.textContent = `${repo.provider.toUpperCase()} · ${repo.fork ? "Fork · " : ""}${repo.starred ? "Starred · " : ""}${repo.description || "No description"}`;
       body.append(name, details); const pill = document.createElement("span"); pill.className = "pill"; pill.textContent = repo.private ? "PRIVATE" : "PUBLIC";
       button.append(body, pill); button.addEventListener("click", () => selectRepo(repo)); list.append(button);
     }
@@ -80,6 +80,17 @@
   async function selectRepo(repo) {
     state.currentRepo = repo; state.currentChange = null; $("review-change").disabled = true; $("advice-card").hidden = true;
     renderRepos(); empty($("change-list"), "Loading open changes…");
+    empty($("issue-list"), "Loading open issues…");
+    api(`/${repo.provider}/issues?repository=${encodeURIComponent(repo.key)}`).then((result) => {
+      if (state.currentRepo !== repo) return;
+      const list = $("issue-list"); clear(list);
+      if (!result.issues.length) { empty(list, "No open issues in this repository."); return; }
+      for (const issue of result.issues) {
+        const link = document.createElement("a"); link.className = "change-item"; link.href = issue.url;
+        link.target = "_blank"; link.rel = "noopener noreferrer";
+        link.textContent = `#${issue.number} ${issue.title} ↗`; list.append(link);
+      }
+    }).catch((error) => { if (state.currentRepo === repo) empty($("issue-list"), error.message); });
     try {
       const result = await api(`/${repo.provider}/changes?repository=${encodeURIComponent(repo.key)}`);
       if (state.currentRepo !== repo) return;
@@ -113,6 +124,11 @@
     finally { $("review-change").disabled = false; }
   });
   $("repo-search").addEventListener("input", renderRepos);
+  document.querySelectorAll(".repo-filter").forEach((button) => button.addEventListener("click", () => {
+    state.filter = button.dataset.filter;
+    document.querySelectorAll(".repo-filter").forEach((item) => item.setAttribute("aria-pressed", String(item === button)));
+    renderRepos();
+  }));
   document.querySelectorAll("[data-source]").forEach((card) => {
     const provider = card.dataset.source;
     card.querySelector("form").addEventListener("submit", async (event) => {
@@ -130,14 +146,26 @@
     });
   });
   $("signout").addEventListener("click", async () => {
+    if (state.jwt) {
+      await fetch("/oauth/signout", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" } }).catch(() => {});
+    }
     try { await account("/sign-out", { method: "POST" }); } catch { /* Always leave the workspace. */ }
-    try { await fetch(base + "/sign-out", { method: "POST", credentials: "include" }); } catch { /* Social cookies may be unavailable. */ }
+    if (base) try { await fetch(base + "/sign-out", { method: "POST", credentials: "include" }); } catch { /* Social cookies may be unavailable. */ }
     window.location.assign("/signin");
   });
   async function start() {
     try {
+      const oauth = await fetch("/oauth/session", { credentials: "include" }).then((response) => response.ok ? response.json() : null).catch(() => null);
+      if (oauth?.user && oauth?.token) {
+        $("workspace-user").textContent = `${oauth.user.name} · ${oauth.user.provider}`;
+        $("signout").hidden = false;
+        $("workspace-loading").hidden = true; $("workspace-content").hidden = false;
+        state.jwt = oauth.token;
+        await loadConnections();
+        return;
+      }
       const session = await account("/get-session");
-      if (!session?.user) { window.location.replace("/signin"); return; }
+      if (!session?.user) { $("workspace-loading").hidden = true; $("workspace-signin").hidden = false; return; }
       $("workspace-user").textContent = session.user.name || session.user.email || "Signed in";
       $("signout").hidden = false;
       $("workspace-loading").hidden = true; $("workspace-content").hidden = false;
@@ -147,7 +175,7 @@
         state.jwt = token.token;
         await loadConnections();
       } catch (error) { show(`${error.message} Repository connections are unavailable until the account service issues a token.`); }
-    } catch (error) { $("workspace-loading").textContent = error.message; }
+    } catch (error) { $("workspace-loading").hidden = true; $("workspace-signin").hidden = false; }
   }
   start();
 })();

@@ -68,11 +68,19 @@ def _jwks_client(url: str) -> PyJWKClient:
 
 def current_user(authorization: Annotated[str | None, Header()] = None) -> str:
     settings = get_settings()
-    if not settings.neon_auth_base_url or not settings.neon_auth_jwks_url:
-        raise HTTPException(503, "Sign-in is not configured")
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(401, "Sign in to continue")
     token = authorization[7:]
+    if getattr(settings, "secret_key", None) not in {None, "change-me-in-production"}:
+        try:
+            claims = jwt.decode(token, settings.secret_key, algorithms=["HS256"], issuer="reprodelta", audience="reprodelta")
+            subject = claims.get("sub")
+            if isinstance(subject, str) and subject.startswith(("github:", "gitlab:")):
+                return subject
+        except jwt.PyJWTError:
+            pass
+    if not settings.neon_auth_base_url or not settings.neon_auth_jwks_url:
+        raise HTTPException(401, "Session expired; sign in again")
     try:
         key = _jwks_client(settings.neon_auth_jwks_url).get_signing_key_from_jwt(token)
         claims = jwt.decode(
@@ -205,12 +213,27 @@ async def repositories(provider: str, owner_id: Annotated[str, Depends(current_u
                 "id": item["id"],
                 "name": item["full_name"],
                 "private": item["private"],
+                "fork": item.get("fork", False),
+                "starred": False,
                 "url": item["html_url"],
                 "description": item.get("description"),
                 "updated_at": item.get("updated_at"),
             }
             for item in data
         ]
+        stars = await _host_get(provider, token, "/user/starred", {"per_page": 100})
+        seen = {item["id"] for item in items}
+        star_ids = {item["id"] for item in stars}
+        for item in items:
+            item["starred"] = item["id"] in star_ids
+        items.extend(
+            {
+                "id": item["id"], "name": item["full_name"], "private": item["private"],
+                "fork": item.get("fork", False), "starred": True, "url": item["html_url"],
+                "description": item.get("description"), "updated_at": item.get("updated_at"),
+            }
+            for item in stars if item["id"] not in seen
+        )
     else:
         data = await _host_get(
             provider,
@@ -223,6 +246,8 @@ async def repositories(provider: str, owner_id: Annotated[str, Depends(current_u
                 "id": item["id"],
                 "name": item["path_with_namespace"],
                 "private": item.get("visibility") == "private",
+                "fork": bool(item.get("forked_from_project")),
+                "starred": item.get("starred", False),
                 "url": item["web_url"],
                 "description": item.get("description"),
                 "updated_at": item.get("last_activity_at"),
@@ -270,6 +295,28 @@ async def changes(provider: str, repository: str, owner_id: Annotated[str, Depen
             for item in data
         ]
     return {"changes": items, "has_more": len(data) == 50}
+
+
+@router.get("/{provider}/issues")
+async def issues(provider: str, repository: str, owner_id: Annotated[str, Depends(current_user)]):
+    token = _saved_token(owner_id, provider)
+    if provider == "github":
+        repository = _github_repository(repository)
+        data = await _host_get(provider, token, f"/repos/{repository}/issues", {"state": "open", "per_page": 50})
+        data = [item for item in data if "pull_request" not in item]
+    else:
+        if not repository.isdigit():
+            raise HTTPException(422, "Invalid project ID")
+        data = await _host_get(provider, token, f"/projects/{repository}/issues", {"state": "opened", "per_page": 50})
+    return {
+        "issues": [
+            {"number": item["number"] if provider == "github" else item["iid"],
+             "title": item["title"], "url": item["html_url"] if provider == "github" else item["web_url"],
+             "updated_at": item.get("updated_at")}
+            for item in data
+        ],
+        "scope": "First 50 open issues; issues are metadata and are not executed.",
+    }
 
 
 @router.get("/{provider}/advice")

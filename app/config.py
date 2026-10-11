@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     neon_auth_jwks_url: str | None = None
     app_url: str | None = None
     auth_allowed_origin: str | None = None
+    github_oauth_client_id: str | None = None
+    github_oauth_client_secret: str | None = None
+    gitlab_oauth_client_id: str | None = None
+    gitlab_oauth_client_secret: str | None = None
 
     # Logging
     log_level: str = "INFO"

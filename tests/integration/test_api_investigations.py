@@ -241,10 +241,13 @@ async def test_investigations_new_is_html(app_with_local_runner):
     assert "text/html" in response.headers["content-type"]
 
 
-async def test_investigations_new_contains_contract_info(app_with_local_runner):
+async def test_demo_and_new_investigation_are_separate(app_with_local_runner):
     async with AsyncClient(
         transport=ASGITransport(app=app_with_local_runner), base_url="http://test"
     ) as client:
         response = await client.get("/investigations/new")
-    text = response.text
-    assert "contract" in text.lower() or "signal" in text.lower()
+        demo = await client.get("/demo/investigation")
+    assert "Choose your change" in response.text
+    assert "Sign in to choose a repository" in response.text
+    assert "Signal Classifier" not in response.text
+    assert "Signal Classifier" in demo.text

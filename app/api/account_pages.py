@@ -11,8 +11,12 @@ from app.config import get_settings
 router = APIRouter()
 
 
-def _context() -> dict[str, str | None]:
-    return {"auth_base_url": get_settings().neon_auth_base_url}
+def _context() -> dict[str, str | bool | None]:
+    settings = get_settings()
+    return {
+        "auth_base_url": settings.neon_auth_base_url,
+        "gitlab_oauth_enabled": bool(settings.gitlab_oauth_client_id and settings.gitlab_oauth_client_secret),
+    }
 
 
 @router.get("/signup", response_class=HTMLResponse, include_in_schema=False)

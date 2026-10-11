@@ -17,45 +17,28 @@ repair against frozen independent cases.
 
 ## Accounts and source connections
 
-`/signup` and `/signin` are custom ReproDelta pages. Antideploy's managed Neon
-Auth supplies email/password and Google sign-in; account passwords are never
-handled by the ReproDelta API. The source-host workspace is at `/workspace`.
-The narrow `/auth/` bridge forwards email and social sign-in, sign-up,
-sign-out, session, and JWT requests to Neon Auth so their HttpOnly cookies
-remain on the site's origin. The Google redirect's one-time verifier is
-exchanged server-side before sending the user to `/workspace`.
-It obtains a short-lived JWT from Neon Auth and the API verifies its signature,
-issuer, audience, expiry, and subject against `NEON_AUTH_JWKS_URL` before reading
-the user's source connections. The Auth instance must trust the site's origin.
+`/investigations/new` is the signed-in source picker. Without a source session,
+it offers GitHub and GitLab sign-in. With a source session, it lists accessible
+repositories (including private, forked, and starred GitHub repositories), open
+PRs or merge requests, and open issues. The fixed, executable NumPy contract is
+at `/demo/investigation`. Selecting a repository only reads metadata and a
+bounded diff: **Get scoped advice** checks at most 100 changed files and never
+executes that repository or claims a replay verdict on it.
 
-GitHub social **sign-in** needs an OAuth application and activation in the
-managed Auth project. Antideploy currently lists managed social login as
-planned, so the OAuth application alone cannot enable this button on its
-provisioned Auth instance. Managed Neon Auth does not list GitLab among its
-configurable OAuth providers, so the site does not offer GitLab sign-in.
-See [provider setup](docs/auth-provider-setup.md). A user who signs in with
-Google or email can connect
-GitHub with a fine-grained token limited to repository metadata and pull
-request read access, or GitLab with a `read_api` token. ReproDelta verifies the
-token with that host, encrypts it with a key derived from `SECRET_KEY`, stores it
-in Postgres by Auth user ID, and never returns it to the browser. Disconnect
-deletes the saved token. Rotating `SECRET_KEY` invalidates saved connections.
+First-party GitHub and GitLab OAuth use a short-lived state challenge, an
+HttpOnly session cookie, and server-side encrypted token storage in Postgres.
+Configure `APP_URL`, `SECRET_KEY`, and provider OAuth client variables to enable
+them. GitHub OAuth Apps require the broad `repo` scope to show private repos;
+ReproDelta itself makes read requests only. A fine-grained GitHub token remains
+available when users prefer repository-limited access. GitLab requests
+`read_api`. See [provider setup](docs/auth-provider-setup.md).
 
-The workspace lists up to 100 repositories per source and up to 50 open PRs or
-merge requests in the selected repository. **Get scoped advice** reads at most
-100 changed files, detects dependency manifests and NumPy references, and
-reports the checked scope. It does **not** run repository code or claim a
-verdict on the selected PR. The only executable investigation remains the
-reviewed NumPy fixture under `/investigations/new`. Supporting arbitrary
-repositories requires the isolation and contract-approval gates in
-[`docs/security.md`](docs/security.md).
-
-The Auth service URL and JWKS URL are supplied to the deployed API as
-`NEON_AUTH_BASE_URL` and `NEON_AUTH_JWKS_URL`. Local development can read those
-from an ignored `.env`; never commit Auth cookies, personal access tokens, or
-the app's `SECRET_KEY`. The deployment pins `AUTH_ALLOWED_ORIGIN` to
-`https://reprodelta-lab.antideploy.app` for sign-in request validation; update it
-when changing the public address.
+The existing managed Neon bridge can still supply email/password and Google
+sign-in when `NEON_AUTH_BASE_URL`, `NEON_AUTH_JWKS_URL`, and an allowed origin
+are configured for the public domain. Those options are not enabled by the new
+Railway project's GitHub connection. Never commit OAuth secrets, source tokens,
+Auth cookies, or `SECRET_KEY`. Rotating `SECRET_KEY` invalidates source sessions
+and encrypted source connections.
 
 ## Quick start (Docker)
 
@@ -73,7 +56,7 @@ open http://localhost:8000
 
 **Demo flow:**
 
-1. Open `http://localhost:8000` → click **Start Demo Investigation**
+1. Open `http://localhost:8000/demo/investigation`
 2. Review the signal classifier contract → click **Approve and Start**
 3. Watch live progress: controls → search → reduction → intervention → repair
 4. Inspect the evidence page — witness, model explanation, intervention result,
@@ -94,7 +77,18 @@ python -m uvicorn app.main:app --reload --port 8000
 # Open http://localhost:8000
 ```
 
-## Antideploy
+## Railway
+
+The Railway project is linked to the GitHub repository and deploys from `main`.
+It uses the root Dockerfile, a Postgres service, and a generated public domain.
+The Dockerfile runs the reviewed NumPy fixture in two pinned worker environments
+and serves FastAPI on Railway's `PORT`. Set the application variables as described
+in [Railway deployment](docs/railway-deployment.md). New commits to `main` trigger
+a deployment through Railway's GitHub integration. No local Docker installation
+is required. The Railway workspace SSH key permits access to a running service;
+it does not authenticate deployments.
+
+## Previous Antideploy deployment
 
 The interactive API reference at `/docs` and the alternate `/redoc` view
 serve their JavaScript and CSS from this application. This keeps both pages

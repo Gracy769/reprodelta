@@ -1,0 +1,43 @@
+# ReproDelta: next implementation phase prompt
+
+Use this prompt with a coding agent that can run `gh.exe`, Docker, Python, and the test suite.
+
+## Prompt
+
+You are continuing **ReproDelta**, a web workbench that investigates whether a Python dependency upgrade changes a declared scientific conclusion. Implement the next phase in the existing repository. Work from the code and evidence; do not rebuild the project from scratch or describe proposed features as implemented.
+
+### Get the repository and establish the baseline
+
+1. Run `gh.exe repo clone Gracy769/reprodelta` if the repository is not already present. Run `gh.exe pr list --repo Gracy769/reprodelta --state open` and inspect the current branch and worktree. If the ReproDelta rename PR is still open, wait for it to merge or deliberately base new work on that branch; do not start from an older default branch and lose the rename. Once the rename is on the default branch, start a new implementation branch from it and open a PR. Never overwrite unrelated local changes.
+2. Read `AGENTS.md`, `README.md`, `docs/product-requirements.md`, `docs/source-architecture.md`, `docs/security.md`, `docs/database.md`, `docs/testing.md`, `docs/agents.md`, and the relevant code before editing. Check the current PR and CI status. Use the real code as the implementation baseline; the documents include proposed targets.
+3. Reproduce the baseline: run the Python tests and Ruff, build the Python package, and run `docker compose config`. Record the exact versions and failures. On a Docker-capable machine, run `docker compose up --build` from a fresh checkout with `.env` copied from `.env.example` and `NEBIUS_API_KEY` blank. Do not claim Docker passed without running it.
+
+### Goal
+
+Make the **curated NumPy 1.26.4 → 2.0.2 demonstration** durable, honest, and repeatable from a clean clone. A reviewer should approve the contract, start an investigation, watch real progress, inspect a witness and intervention, see an independently checked repair, export evidence, restart the app, and still retrieve that evidence. Keep the scope to the curated fixture. Do not add arbitrary repository upload, multi-tenant hosting, GPU workflows, or general dependency migration in this phase.
+
+### Known gaps to resolve, in priority order
+
+**1. Complete the real Docker path.** The previous review verified `fixture/project/run.py` directly under both NumPy versions and added an HTTP worker transport, but could not run Docker locally. Build and run the whole Compose stack. Confirm the browser journey and API use the pinned old/new workers, not the local simulation. Assert the old witness result is `above_threshold` with a float64 intermediate under NumPy 1.26.4 and the new result is `below_threshold` with a float32 intermediate under NumPy 2.0.2. Check worker readiness, timeouts, memory/process limits, candidate hashes, missing worker behavior, and shutdown. Workers must receive no Nebius key or database credentials. Record the actual image identifiers and resolved runtime versions in evidence. Treat the internal network as an explicit trust boundary; do not claim a stronger isolation guarantee than tested.
+
+**2. Persist the investigation, contract approval, events, and evidence.** `app/api/investigations.py` currently stores all state in dictionaries and launches a process-local background task. The repository already has SQLAlchemy models, Alembic migrations, and an artifact store; inspect and reconcile those rather than adding another parallel schema. Use transactional state transitions and append-only events. Freeze the approved contract hash, input hashes, environment manifests, and holdout commitment for each investigation. Persist report data so a restart does not erase completed work. Handle interrupted runs explicitly as failed or resumable; never silently present stale work as completed. The API must show the same investigation and report after an API restart. Keep a single trusted demo operator for now; no public uploads.
+
+**3. Make progress and failure states truthful.** The current stream mostly repeats a status and gets evidence at the end. Emit meaningful stage events and counts for preflight, repeatability controls, search, reduction, explanation, intervention, repair, and report assembly. Show attempted, rejected, and executed candidates separately; show remaining budget. A failed control, hash mismatch, unavailable worker, or exhausted budget must produce the appropriate setup failure or inconclusive result and stop unsupported downstream claims. Add cancellation only if it can actually stop pending worker/model work and persist the resulting state. Update the web UI so it exposes these states clearly.
+
+**4. Replace the fixture-only repair claim with an actual bounded patch check.** Today the model returns patch text while `verify_patch` executes predefined `_mode` variants. Keep those variants as labeled regression fixtures, but add a separate path for a proposed source patch: accept a narrowly structured diff to the allowlisted `fixture/project/pipeline.py`, validate paths and hunks, reject edits to tests/contracts/holdouts/lockfiles/runner policy, and apply the patch only in an isolated disposable project copy inside the worker. Commit the holdout set before requesting a patch and keep its contents out of model prompts. Run the patched project in both pinned environments on the witness and frozen holdouts; record stdout, exit status, hashes, resource use, and per-case verdict. A proposal that cannot be parsed, applied, or verified is inconclusive, not a successful repair. Do not execute model-generated code in the API process. Preserve the current predefined good and overfitted patches as controls to prove the verifier rejects a bad repair.
+
+**5. Verify the real Nebius path without making it a demo prerequisite.** The blank key must remain an explicitly labeled mock mode. With a valid key supplied locally, discover or confirm an available Nemotron model through Nebius Token Factory, make one real request, record model ID, request digest, prompt version, response status, and whether the proposal passed validation. Do not log the key or send holdouts. Surface provider failures in the investigation rather than swallowing them. A failed model call may leave the numeric observation intact, but its explanation or repair must be marked unavailable. Never mark a canned response as a live call.
+
+**6. Produce a reproducible evidence export.** Fix replay commands so they work from a clean checkout on Windows and a POSIX shell without modifying one environment in place. Include exact old/new environment identifiers, source and input digests, approved contract digest, observed numeric values, run IDs, repeatability results, proposal provenance, patch digest, holdout commitment, and limitations. If a value was simulated, say so. The report should distinguish observed drift, supported conclusion change, mechanism evidence, and repair passing stated checks. It must not emit a global safety claim.
+
+### Verification and delivery
+
+- Add behavior tests for the new persistence and patch boundary: restart recovery, immutable approval, worker failure, hash mismatch, failed controls, budget exhaustion, wrong patch rejection, and accepted patch replay. Run focused tests during development and the full suite at the end.
+- From a clean checkout, run the complete Docker demo at least twice and export a report each time. Show evidence that the paired results came from actual NumPy 1.26.4 and 2.0.2 workers. If Docker is unavailable, finish independent work and report the unverified gate plainly.
+- Run migrations on a fresh database and verify restart retrieval. Run Ruff and package build. Do not state a test count or live-provider result without measuring it.
+- Update `README.md`, `AGENTS.md`, product and security docs wherever implementation differs. Keep claims about isolation, persistence, and model-driven repair aligned with what actually works. Provide a short operator runbook with exact commands, expected output, and failure recovery.
+- Commit and push the changes, create or update a PR for the implementation branch, and report: what changed, test results, Docker result, a sample evidence path, unresolved risks, and the next smallest step. Do not merge or publish the private repository without explicit user direction.
+
+### Definition of done
+
+A clean-clone Docker run can complete the curated investigation, show real versioned outputs, survive an API restart with the same evidence, and independently verify a constrained patch against precommitted holdouts. The UI and exported report tell the same bounded story, including any unavailable model call or failed check.

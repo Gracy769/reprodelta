@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM models for all Agent Replay Lab tables."""
+"""SQLAlchemy ORM models for all ReproDelta tables."""
 
 from __future__ import annotations
 

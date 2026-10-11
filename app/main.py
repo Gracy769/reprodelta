@@ -1,4 +1,4 @@
-"""FastAPI application factory for Agent Replay Lab."""
+"""FastAPI application factory for ReproDelta."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
 
     app = FastAPI(
-        title="Agent Replay Lab",
+        title="ReproDelta",
         version=settings.app_version,
         description="Investigates conclusion changes across Python dependency upgrades.",
         docs_url="/docs",

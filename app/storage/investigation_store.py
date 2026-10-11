@@ -15,6 +15,7 @@ State machine (enforced on write):
 
 Events are append-only with monotonic sequence numbers.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -180,13 +181,15 @@ class MemoryInvestigationStore(InvestigationStore):
         with self._lock:
             events = self._events.setdefault(investigation_id, [])
             seq = len(events)
-            events.append({
-                "sequence": seq,
-                "actor": actor,
-                "event_type": event_type,
-                "payload": payload or {},
-                "occurred_at": datetime.now(UTC).isoformat(),
-            })
+            events.append(
+                {
+                    "sequence": seq,
+                    "actor": actor,
+                    "event_type": event_type,
+                    "payload": payload or {},
+                    "occurred_at": datetime.now(UTC).isoformat(),
+                }
+            )
 
     def store_report(
         self,
@@ -354,13 +357,16 @@ class FileSystemInvestigationStore(InvestigationStore):
         if state is not None and state.get("status") == "running":
             state["status"] = "interrupted"
             self._write_state(investigation_id, state)
-            self._append_event_raw(investigation_id, {
-                "sequence": self._next_seq(investigation_id),
-                "actor": "system",
-                "event_type": "investigation_interrupted",
-                "payload": {"reason": "process_restart"},
-                "occurred_at": datetime.now(UTC).isoformat(),
-            })
+            self._append_event_raw(
+                investigation_id,
+                {
+                    "sequence": self._next_seq(investigation_id),
+                    "actor": "system",
+                    "event_type": "investigation_interrupted",
+                    "payload": {"reason": "process_restart"},
+                    "occurred_at": datetime.now(UTC).isoformat(),
+                },
+            )
 
     def _next_seq(self, investigation_id: str) -> int:
         p = self._events_path(investigation_id)
@@ -441,7 +447,10 @@ class FileSystemInvestigationStore(InvestigationStore):
             if existing_json.exists() or existing_text.exists():
                 if not existing_json.exists() or not existing_text.exists():
                     raise RuntimeError("Incomplete stored report")
-                if json.loads(existing_json.read_text(encoding="utf-8")) != report_json or existing_text.read_text(encoding="utf-8") != report_text:
+                if (
+                    json.loads(existing_json.read_text(encoding="utf-8")) != report_json
+                    or existing_text.read_text(encoding="utf-8") != report_text
+                ):
                     raise ValueError("Final report is immutable")
                 return
             self._write_atomic(
@@ -465,7 +474,8 @@ class FileSystemInvestigationStore(InvestigationStore):
             "project_id": state["project_id"],
             "status": state["status"],
             "budget_json": state.get("budget_json", {}),
-            "report_available": state["status"] == "completed" and self._report_path(investigation_id).exists(),
+            "report_available": state["status"] == "completed"
+            and self._report_path(investigation_id).exists(),
             "created_at": state.get("created_at"),
         }
 
@@ -536,10 +546,15 @@ def make_investigation_store() -> InvestigationStore:
     from app.config import get_settings
 
     settings = get_settings()
-    persist = (
-        settings.persist_investigations
-        or _os.environ.get("PERSIST_INVESTIGATIONS", "").lower() in ("1", "true", "yes")
-    )
+    if settings.investigation_store == "postgres":
+        from app.storage.postgres_investigation_store import PostgresInvestigationStore
+
+        return PostgresInvestigationStore(settings.database_url)
+    if settings.investigation_store != "auto":
+        raise ValueError(f"Unknown INVESTIGATION_STORE: {settings.investigation_store}")
+    persist = settings.persist_investigations or _os.environ.get(
+        "PERSIST_INVESTIGATIONS", ""
+    ).lower() in ("1", "true", "yes")
     if not persist:
         return MemoryInvestigationStore()
 
@@ -552,4 +567,6 @@ def make_investigation_store() -> InvestigationStore:
         test_file.unlink()
         return FileSystemInvestigationStore(artifact_dir)
     except OSError as exc:
-        raise RuntimeError(f"Persistent investigation storage is unavailable: {artifact_dir}") from exc
+        raise RuntimeError(
+            f"Persistent investigation storage is unavailable: {artifact_dir}"
+        ) from exc

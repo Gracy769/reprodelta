@@ -42,6 +42,7 @@ class Settings(BaseSettings):
 
     # Persistence — set to True to persist investigations to ARTIFACT_DIR
     persist_investigations: bool = False
+    investigation_store: str = "auto"
 
     @field_validator("log_level")
     @classmethod

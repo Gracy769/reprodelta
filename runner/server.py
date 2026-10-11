@@ -1,5 +1,7 @@
 """Small internal HTTP transport for the isolated fixture worker."""
+
 import json
+import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 try:
@@ -35,4 +37,6 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    ThreadingHTTPServer(("0.0.0.0", 9000), Handler).serve_forever()
+    host = os.environ.get("WORKER_HOST", "0.0.0.0")
+    port = int(os.environ.get("WORKER_PORT", "9000"))
+    ThreadingHTTPServer((host, port), Handler).serve_forever()

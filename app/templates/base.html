@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#f2f5f3" />
+  <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
   <title>{% block title %}ReproDelta{% endblock %}</title>
   <style>
     :root {
@@ -48,7 +49,8 @@
     .signal-live::before { content: ""; width: 6px; height: 6px; background: #5fed83; box-shadow: 0 0 0 3px #23442a; }
     .site-nav { position: sticky; top: 0; z-index: 100; background: rgba(242,245,243,.96); border-bottom: 1px solid var(--border); backdrop-filter: blur(14px); }
     .nav-inner { max-width: 1180px; margin: auto; display: flex; min-height: 72px; align-items: stretch; border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
-    .nav-brand { display: inline-flex; align-items: center; padding: 0 24px; min-width: 238px; border-right: 1px solid var(--border); color: var(--text); text-decoration: none; font-size: 24px; font-weight: 790; letter-spacing: -.075em; white-space: nowrap; }
+    .nav-brand { display: inline-flex; align-items: center; gap: 9px; padding: 0 24px; min-width: 238px; border-right: 1px solid var(--border); color: var(--text); text-decoration: none; font-size: 24px; font-weight: 790; letter-spacing: -.075em; white-space: nowrap; }
+    .nav-mark { display: block; width: 26px; height: 26px; flex: none; }
     .brand-slash { color: var(--accent); margin-left: 2px; }
     .nav-links { display: flex; align-items: stretch; list-style: none; padding: 0; margin: 0; }
     .nav-links li { display: flex; }
@@ -132,7 +134,7 @@
   </div>
   <nav class="site-nav" aria-label="Primary navigation">
     <div class="nav-inner">
-      <a href="/" class="nav-brand" aria-label="ReproDelta home">reprodelta<span class="brand-slash">/</span></a>
+      <a href="/" class="nav-brand" aria-label="ReproDelta home"><img class="nav-mark" src="/assets/favicon.svg" alt="" />reprodelta<span class="brand-slash">/</span></a>
       <ul class="nav-links" role="list">
         <li><a href="/">Workbench</a></li>
         <li><a href="/investigations/new">New investigation</a></li>

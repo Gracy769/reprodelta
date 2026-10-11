@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="ReproDelta">
+  <rect width="64" height="64" rx="12" fill="#101915"/>
+  <path d="M32 9 57 53H7L32 9Zm0 16L21 45h22L32 25Z" fill="#5fed83" fill-rule="evenodd"/>
+</svg>

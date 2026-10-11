@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#f2f5f3" />
+  <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
+  <link rel="stylesheet" href="/assets/vendor/swagger-ui.css" />
+  <title>ReproDelta — API documentation</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; background: #f2f5f3; color: #101915; font-family: "Segoe UI", Arial, sans-serif; }
+    a:focus-visible, button:focus-visible { outline: 3px solid #125eae; outline-offset: 3px; }
+    .docs-header { position: sticky; top: 0; z-index: 20; background: #f2f5f3; border-bottom: 1px solid #cbd5cd; }
+    .docs-nav { max-width: 1200px; min-height: 72px; margin: auto; display: flex; align-items: stretch; border-left: 1px solid #cbd5cd; border-right: 1px solid #cbd5cd; }
+    .docs-brand { display: inline-flex; align-items: center; gap: 9px; padding: 0 24px; border-right: 1px solid #cbd5cd; color: #101915; text-decoration: none; font-size: 24px; font-weight: 750; letter-spacing: -.075em; }
+    .docs-brand img { width: 26px; height: 26px; }
+    .docs-brand span { color: #087c2a; }
+    .docs-name { display: inline-flex; align-items: center; padding: 0 22px; font-size: 13px; font-weight: 600; }
+    .docs-back { display: inline-flex; align-items: center; gap: 20px; margin-left: auto; padding: 0 24px; background: #087c2a; color: white; text-decoration: none; font-size: 13px; font-weight: 700; }
+    .docs-back:hover { background: #086422; }
+    .docs-main { max-width: 1200px; min-height: 90vh; margin: auto; background: #fff; border-left: 1px solid #cbd5cd; border-right: 1px solid #cbd5cd; }
+    .docs-kicker { padding: 26px 30px 0; color: #087c2a; font: 12px/1.4 Consolas, monospace; text-transform: uppercase; letter-spacing: .04em; }
+    .swagger-ui .wrapper { max-width: 1120px; }
+    .swagger-ui .info { margin-top: 28px; }
+    .swagger-ui .info .title { color: #101915; letter-spacing: -.04em; }
+    .swagger-ui .opblock-tag { border-color: #cbd5cd; }
+    @media (max-width: 640px) {
+      .docs-nav { min-height: 60px; }
+      .docs-brand { padding: 0 14px; font-size: 20px; }
+      .docs-name { display: none; }
+      .docs-back { padding: 0 16px; font-size: 0; }
+      .docs-back span { font-size: 19px; }
+      .docs-kicker { padding-left: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="docs-header"><nav class="docs-nav" aria-label="API documentation navigation">
+    <a class="docs-brand" href="/" aria-label="ReproDelta home"><img src="/assets/favicon.svg" alt="" />reprodelta<span>/</span></a>
+    <span class="docs-name">API reference</span>
+    <a class="docs-back" href="/">Back to workbench <span aria-hidden="true">↗</span></a>
+  </nav></header>
+  <main class="docs-main"><div class="docs-kicker">Developer reference / v0.1.0</div><div id="swagger-ui"></div></main>
+  <noscript>Enable JavaScript to browse the interactive API reference. The schema is available at <a href="{{ openapi_url }}">{{ openapi_url }}</a>.</noscript>
+  <script src="/assets/vendor/swagger-ui-bundle.js"></script>
+  <script>
+    SwaggerUIBundle({
+      url: {{ openapi_url | tojson }},
+      dom_id: "#swagger-ui",
+      deepLinking: true,
+      showExtensions: true,
+      showCommonExtensions: true,
+      presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset]
+    });
+  </script>
+</body>
+</html>

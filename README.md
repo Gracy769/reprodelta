@@ -54,6 +54,14 @@ python -m uvicorn app.main:app --reload --port 8000
 
 ## Antideploy
 
+The interactive API reference at `/docs` and the alternate `/redoc` view
+serve their JavaScript and CSS from this application. This keeps both pages
+working under the site's same-origin Content Security Policy. The local copies
+are [Swagger UI Dist 5.33.1](https://www.npmjs.com/package/swagger-ui-dist)
+and [ReDoc 2.5.4](https://www.npmjs.com/package/redoc); their licenses are
+included beside the assets in `app/static/vendor/`. The project mark is a
+small SVG at `app/static/favicon.svg`, also used in the browser tab.
+
 The curated demo is configured for one Antideploy application at
 <https://reprodelta.antideploy.app>. The root `Dockerfile` starts two local HTTP
 workers in separate Python 3.12 virtual environments, pinned to NumPy 1.26.4

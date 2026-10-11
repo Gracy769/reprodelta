@@ -29,7 +29,9 @@ issuer, audience, expiry, and subject against `NEON_AUTH_JWKS_URL` before readin
 the user's source connections. The Auth instance must trust the site's origin.
 
 GitHub social **sign-in** needs an OAuth application and activation in the
-managed Auth project. Managed Neon Auth does not list GitLab among its
+managed Auth project. Antideploy currently lists managed social login as
+planned, so the OAuth application alone cannot enable this button on its
+provisioned Auth instance. Managed Neon Auth does not list GitLab among its
 configurable OAuth providers, so the site does not offer GitLab sign-in.
 See [provider setup](docs/auth-provider-setup.md). A user who signs in with
 Google or email can connect

@@ -9,11 +9,12 @@ Users connect GitHub or GitLab in the workspace after signing in.
 
 1. Obtain admin access to **the existing Neon Auth project and branch** behind
    ReproDelta's `NEON_AUTH_BASE_URL`. Do not create an unrelated Neon project:
-   users and sessions would be stored elsewhere. Antideploy exposes Auth
-   connection variables but does not document an OAuth-provider settings API.
-   If the Antideploy-provisioned project is not available in your Neon Console,
-   ask Antideploy to enable a custom GitHub provider for this Auth instance or
-   to provide the matching Neon project access.
+   users and sessions would be stored elsewhere. Antideploy currently lists
+   managed social login as **planned** and does not offer an OAuth-provider
+   settings API for its provisioned Auth instance. Until that changes or the
+   matching Neon project is made manageable, creating a GitHub OAuth App does
+   **not** activate the ReproDelta GitHub sign-in button. Do not place its
+   Client Secret in ReproDelta's app secrets expecting that to enable it.
 2. In GitHub, open **Settings → Developer settings → OAuth Apps → New OAuth App**.
    Name it ReproDelta. Use `https://reprodelta-lab.antideploy.app` for the homepage.
    Use the exact callback `NEON_AUTH_BASE_URL + /callback/github`, including the

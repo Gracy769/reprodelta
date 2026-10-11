@@ -8,7 +8,7 @@ You are continuing **ReproDelta**, a web workbench that investigates whether a P
 
 ### Get the repository and establish the baseline
 
-1. Run `gh.exe repo clone Gracy769/reprodelta` if the repository is not already present. Run `gh.exe pr view 1 --repo Gracy769/reprodelta --json state,headRefName,baseRefName,url` and inspect the current branch and worktree. If PR #1 is still open and this work is continuing that implementation, check out its head with `gh.exe pr checkout 1 --repo Gracy769/reprodelta`; push fixes to that branch. If it is merged, start a new branch from the repository default branch and open a PR. Never overwrite unrelated local changes.
+1. Run `gh.exe repo clone Gracy769/reprodelta` if the repository is not already present. Run `gh.exe pr list --repo Gracy769/reprodelta --state open` and inspect the current branch and worktree. If the ReproDelta rename PR is still open, wait for it to merge or deliberately base new work on that branch; do not start from an older default branch and lose the rename. Once the rename is on the default branch, start a new implementation branch from it and open a PR. Never overwrite unrelated local changes.
 2. Read `AGENTS.md`, `README.md`, `docs/product-requirements.md`, `docs/source-architecture.md`, `docs/security.md`, `docs/database.md`, `docs/testing.md`, `docs/agents.md`, and the relevant code before editing. Check the current PR and CI status. Use the real code as the implementation baseline; the documents include proposed targets.
 3. Reproduce the baseline: run the Python tests and Ruff, build the Python package, and run `docker compose config`. Record the exact versions and failures. On a Docker-capable machine, run `docker compose up --build` from a fresh checkout with `.env` copied from `.env.example` and `NEBIUS_API_KEY` blank. Do not claim Docker passed without running it.
 
@@ -36,7 +36,7 @@ Make the **curated NumPy 1.26.4 → 2.0.2 demonstration** durable, honest, and r
 - From a clean checkout, run the complete Docker demo at least twice and export a report each time. Show evidence that the paired results came from actual NumPy 1.26.4 and 2.0.2 workers. If Docker is unavailable, finish independent work and report the unverified gate plainly.
 - Run migrations on a fresh database and verify restart retrieval. Run Ruff and package build. Do not state a test count or live-provider result without measuring it.
 - Update `README.md`, `AGENTS.md`, product and security docs wherever implementation differs. Keep claims about isolation, persistence, and model-driven repair aligned with what actually works. Provide a short operator runbook with exact commands, expected output, and failure recovery.
-- Commit and push the changes, update the existing PR if it remains open or attach a new PR if it has merged, and report: what changed, test results, Docker result, a sample evidence path, unresolved risks, and the next smallest step. Do not merge or publish the private repository without explicit user direction.
+- Commit and push the changes, create or update a PR for the implementation branch, and report: what changed, test results, Docker result, a sample evidence path, unresolved risks, and the next smallest step. Do not merge or publish the private repository without explicit user direction.
 
 ### Definition of done
 

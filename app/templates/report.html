@@ -150,6 +150,17 @@
 
   #loading-msg { color: var(--text-muted); font-size: 14px; }
   #report-root { display: none; }
+  .report-title { font-size: clamp(38px, 5vw, 66px); line-height: .99; letter-spacing: -.065em; font-weight: 620; max-width: 750px; }
+  #rpt-verdict { padding: 8px 12px; background: var(--accent-soft); border-color: #acd9b8; color: var(--supported); overflow-wrap: anywhere; }
+  .report-header { padding: 20px 0 38px; }
+  .section { background: var(--panel); border-radius: 0; margin: 22px 0; padding: 28px 30px; }
+  .section-heading { color: var(--accent); font: 12px/1.4 var(--font-mono); border: 0; padding: 0; }
+  .kv-grid { grid-template-columns: 220px minmax(0, 1fr); gap: 0 14px; }
+  .kv-key, .kv-val { border-bottom: 1px solid #e4eae5; padding: 10px 0; }
+  .btn { border-radius: 2px; border: 1px solid var(--accent); min-height: 46px; padding: 10px 18px; }
+  .btn-secondary { background: var(--panel); color: var(--accent); border-color: var(--accent); }
+  .badge, .verdict-badge, .proposal-card, .patch-card, pre.replay-block { border-radius: 0; }
+  @media (max-width: 640px) { .section { padding: 20px; } .kv-grid { grid-template-columns: 1fr; } .data-table { display: block; overflow-x: auto; } }
 
   @media print {
     nav, footer, .report-actions { display: none !important; }
@@ -164,7 +175,8 @@
 <div id="report-root">
   <div class="report-header">
     <div>
-      <h1 class="report-title">Investigation Evidence Report</h1>
+      <span class="eyebrow">Workbench / Exportable report</span>
+      <h1 class="report-title">Investigation report.</h1>
       <p class="report-meta" id="rpt-meta"></p>
     </div>
     <div class="report-actions">
@@ -263,7 +275,7 @@
   }
   function show(id) {
     var node = document.getElementById(id);
-    if (node) node.style.display = "";
+    if (node) node.style.display = "block";
   }
   function addKv(containerId, key, value) {
     var c = document.getElementById(containerId);

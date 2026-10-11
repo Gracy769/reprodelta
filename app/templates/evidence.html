@@ -155,16 +155,29 @@
   .export-btn:hover { opacity: 0.9; }
   #loading-msg { color: var(--text-muted); font-size: 14px; }
   #evidence-root { display: none; }
+  .section { background: var(--panel); border-radius: 0; margin: 22px 0; padding: 28px 30px; }
+  .section-heading { color: var(--accent); font: 12px/1.4 var(--font-mono); border: 0; padding: 0; }
+  .kv-grid { grid-template-columns: 220px minmax(0, 1fr); gap: 0 14px; }
+  .kv-key, .kv-val { border-bottom: 1px solid #e4eae5; padding: 10px 0; }
+  .badge, .verdict-badge, .proposal-card, .patch-card, .intervention-card, pre.trace, pre.diff, .export-btn { border-radius: 0; }
+  .export-btn { padding: 11px 18px; }
+  details summary { padding: 13px 0; }
+  .evidence-header { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 22px; margin-bottom: 32px; padding: 16px 0 34px; border-bottom: 1px solid var(--border); }
+  .evidence-header h1 { max-width: 740px; margin: 12px 0; font-size: clamp(40px, 5.5vw, 72px); line-height: .98; letter-spacing: -.065em; font-weight: 620; }
+  .evidence-header .run-id { color: var(--text-muted); font: 12px var(--font-mono); overflow-wrap: anywhere; }
+  #ev-verdict { display: inline-block; padding: 8px 12px; background: var(--accent-soft); border-color: #acd9b8; color: var(--supported); overflow-wrap: anywhere; }
+  @media (max-width: 640px) { .section { padding: 20px; } .kv-grid { grid-template-columns: 1fr; } .data-table { display: block; overflow-x: auto; } }
 {% endblock %}
 
 {% block content %}
 <p id="loading-msg">Loading evidence…</p>
 
 <div id="evidence-root">
-  <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:var(--sp-4);margin-bottom:var(--sp-6);">
+  <div class="evidence-header">
     <div>
-      <h1 style="font-size:24px;font-weight:700;margin-bottom:var(--sp-2);">Investigation Evidence</h1>
-      <p style="font-size:13px;color:var(--text-muted);">ID: <code id="ev-id"></code></p>
+      <span class="eyebrow">Workbench / Observed evidence</span>
+      <h1>Investigation evidence.</h1>
+      <p class="run-id">RUN ID / <code id="ev-id"></code></p>
     </div>
     <div style="display:flex;gap:var(--sp-3);flex-wrap:wrap;align-items:center;">
       <a id="export-link" href="#" class="export-btn">Export JSON</a>
@@ -281,7 +294,7 @@
   }
   function setHtml(id, html) { document.getElementById(id).innerHTML = html; }
   function setText(id, text) { document.getElementById(id).textContent = String(text); }
-  function show(id) { document.getElementById(id).style.display = ""; }
+  function show(id) { document.getElementById(id).style.display = "block"; }
 
   function addKv(containerId, key, value) {
     var c = document.getElementById(containerId);

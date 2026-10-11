@@ -1,6 +1,6 @@
 # Design system and product interaction
 
-**Status:** proposed UI specification. The interface is an evidence workbench for engineers and researchers; it must let a reviewer see what was observed, what was inferred, and what remains unknown.
+**Status:** implemented visual direction for the curated demo; later workflow features below remain proposed where the app does not yet implement them. The interface is an evidence workbench for engineers and researchers; it must let a reviewer see what was observed, what was inferred, and what remains unknown.
 
 ## Information architecture
 
@@ -27,23 +27,24 @@ Keep the patch proposal visually separate from verification. The verifier panel 
 
 ## Visual tokens
 
-The initial palette is a design proposal; verify contrast in the built UI before release. Use neutral surfaces for the main workbench and reserve color for evidence state.
+The implemented palette uses a pale grid canvas, white evidence panels, thin dividers, bold green actions, oversized headings, and monospace metadata. It adapts the visual rhythm of the public [GitHub Universe site](https://githubuniverse.com/) to ReproDelta's own workflow and content. Reserve explicit blue, amber, and red states for evidence, caveats, and failures; labels must carry the meaning independently of color.
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `surface` | `#FFFFFF` | main canvas |
-| `surface-muted` | `#F5F7FA` | grouped evidence |
-| `text` | `#172033` | primary text |
-| `text-muted` | `#475467` | secondary text |
-| `border` | `#CBD5E1` | separators and inputs |
-| `accent` | `#175CD3` | primary action and links |
-| `focus` | `#7C3AED` | keyboard focus ring |
-| `observed` | `#175CD3` | measured evidence |
-| `supported` | `#067647` | supported, bounded result |
-| `warning` | `#B54708` | limitations and inconclusive states |
-| `failure` | `#B42318` | failed check or setup error |
+| `surface` | `#F2F5F3` | main canvas |
+| `surface-muted` | `#E8EEEA` | grouped evidence |
+| `panel` | `#FFFFFF` | content panels |
+| `text` | `#101915` | primary text |
+| `text-muted` | `#4A5A50` | secondary text |
+| `border` | `#CBD5CD` | separators and inputs |
+| `accent` | `#087C2A` | primary action and links |
+| `focus` | `#125EAE` | keyboard focus ring |
+| `observed` | `#215B9F` | measured evidence |
+| `supported` | `#0D6731` | supported, bounded result |
+| `warning` | `#925000` | limitations and inconclusive states |
+| `failure` | `#A33324` | failed check or setup error |
 
-Typography: system sans for interface; monospace for values, hashes, code, and environment identifiers. Base text 16 px, line height at least 1.5; compact metadata may be 14 px. Spacing scale: 4, 8, 12, 16, 24, 32 px. Use a maximum reading width near 80 characters for explanatory text and allow wide scrollable panels for traces and diffs. Avoid color-only meaning; every state includes a label and icon/text description.
+Typography: system sans for interface; monospace for values, hashes, code, and environment identifiers. Hero headings use a tight line height and large responsive scale; body text remains 16 px with line height above 1.5. Spacing scale: 4, 8, 12, 16, 24, 32 px. Use a maximum reading width near 80 characters for explanatory text and allow wide scrollable panels for traces and diffs. Avoid color-only meaning; every state includes a label and icon/text description. Motion is limited to a short entrance, hover feedback, and a small cursor blink, all disabled under `prefers-reduced-motion`.
 
 ## Components
 

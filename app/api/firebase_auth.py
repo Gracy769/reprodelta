@@ -40,7 +40,7 @@ async def _certificates() -> dict[str, str]:
             _cert_cache, _cert_cache_until = certs, time.monotonic() + int(age.group(1)) if age else time.monotonic() + 300
             return certs
     except (httpx.HTTPError, ValueError) as exc:
-        raise HTTPException(503, "Google sign-in verification is temporarily unavailable") from exc
+        raise HTTPException(503, "Sign-in verification is temporarily unavailable") from exc
 
 
 async def _verified_claims(token: str, project_id: str) -> dict:
@@ -65,19 +65,19 @@ async def _verified_claims(token: str, project_id: str) -> dict:
             raise ValueError("Invalid authentication time")
         return claims
     except (jwt.PyJWTError, ValueError, KeyError, TypeError) as exc:
-        raise HTTPException(401, "Google sign-in token is invalid or expired") from exc
+        raise HTTPException(401, "Sign-in token is invalid or expired") from exc
 
 
 @router.post("/session")
 async def firebase_session(request: Request, exchange: TokenExchange):
     settings = get_settings()
     if not settings.firebase_project_id or len(settings.secret_key) < 32:
-        raise HTTPException(503, "Google sign-in is not configured yet")
+        raise HTTPException(503, "Sign-in is not configured yet")
     if not settings.app_url or request.headers.get("origin") != settings.app_url.rstrip("/"):
         raise HTTPException(403, "Origin is not allowed")
     claims = await _verified_claims(exchange.id_token, settings.firebase_project_id)
     now = datetime.now(UTC)
-    name = claims.get("name") or claims.get("email") or "Google user"
+    name = claims.get("name") or claims.get("email") or "User"
     session = jwt.encode(
         {"sub": f"firebase:{claims['sub']}", "name": name, "iss": "reprodelta", "aud": "reprodelta",
          "iat": now, "exp": now + timedelta(days=7)},

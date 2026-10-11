@@ -138,11 +138,11 @@
       <a href="/" class="nav-brand" aria-label="ReproDelta home"><img class="nav-mark" src="/assets/favicon.svg" alt="" />reprodelta<span class="brand-slash">/</span></a>
       <ul class="nav-links" role="list">
         <li><a href="/">Workbench</a></li>
-        <li><a href="/investigations/new">New investigation</a></li>
+        <li id="nav-investigation" hidden><a href="/investigations/new">New investigation</a></li>
         <li><a href="/workspace">Workspace</a></li>
         <li><a href="/docs">API</a></li>
       </ul>
-      <a href="/signup" class="nav-cta">Create account <span aria-hidden="true">↗</span></a>
+      <a href="/signin" class="nav-cta" id="nav-account">Sign in <span aria-hidden="true">↗</span></a>
       {% if mock_llm_mode is defined and mock_llm_mode %}<span class="mock-mode">MODEL IN MOCK MODE</span>{% endif %}
     </div>
   </nav>
@@ -153,5 +153,6 @@
       <div class="footer-links"><a href="/docs">API docs</a><a href="/health">Service health</a></div>
     </div>
   </footer>
+  <script src="/assets/nav-session.js" defer></script>
 </body>
 </html>

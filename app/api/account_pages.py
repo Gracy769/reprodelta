@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 
 from app.api.pages import templates
 from app.config import get_settings
@@ -26,5 +26,10 @@ async def signin(request: Request) -> HTMLResponse:
 
 
 @router.get("/workspace", response_class=HTMLResponse, include_in_schema=False)
-async def workspace(request: Request) -> HTMLResponse:
+async def workspace(request: Request) -> Response:
+    verifier = request.query_params.get("neon_auth_session_verifier")
+    if verifier:
+        from app.api.auth_bridge import exchange_oauth_verifier
+
+        return await exchange_oauth_verifier(request, verifier)
     return templates.TemplateResponse(request, "workspace.html", _context())

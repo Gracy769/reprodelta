@@ -5,7 +5,7 @@ from __future__ import annotations
 import pathlib
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from app.domain.contract import FIXTURE_CONTRACT, hash_contract
@@ -19,8 +19,13 @@ DEMO_PROJECT_ID = "00000000-0000-0000-0000-000000000001"
 
 
 @router.get("/", response_class=HTMLResponse, include_in_schema=False)
-async def index(request: Request) -> HTMLResponse:
+async def index(request: Request) -> Response:
     """Render the ReproDelta workbench home page."""
+    verifier = request.query_params.get("neon_auth_session_verifier")
+    if verifier:
+        from app.api.auth_bridge import exchange_oauth_verifier
+
+        return await exchange_oauth_verifier(request, verifier)
     return templates.TemplateResponse(
         request,
         "index.html",

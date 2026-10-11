@@ -20,18 +20,19 @@ repair against frozen independent cases.
 `/signup` and `/signin` are custom ReproDelta pages. Antideploy's managed Neon
 Auth supplies email/password and Google sign-in; account passwords are never
 handled by the ReproDelta API. The source-host workspace is at `/workspace`.
-The narrow `/auth/` bridge forwards only email sign-in, sign-up, sign-out,
-session, and JWT requests to Neon Auth so their HttpOnly cookies remain on the
-site's origin. Social sign-in still uses the provider's managed redirect.
+The narrow `/auth/` bridge forwards email and social sign-in, sign-up,
+sign-out, session, and JWT requests to Neon Auth so their HttpOnly cookies
+remain on the site's origin. The Google redirect's one-time verifier is
+exchanged server-side before sending the user to `/workspace`.
 It obtains a short-lived JWT from Neon Auth and the API verifies its signature,
 issuer, audience, expiry, and subject against `NEON_AUTH_JWKS_URL` before reading
 the user's source connections. The Auth instance must trust the site's origin.
 
-GitHub and GitLab social **sign-in** are visible as options, but the currently
-provisioned Auth instance reports those providers are not enabled. Activating
-them requires provider OAuth applications and configuration in the Auth service;
-the UI reports that state rather than pretending the redirect worked. Google
-and email are available now. A user who signs in with either can connect
+GitHub social **sign-in** needs an OAuth application and activation in the
+managed Auth project. Managed Neon Auth does not list GitLab among its
+configurable OAuth providers, so the site does not offer GitLab sign-in.
+See [provider setup](docs/auth-provider-setup.md). A user who signs in with
+Google or email can connect
 GitHub with a fine-grained token limited to repository metadata and pull
 request read access, or GitLab with a `read_api` token. ReproDelta verifies the
 token with that host, encrypts it with a key derived from `SECRET_KEY`, stores it

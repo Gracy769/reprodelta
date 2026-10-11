@@ -102,6 +102,88 @@ async def test_auth_bridge_preserves_http_only_session_cookie(monkeypatch):
     assert response.headers["cache-control"] == "no-store"
 
 
+@pytest.mark.asyncio
+async def test_social_signin_and_verifier_exchange_stay_first_party(monkeypatch):
+    monkeypatch.setattr(
+        auth_bridge,
+        "get_settings",
+        lambda: SimpleNamespace(
+            neon_auth_base_url="https://auth.example.test/neondb/auth",
+            app_url="https://reprodelta.antideploy.app",
+            auth_allowed_origin="https://reprodelta.antideploy.app",
+        ),
+    )
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def request(self, method, url, **kwargs):
+            assert method == "POST"
+            assert url.endswith("/sign-in/social")
+            return httpx.Response(
+                200,
+                headers={"set-cookie": "__Secure-neon-auth.session_challenge=proof; Path=/; HttpOnly; Secure; SameSite=None; Partitioned"},
+                json={"url": "https://provider.example/authorize"},
+            )
+
+        async def get(self, url, **kwargs):
+            assert url.endswith("/get-session")
+            assert kwargs["params"] == {"neon_auth_session_verifier": "one-time-code"}
+            assert kwargs["headers"]["Cookie"] == "__Secure-neon-auth.session_challenge=proof"
+            return httpx.Response(
+                200,
+                headers={"set-cookie": "__Secure-neon-auth.session_token=opaque; Path=/; HttpOnly; Secure; SameSite=None; Partitioned"},
+                json={"user": {"id": "u1"}},
+            )
+
+    original_client = auth_bridge.httpx.AsyncClient
+    transport = httpx.ASGITransport(app=app)
+    async with original_client(transport=transport, base_url="https://reprodelta.antideploy.app") as client:
+        monkeypatch.setattr(auth_bridge.httpx, "AsyncClient", lambda **kwargs: FakeClient())
+        start = await client.post(
+            "/auth/sign-in/social",
+            headers={"Origin": "https://reprodelta.antideploy.app"},
+            json={"provider": "google", "callbackURL": "https://reprodelta.antideploy.app/workspace"},
+        )
+        finish = await client.get(
+            "/?neon_auth_session_verifier=one-time-code",
+            headers={"Cookie": "__Secure-neon-auth.session_challenge=proof"},
+            follow_redirects=False,
+        )
+        workspace_finish = await client.get(
+            "/workspace?neon_auth_session_verifier=one-time-code",
+            headers={"Cookie": "__Secure-neon-auth.session_challenge=proof"},
+            follow_redirects=False,
+        )
+    assert start.status_code == 200
+    assert "SameSite=Lax" in start.headers["set-cookie"]
+    assert "Partitioned" not in start.headers["set-cookie"]
+    assert finish.status_code == 303
+    assert finish.headers["location"] == "/workspace"
+    assert "session_token=opaque" in finish.headers["set-cookie"]
+    assert "SameSite=Lax" in finish.headers["set-cookie"]
+    assert workspace_finish.status_code == 303
+    assert workspace_finish.headers["location"] == "/workspace"
+
+
+@pytest.mark.asyncio
+async def test_verifier_without_matching_challenge_fails_closed(monkeypatch):
+    monkeypatch.setattr(
+        auth_bridge,
+        "get_settings",
+        lambda: SimpleNamespace(neon_auth_base_url="https://auth.example.test"),
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="https://reprodelta.antideploy.app") as client:
+        response = await client.get("/?neon_auth_session_verifier=unmatched", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/signin?auth_error=oauth"
+
+
 def test_signed_neon_jwt_required_for_private_source_routes(monkeypatch):
     private_key = Ed25519PrivateKey.generate()
     public_key = private_key.public_key()

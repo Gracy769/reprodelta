@@ -58,7 +58,9 @@ Use exactly these user-facing classes, with supporting evidence and scope: `obse
 
 **Implementation note, 11 October 2026:** Account pages and a source-picker
 workspace now exist. Managed Neon Auth provides email/password and Google;
-GitHub/GitLab social providers require separate OAuth configuration. Users can
+GitHub social sign-in requires separate OAuth configuration; this managed
+Auth instance does not expose GitLab sign-in. Public home navigation shows
+investigations only after a session is confirmed. Users can
 connect a source host with a limited read token, select an open PR/MR, and run
 a **metadata-only diff review**. That review is not an executable project
 investigation and must never be presented as a test result. Arbitrary source

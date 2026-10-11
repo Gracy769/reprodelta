@@ -10,10 +10,13 @@
     message.classList.toggle("success", good);
     message.hidden = false;
   }
+  if (new URLSearchParams(window.location.search).get("auth_error") === "oauth") {
+    notice("Social sign-in could not be completed. Please try again or use email sign-in.");
+    window.history.replaceState(null, "", window.location.pathname);
+  }
   async function auth(path, data) {
     if (!base) throw new Error("Sign-in is being configured. Please try again shortly.");
-    const social = path === "/sign-in/social";
-    const response = await fetch((social ? base : "/auth") + path, {
+    const response = await fetch("/auth" + path, {
       method: "POST", credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),

@@ -20,7 +20,7 @@ DEMO_PROJECT_ID = "00000000-0000-0000-0000-000000000001"
 
 @router.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def index(request: Request) -> HTMLResponse:
-    """Render the Agent Replay Lab workbench home page."""
+    """Render the ReproDelta workbench home page."""
     return templates.TemplateResponse(
         request,
         "index.html",

@@ -1,6 +1,6 @@
-# Agent Replay Lab contributor instructions
+# ReproDelta contributor instructions
 
-This repository currently contains **planning documents only**. Do not describe proposed capabilities as implemented or measured.
+This repository contains a curated hackathon fixture and planning documents. Describe implemented behavior, simulated behavior, and proposed capabilities separately.
 
 Read [README.md](README.md) and [docs/product-requirements.md](docs/product-requirements.md) before adding code. Use [docs/agents.md](docs/agents.md) for the product's runtime agent roles and [docs/code-style.md](docs/code-style.md) for implementation conventions.
 

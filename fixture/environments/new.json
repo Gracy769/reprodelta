@@ -5,6 +5,6 @@
   "packages": [
     {"name": "numpy", "version": "2.0.2"}
   ],
-  "image_tag": "agent-replay-lab/worker-new:latest",
+  "image_tag": "reprodelta/worker-new:latest",
   "description": "NumPy 2.0.2 environment — NEP50 scalar promotion (no upcasting)"
 }

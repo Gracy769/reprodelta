@@ -1,4 +1,4 @@
-"""Alembic environment configuration for Agent Replay Lab.
+"""Alembic environment configuration for ReproDelta.
 
 Uses async SQLAlchemy engine to support asyncpg / PostgreSQL.
 The DATABASE_URL is read from the application config so the same

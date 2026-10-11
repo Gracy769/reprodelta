@@ -109,7 +109,7 @@ echo '{input_json_str}' | python run.py
 #    Try increasing max_candidates and re-running the investigation.
 """
 
-    return f"""# Agent Replay Lab — Replay Instructions
+    return f"""# ReproDelta — Replay Instructions
 # Investigation: {inv_id}
 # Contract hash: {contract_hash}
 
@@ -155,7 +155,7 @@ def generate_text_summary(evidence: InvestigationEvidence) -> str:
     lines: list[str] = []
 
     lines.append("=" * 72)
-    lines.append("AGENT REPLAY LAB — INVESTIGATION SUMMARY")
+    lines.append("REPRODELTA — INVESTIGATION SUMMARY")
     lines.append("=" * 72)
     lines.append(f"Investigation : {evidence.investigation_id}")
     lines.append(f"Project       : {evidence.project_name}")

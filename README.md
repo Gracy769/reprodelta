@@ -1,6 +1,6 @@
-# Agent Replay Lab
+# ReproDelta
 
-Agent Replay Lab investigates a narrow failure: a scientific Python workflow
+ReproDelta investigates a narrow failure: a scientific Python workflow
 still executes after a dependency upgrade, yet a conclusion the researcher
 cares about changes. It replays immutable inputs in two environments, searches
 for a valid counterexample, tests a suspected mechanism, and checks a proposed

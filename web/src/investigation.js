@@ -1,5 +1,5 @@
 /**
- * investigation.js — Agent Replay Lab frontend for the investigation setup page.
+ * investigation.js — ReproDelta frontend for the investigation setup page.
  *
  * Wires up:
  *   - "Run Pair" button → calls /api/investigations/demo/run-pair

@@ -1,10 +1,10 @@
-# Agent Replay Lab: revised research direction
+# ReproDelta: revised research direction
 
 Research review: 10 October 2026. This proposal augments the attached concept document. No project implementation was supplied or assessed, and no experiments reported below have been run. Proposed capabilities and evaluation targets are explicitly distinguished from findings in existing sources.
 
 ## Proposed problem statement
 
-Research teams need to know whether an environment change alters a meaningful result even when their existing tests pass. Agent Replay Lab searches for valid inputs that expose a change in a declared scientific conclusion, minimizes the counterexample, tests competing explanations, and evaluates a proposed repair against independent checks.
+Research teams need to know whether an environment change alters a meaningful result even when their existing tests pass. ReproDelta searches for valid inputs that expose a change in a declared scientific conclusion, minimizes the counterexample, tests competing explanations, and evaluates a proposed repair against independent checks.
 
 The initial audience is research software engineers and small scientific Python teams maintaining numerical pipelines with limited regression coverage. Validate this audience with users before assuming commercial demand.
 

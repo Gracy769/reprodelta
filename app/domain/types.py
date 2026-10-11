@@ -1,4 +1,4 @@
-"""Core domain types for Agent Replay Lab."""
+"""Core domain types for ReproDelta."""
 
 from __future__ import annotations
 

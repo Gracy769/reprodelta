@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import asyncio as _asyncio
+import contextlib
 import hashlib
 import json
 import pathlib
@@ -37,6 +38,7 @@ from app.domain.validator import validate_input
 from app.orchestrator.executor import PairedRunRequest, PairedRunResult, run_pair
 from app.orchestrator.investigation import InvestigationRunner
 from app.providers.runner import LocalRunnerAdapter, RunnerAdapter, WorkerHttpRunnerAdapter
+from app.storage.investigation_store import InvestigationStore, MemoryInvestigationStore
 
 router = APIRouter(prefix="/api")
 
@@ -57,17 +59,31 @@ _DEMO_PROJECT = {
 }
 
 # ---------------------------------------------------------------------------
-# In-memory state
+# In-memory state (kept for backward-compat — evidence objects need memory)
 # ---------------------------------------------------------------------------
 
 # { project_id_str: {"approved": bool, "approved_at": datetime | None, "approved_by": str | None} }
 _contract_approvals: dict[str, dict[str, Any]] = {}
 
-# { investigation_id_str: InvestigationRecord }
+# { investigation_id_str: InvestigationRecord (metadata) }
 _investigations: dict[str, dict[str, Any]] = {}
 
 # { investigation_id_str: {"status": str, "progress": SearchProgress|None, "evidence": InvestigationEvidence|None} }
 _investigation_state: dict[str, dict[str, Any]] = {}
+
+# Module-level investigation store (MemoryStore by default; tests can swap it)
+_store: InvestigationStore = MemoryInvestigationStore()
+
+
+def get_store() -> InvestigationStore:
+    """Return the module-level investigation store (injectable for tests)."""
+    return _store
+
+
+def set_store(store: InvestigationStore) -> None:
+    """Replace the module-level store (used in tests)."""
+    global _store
+    _store = store
 
 
 # ---------------------------------------------------------------------------
@@ -104,6 +120,12 @@ class RunPairRequest(BaseModel):
     input_json: dict
 
 
+class VerifyPatchRequest(BaseModel):
+    diff_text: str
+    description: str = ""
+    rationale: str = ""
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -133,7 +155,11 @@ def _get_investigation_or_404(investigation_id: str) -> dict[str, Any]:
 # Background task helper
 # ---------------------------------------------------------------------------
 
-def _run_investigation_sync(investigation_id: str, runner: RunnerAdapter) -> None:
+def _run_investigation_sync(
+    investigation_id: str,
+    runner: RunnerAdapter,
+    store: InvestigationStore,
+) -> None:
     """Synchronous wrapper executed in a thread via asyncio.to_thread."""
     state = _investigation_state.setdefault(investigation_id, {})
     state["status"] = "running"
@@ -148,17 +174,34 @@ def _run_investigation_sync(investigation_id: str, runner: RunnerAdapter) -> Non
             contract=FIXTURE_CONTRACT,
             budget=budget,
             runner=runner,
+            store=store,
         )
         evidence = inv_runner.run_full_investigation(investigation_id)
         state["evidence"] = evidence
         state["status"] = "completed"
-        # Expose search progress summary via evidence
-        state["progress"] = None  # progress is embedded in evidence
         _investigations[investigation_id]["status"] = "completed"
+        # Store report via the persistence layer
+        try:
+            from app.orchestrator.report import generate_report, generate_text_summary
+            store.store_report(
+                investigation_id,
+                generate_report(evidence),
+                generate_text_summary(evidence),
+            )
+        except Exception:  # noqa: BLE001
+            pass
+        store.transition_status(investigation_id, "completed")
     except Exception as exc:  # noqa: BLE001
         state["status"] = "failed"
         state["error"] = str(exc)
         _investigations[investigation_id]["status"] = "failed"
+        try:
+            store.append_event(
+                investigation_id, "runner", "investigation_failed", {"error": str(exc)}
+            )
+            store.transition_status(investigation_id, "failed")
+        except Exception:  # noqa: BLE001
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -206,9 +249,15 @@ async def approve_contract(project_id: uuid.UUID) -> dict:
 
 @router.post("/investigations", status_code=201)
 async def create_investigation(body: CreateInvestigationRequest) -> dict:
-    """Create a new (in-memory) investigation for a project."""
+    """Create a new investigation for a project."""
     _ensure_demo_project(body.project_id)
-    inv_id = str(uuid.uuid4())
+    store = get_store()
+    budget_json = {"max_candidates": body.max_candidates, "max_runs": body.max_runs}
+    inv_id = store.create_investigation(
+        project_id=str(body.project_id),
+        budget_json=budget_json,
+        owner_id="user",
+    )
     record: dict[str, Any] = {
         "id": inv_id,
         "project_id": str(body.project_id),
@@ -255,8 +304,12 @@ async def start_investigation(
     state["status"] = "running"
     _investigations[investigation_id]["status"] = "running"
 
+    store = get_store()
+    with contextlib.suppress(KeyError, ValueError):
+        store.transition_status(investigation_id, "running")
+
     asyncio.create_task(
-        asyncio.to_thread(_run_investigation_sync, investigation_id, runner)
+        asyncio.to_thread(_run_investigation_sync, investigation_id, runner, store)
     )
 
     return {"investigation_id": investigation_id, "status": "running"}
@@ -264,7 +317,7 @@ async def start_investigation(
 
 @router.get("/investigations/{investigation_id}/progress")
 async def get_progress(investigation_id: str) -> dict:
-    """Return the current investigation progress (status + search counts)."""
+    """Return the current investigation progress (status + events)."""
     _get_investigation_or_404(investigation_id)
     state = _investigation_state.get(investigation_id, {})
     status = state.get("status", "draft")
@@ -276,7 +329,6 @@ async def get_progress(investigation_id: str) -> dict:
 
     evidence = state.get("evidence")
     if evidence is not None:
-        # Build a lightweight progress summary from the completed evidence
         result["witness_found"] = evidence.witness is not None
         result["verdict"] = evidence.verdict.value if evidence.verdict else None
     else:
@@ -285,6 +337,12 @@ async def get_progress(investigation_id: str) -> dict:
 
     if state.get("error"):
         result["error"] = state["error"]
+
+    # Include events from the store
+    store = get_store()
+    events = store.get_events(investigation_id)
+    result["events"] = events
+    result["event_count"] = len(events)
 
     return result
 
@@ -312,6 +370,13 @@ async def get_report(investigation_id: str) -> dict:
     _get_investigation_or_404(investigation_id)
     state = _investigation_state.get(investigation_id, {})
     evidence = state.get("evidence")
+
+    # Try store first (persisted across restarts)
+    store = get_store()
+    persisted = store.get_report(investigation_id)
+    if persisted is not None:
+        return persisted
+
     if evidence is None:
         status = state.get("status", "draft")
         raise HTTPException(
@@ -346,6 +411,9 @@ async def stream_progress(investigation_id: str) -> StreamingResponse:
     async def _event_generator():
         import json as _json
 
+        store = get_store()
+        last_seq = -1
+
         while True:
             state = _investigation_state.get(investigation_id, {})
             status = state.get("status", "draft")
@@ -358,9 +426,16 @@ async def stream_progress(investigation_id: str) -> StreamingResponse:
             if state.get("error"):
                 payload["error"] = state["error"]
 
+            # Emit any new store events
+            events = store.get_events(investigation_id)
+            new_events = [e for e in events if e.get("sequence", -1) > last_seq]
+            if new_events:
+                last_seq = new_events[-1].get("sequence", last_seq)
+                payload["new_events"] = new_events
+
             yield f"data: {_json.dumps(payload)}\n\n"
 
-            if status in ("completed", "failed"):
+            if status in ("completed", "failed", "interrupted"):
                 break
             await _asyncio.sleep(1)
 
@@ -411,3 +486,50 @@ async def run_pair_endpoint(
         _investigations[investigation_id]["status"] = "running"
 
     return result_dict
+
+
+@router.post("/investigations/{investigation_id}/verify-patch")
+async def verify_patch_endpoint(
+    investigation_id: str,
+    body: VerifyPatchRequest,
+    runner: RunnerAdapter = Depends(get_runner),  # noqa: B008
+) -> dict:
+    """
+    Validate a proposed patch diff and verify it against frozen holdouts.
+
+    Steps:
+    1. Confirm the investigation exists.
+    2. Validate the diff against the path allowlist.
+    3. Detect the change type and run holdout verification.
+    4. Store the result as an event.
+    5. Return the ConstrainedPatchVerificationResult.
+    """
+    from app.orchestrator.patch_verifier import ProposedPatch, apply_and_verify_patch
+
+    _get_investigation_or_404(investigation_id)
+
+    proposal = ProposedPatch(
+        diff_text=body.diff_text,
+        description=body.description,
+        rationale=body.rationale,
+    )
+
+    result = apply_and_verify_patch(
+        proposal=proposal,
+        runner=runner,
+    )
+
+    # Record as an event
+    store = get_store()
+    store.append_event(
+        investigation_id,
+        actor="api",
+        event_type="patch_verification_requested",
+        payload={
+            "verdict": result.verdict,
+            "parse_valid": result.parse_result.valid,
+            "description": body.description,
+        },
+    )
+
+    return result.model_dump(mode="json")

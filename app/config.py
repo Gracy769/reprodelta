@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     nebius_api_key: str | None = None
     nebius_model_id: str = "nvidia/Nemotron-3_5-Lightning"
     nebius_base_url: str = "https://api.tokenfactory.nebius.com/v1"
+    nebius_check_model_on_startup: bool = False
 
     # Application security
     secret_key: str = "change-me-in-production"
@@ -38,6 +39,9 @@ class Settings(BaseSettings):
     runner_mode: str = "local"
     worker_old_url: str = "http://worker-old:9000/run"
     worker_new_url: str = "http://worker-new:9000/run"
+
+    # Persistence — set to True to persist investigations to ARTIFACT_DIR
+    persist_investigations: bool = False
 
     @field_validator("log_level")
     @classmethod

@@ -125,6 +125,11 @@ class NebiusClient:
     def is_mock_mode(self) -> bool:
         return not bool(self._api_key)
 
+    @property
+    def api_base(self) -> str:
+        """Return the base URL for the Nebius API."""
+        return self._api_base
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
@@ -158,6 +163,7 @@ class NebiusClient:
     ) -> ModelProposal:
         """Make a live HTTP call to the Nebius API."""
         import json as _json
+        import urllib.error
         import urllib.request
 
         url = f"{self._api_base}/chat/completions"
@@ -182,6 +188,10 @@ class NebiusClient:
         try:
             with urllib.request.urlopen(req, timeout=60) as resp:
                 body = _json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            raise NebiusError(
+                f"Nebius API HTTP {exc.code}: {exc.reason}"
+            ) from exc
         except Exception as exc:
             raise NebiusError(f"Nebius API call failed: {exc}") from exc
 
@@ -194,10 +204,45 @@ class NebiusClient:
             model_id=self.model_id,
             prompt_template_version=template_version,
             request_digest=self._request_digest(system_prompt, user_message),
-            response_text=response_text,
+            response_text=f"[LIVE - {self.model_id}]\n{response_text}",
             is_mock=False,
             created_at=datetime.now(UTC),
         )
+
+    async def check_available_models(self) -> list[str]:
+        """
+        Query the Nebius models endpoint and return available model IDs.
+
+        Returns an empty list in mock mode.
+        Raises NebiusError on HTTP failure.
+        """
+        if self.is_mock_mode:
+            return []
+
+        import json as _json
+        import urllib.error
+        import urllib.request
+
+        url = f"{self._api_base}/models"
+        req = urllib.request.Request(
+            url,
+            headers={"Authorization": f"Bearer {self._api_key}"},
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                body = _json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            raise NebiusError(
+                f"Nebius models endpoint HTTP {exc.code}: {exc.reason}"
+            ) from exc
+        except Exception as exc:
+            raise NebiusError(f"Nebius models endpoint failed: {exc}") from exc
+
+        try:
+            return [m["id"] for m in body.get("data", [])]
+        except (KeyError, TypeError) as exc:
+            raise NebiusError(f"Unexpected models response shape: {body!r}") from exc
 
     async def _call(
         self,

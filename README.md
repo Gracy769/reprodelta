@@ -6,14 +6,14 @@ cares about changes. It replays immutable inputs in two environments, searches
 for a valid counterexample, tests a suspected mechanism, and checks a proposed
 repair against frozen independent cases.
 
-> **Implementation status:** hackathon fixture. Docker runs the curated input in
-> real NumPy 1.26.4 and 2.0.2 workers. Local mode simulates their precision
-> difference for development. Investigation and approval state is in memory.
-
-The model proposes an explanation and patch text, but this demo verifies two
-predefined fixture repair variants. It does not apply arbitrary model patches.
-PostgreSQL models and migrations are present; the API does not yet persist
-investigations or approvals, so restarting the API clears them.
+> **Implementation status:** Phase 2 complete.
+> - Investigation state persists to `ARTIFACT_DIR` (FileSystem store) and survives restarts.
+> - Interrupted investigations are never silently shown as completed.
+> - Stage events are emitted at each step (preflight, controls, search, reduction, explanation, intervention, repair, report).
+> - A constrained patch verifier validates proposed unified diffs against an allowlist before execution.
+> - Mock LLM mode is explicit; `NebiusError` from live calls surfaces in investigation events.
+> - Reports include `run_mode` (`local_simulation` / `pinned_workers`) and a `simulated_mode` flag.
+> - Docker remains unverified on this host — see **Docker** section.
 
 ## Quick start (Docker)
 
@@ -87,12 +87,30 @@ Copy `.env.example` to `.env` and edit as needed.
 | `WORKER_OLD_CONTAINER` | `worker-old` | Docker container name for the NumPy 1.26 worker. |
 | `WORKER_NEW_CONTAINER` | `worker-new` | Docker container name for the NumPy 2.0 worker. |
 | `SECRET_KEY` | `change-me-in-production` | Application secret key. Change before any public deployment. |
+| `PERSIST_INVESTIGATIONS` | `false` | Set to `true` to enable FileSystem store in `ARTIFACT_DIR`. |
 | `LOG_LEVEL` | `INFO` | Logging level. |
+
+## Docker
+
+Docker Compose is configured but was **not run on this development host** (Docker Engine not available). The Compose config validates successfully. The worker Dockerfiles install pinned NumPy versions (1.26.4 and 2.0.2) and serve the `WorkerHttpRunnerAdapter` HTTP endpoint.
+
+To verify Docker locally:
+
+```sh
+cp .env.example .env
+docker compose up --build
+# Open http://localhost:8000 and run the demo investigation
+# Verify the witness run shows intermediate_dtype=float64 on old worker
+# and intermediate_dtype=float32 on new worker
+```
+
+Until Docker is verified end-to-end, the investigation report sets `run_mode="local_simulation"` and `simulated_mode=true`.
 
 ## Test results
 
 ```sh
-python -m pytest tests/ -q
+python -m pytest tests/ -q --timeout=30
+# 403 passed
 ```
 
 Test coverage by layer:
@@ -107,12 +125,15 @@ Test coverage by layer:
 | Search | `test_search` | Witness found, invalid candidates rejected, budget stops search |
 | Reducer | `test_reducer` | Minimal witness confirmed, reduction steps recorded |
 | Evidence | `test_evidence` | Evidence bundle construction |
-| Nebius | `test_nebius` | Mock mode proposals, request digest format |
+| Nebius | `test_nebius` | Mock mode proposals, request digest format, NebiusError surfacing |
 | Intervention | `test_intervention` | NEP-50 mechanism supported by explicit-float32 intervention |
 | Repair | `test_repair` | Overfitted patch fails, good patch passes, holdout list immutable |
 | Security | `test_security`, `test_prompt_injection` | Path traversal, extra manifest fields, injection in description |
 | Evaluation | `test_evaluation_fixtures` | Unchanged controls, invalid rejection, overfitted patch, good patch, report fields |
-| Report | `test_report` | Report JSON fields, text summary, replay instructions |
+| Report | `test_report` | Report JSON fields, text summary, replay instructions, run_mode flag |
+| Persistence | `test_persistence` | Restart recovery, interrupt detection, event ordering, report survives restart |
+| Patch verifier | `test_patch_verifier` | Path allowlist, good diff passes, overfitted diff fails, unknown diff inconclusive |
+| Worker failure | `test_worker_failure` | Timeout → setup_failure, budget exhausted stops search |
 | Integration | `test_api_investigations`, `test_investigation_flow` | Full end-to-end API and investigation run |
 
 ## The demonstration fixture

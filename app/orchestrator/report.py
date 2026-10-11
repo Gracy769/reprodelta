@@ -13,7 +13,10 @@ The bundle includes:
 - Model proposals (with mock/live flag)
 - Intervention: description, prediction, result, assessment
 - Patch diffs and verification results (per holdout)
-- Replay instructions (commands to reproduce)
+- Run mode: local_simulation or pinned_workers (never claims Docker without worker_http)
+- Simulated mode flag
+- Environment versions from run evidence
+- Replay instructions: separate Windows and POSIX commands
 - Scope and limitations statement
 - Export timestamp and schema version
 
@@ -26,11 +29,55 @@ from datetime import UTC, datetime
 
 from app.domain.evidence import InvestigationEvidence
 
-_SCHEMA_VERSION = "1"
+_SCHEMA_VERSION = "2"
+
+
+def _detect_run_mode(evidence: InvestigationEvidence) -> str:
+    """
+    Determine the run mode from the evidence.
+
+    Returns "local_simulation" if numpy_version starts with "simulated-",
+    otherwise "pinned_workers".
+    """
+    # Check control run numpy versions
+    for ctrl in evidence.controls:
+        nv = ctrl.run1.numpy_version or ""
+        if nv.startswith("simulated-"):
+            return "local_simulation"
+    if evidence.witness is not None:
+        nv = evidence.witness.old_run.numpy_version or ""
+        if nv.startswith("simulated-"):
+            return "local_simulation"
+    return "pinned_workers"
+
+
+def _collect_environment_versions(evidence: InvestigationEvidence) -> dict:
+    """Collect numpy version strings from run evidence."""
+    versions: dict[str, str] = {}
+
+    if evidence.controls:
+        ctrl = evidence.controls[0]
+        if ctrl.run1.numpy_version:
+            versions["old_numpy_version"] = ctrl.run1.numpy_version
+    if len(evidence.controls) > 1:
+        ctrl2 = evidence.controls[1]
+        if ctrl2.run1.numpy_version:
+            versions["new_numpy_version"] = ctrl2.run1.numpy_version
+
+    if evidence.witness is not None:
+        if evidence.witness.old_run.numpy_version:
+            versions["witness_old_numpy_version"] = evidence.witness.old_run.numpy_version
+        if evidence.witness.new_run.numpy_version:
+            versions["witness_new_numpy_version"] = evidence.witness.new_run.numpy_version
+
+    return versions
 
 
 def generate_report(evidence: InvestigationEvidence) -> dict:
     """Return the full JSON evidence bundle."""
+    run_mode = _detect_run_mode(evidence)
+    simulated = run_mode == "local_simulation"
+
     return {
         "schema_version": _SCHEMA_VERSION,
         "export_timestamp": datetime.now(UTC).isoformat(),
@@ -42,6 +89,10 @@ def generate_report(evidence: InvestigationEvidence) -> dict:
         "contract_body": evidence.contract_body.model_dump(mode="json"),
         "verdict": evidence.verdict.value,
         "scope": evidence.scope,
+        # --- run mode ---
+        "run_mode": run_mode,
+        "simulated_mode": simulated,
+        "environment_versions": _collect_environment_versions(evidence),
         # --- controls ---
         "controls": [c.model_dump(mode="json") for c in evidence.controls],
         # --- witness ---
@@ -69,16 +120,18 @@ def generate_report(evidence: InvestigationEvidence) -> dict:
             for r in evidence.patch_results
         ],
         # --- replay ---
+        "replay_commands": generate_replay_commands(evidence),
         "replay_instructions": generate_replay_instructions(evidence),
         # --- limitations ---
         "limitations": generate_limitations(evidence),
     }
 
 
-def generate_replay_instructions(evidence: InvestigationEvidence) -> str:
-    """Return shell commands that reproduce the witness observation."""
+def generate_replay_commands(evidence: InvestigationEvidence) -> dict:
+    """Return separate Windows and POSIX replay commands."""
     inv_id = evidence.investigation_id
-    contract_hash = evidence.contract_hash
+    run_mode = _detect_run_mode(evidence)
+    simulated = run_mode == "local_simulation"
 
     if evidence.witness is not None:
         w = evidence.witness
@@ -87,38 +140,65 @@ def generate_replay_instructions(evidence: InvestigationEvidence) -> str:
         old_conclusion = w.old_run.conclusion or "?"
         new_ratio = w.new_run.ratio
         new_conclusion = w.new_run.conclusion or "?"
-
         ratio_str_old = f"{old_ratio:.11f}" if old_ratio is not None else "?"
         ratio_str_new = f"{new_ratio:.11f}" if new_ratio is not None else "?"
 
-        witness_block = f"""
-# 3. Run the witness input in the old environment
-echo '{input_json_str}' | python run.py
-# Expected: ratio={ratio_str_old}, conclusion={old_conclusion}
-
-# 4. Install NumPy 2.0 (new environment)
-pip install numpy==2.0.2
-
-# 5. Run the same witness input in the new environment
-echo '{input_json_str}' | python run.py
-# Expected: ratio={ratio_str_new}, conclusion={new_conclusion}
-"""
+        if simulated:
+            posix_witness = (
+                f"# NOTE: local simulation mode — results are approximated in-process\n"
+                f"# To reproduce with real NumPy environments, use RUNNER_MODE=worker_http\n"
+                f"echo '{input_json_str}' | NUMPY_VERSION=1.26.4 python run.py\n"
+                f"# Expected: ratio={ratio_str_old}, conclusion={old_conclusion}\n"
+                f"echo '{input_json_str}' | NUMPY_VERSION=2.0.2 python run.py\n"
+                f"# Expected: ratio={ratio_str_new}, conclusion={new_conclusion}"
+            )
+            windows_witness = (
+                f"# NOTE: local simulation mode — results are approximated in-process\n"
+                f"# To reproduce with real NumPy environments, use RUNNER_MODE=worker_http\n"
+                f'echo {input_json_str} | python run.py\n'
+                f"# Expected: ratio={ratio_str_old}, conclusion={old_conclusion}"
+            )
+        else:
+            posix_witness = (
+                f"pip install numpy==1.26.4\n"
+                f"echo '{input_json_str}' | python run.py\n"
+                f"# Expected: ratio={ratio_str_old}, conclusion={old_conclusion}\n"
+                f"pip install numpy==2.0.2\n"
+                f"echo '{input_json_str}' | python run.py\n"
+                f"# Expected: ratio={ratio_str_new}, conclusion={new_conclusion}"
+            )
+            windows_witness = (
+                f"pip install numpy==1.26.4\n"
+                f'echo {input_json_str} | python run.py\n'
+                f"# Expected: ratio={ratio_str_old}, conclusion={old_conclusion}\n"
+                f"pip install numpy==2.0.2\n"
+                f'echo {input_json_str} | python run.py\n'
+                f"# Expected: ratio={ratio_str_new}, conclusion={new_conclusion}"
+            )
     else:
-        witness_block = """
-# 3. No witness was found within the search budget.
-#    Try increasing max_candidates and re-running the investigation.
-"""
+        posix_witness = "# No witness was found within the search budget."
+        windows_witness = "# No witness was found within the search budget."
 
-    return f"""# ReproDelta — Replay Instructions
-# Investigation: {inv_id}
-# Contract hash: {contract_hash}
+    contract_hash = evidence.contract_hash
+    posix = (
+        f"# ReproDelta replay — investigation {inv_id}\n"
+        f"# Contract hash: {contract_hash}\n"
+        f"cd fixture/project\n"
+        f"{posix_witness}"
+    )
+    windows = (
+        f"# ReproDelta replay — investigation {inv_id}\n"
+        f"# Contract hash: {contract_hash}\n"
+        f"cd fixture\\project\n"
+        f"{windows_witness}"
+    )
+    return {"posix": posix, "windows": windows}
 
-# 1. Set up the environment
-cd fixture/project
 
-# 2. Install NumPy 1.26 (old environment)
-pip install numpy==1.26.4
-{witness_block}"""
+def generate_replay_instructions(evidence: InvestigationEvidence) -> str:
+    """Return shell commands that reproduce the witness observation (POSIX)."""
+    cmds = generate_replay_commands(evidence)
+    return cmds["posix"]
 
 
 def generate_limitations(evidence: InvestigationEvidence) -> list[str]:
@@ -126,6 +206,18 @@ def generate_limitations(evidence: InvestigationEvidence) -> list[str]:
     limitations: list[str] = [
         "This is a constructed demonstration case, not an independently observed research defect.",
     ]
+
+    run_mode = _detect_run_mode(evidence)
+    if run_mode == "local_simulation":
+        limitations.append(
+            "This demonstration used simulated precision behavior — "
+            "NumPy version differences were emulated in-process, not in isolated containers."
+        )
+        limitations.append(
+            "Run mode: local_simulation. "
+            "No Docker isolation was used. "
+            "For isolated reproduction, use RUNNER_MODE=worker_http with pinned container images."
+        )
 
     # Check if any proposal was generated in mock mode
     is_mock = any(
@@ -153,6 +245,8 @@ def generate_limitations(evidence: InvestigationEvidence) -> list[str]:
 def generate_text_summary(evidence: InvestigationEvidence) -> str:
     """Return a human-readable plain-text summary of the investigation."""
     lines: list[str] = []
+    run_mode = _detect_run_mode(evidence)
+    simulated = run_mode == "local_simulation"
 
     lines.append("=" * 72)
     lines.append("REPRODELTA — INVESTIGATION SUMMARY")
@@ -163,6 +257,19 @@ def generate_text_summary(evidence: InvestigationEvidence) -> str:
     lines.append(f"Timestamp     : {evidence.timestamp.isoformat()}")
     lines.append(f"Verdict       : {evidence.verdict.value}")
     lines.append(f"Scope         : {evidence.scope}")
+    lines.append(f"Run mode      : {run_mode}")
+    if simulated:
+        lines.append("  (!) Simulation mode — no Docker isolation; NumPy behavior emulated in-process")
+    lines.append("")
+
+    # Model call status
+    is_mock = any(getattr(p, "is_mock", False) for p in evidence.model_proposals)
+    if not evidence.model_proposals:
+        lines.append("MODEL CALLS: none made (no model calls attempted)")
+    elif is_mock:
+        lines.append("MODEL CALLS: [MOCK_LLM_MODE] — no live Nebius/Nemotron call made")
+    else:
+        lines.append("MODEL CALLS: [LIVE] — real Nebius API calls were made")
     lines.append("")
 
     # Controls
@@ -177,6 +284,15 @@ def generate_text_summary(evidence: InvestigationEvidence) -> str:
             f"  repeatable={repeatable}"
         )
     lines.append("")
+
+    # Environment versions
+    env_versions = _collect_environment_versions(evidence)
+    if env_versions:
+        lines.append("ENVIRONMENT VERSIONS")
+        lines.append("-" * 40)
+        for k, v in env_versions.items():
+            lines.append(f"  {k}: {v}")
+        lines.append("")
 
     # Witness
     if evidence.witness is not None:
@@ -243,8 +359,13 @@ def generate_text_summary(evidence: InvestigationEvidence) -> str:
     lines.append("")
 
     # Replay instructions
-    lines.append("REPLAY INSTRUCTIONS")
+    lines.append("REPLAY INSTRUCTIONS (POSIX)")
     lines.append("-" * 40)
     lines.append(generate_replay_instructions(evidence))
+
+    lines.append("REPLAY INSTRUCTIONS (WINDOWS)")
+    lines.append("-" * 40)
+    cmds = generate_replay_commands(evidence)
+    lines.append(cmds["windows"])
 
     return "\n".join(lines)

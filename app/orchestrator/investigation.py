@@ -45,8 +45,9 @@ from app.orchestrator.repair import (
     verify_patch,
 )
 from app.orchestrator.search import SearchController, SearchProgress
-from app.providers.nebius import ModelProposal, NebiusClient
+from app.providers.nebius import ModelProposal, NebiusClient, NebiusError
 from app.providers.runner import RunnerAdapter, RunResult
+from app.storage.investigation_store import InvestigationStore
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -68,7 +69,7 @@ def _run_result_to_evidence(result: RunResult, environment: str) -> RunEvidence:
         environment=environment,
         numpy_version=inner.get("numpy_version") if isinstance(inner, dict) else None,
         conclusion=inner.get("conclusion") if isinstance(inner, dict) else None,
-        ratio=float(inner["ratio"]) if isinstance(inner, dict) and "ratio" in inner else None,
+        ratio=float(inner["ratio"]) if isinstance(inner, dict) and inner.get("ratio") is not None else None,
         intermediate_dtype=inner.get("intermediate_dtype") if isinstance(inner, dict) else None,
         status=result.status,
     )
@@ -122,6 +123,9 @@ class InvestigationRunner:
         Optional Nebius client for model proposals.  If ``None`` a new client
         is created using ``NEBIUS_API_KEY`` from the environment (which may be
         ``None``, putting the client in mock mode).
+    store:
+        Optional InvestigationStore for persisting events.  If ``None``,
+        events are not persisted.
     """
 
     PROJECT_NAME = "Signal Classifier (NumPy 1.26 → 2.0 demo)"
@@ -136,16 +140,39 @@ class InvestigationRunner:
         budget: BudgetConfig,
         runner: RunnerAdapter,
         nebius_client: NebiusClient | None = None,
+        store: InvestigationStore | None = None,
     ) -> None:
         self.contract = contract
         self.budget = budget
         self.runner = runner
+        self._store = store
         settings = get_settings()
         self._nebius = nebius_client or NebiusClient(
             api_key=settings.nebius_api_key,
             model_id=settings.nebius_model_id,
             api_base=settings.nebius_base_url,
         )
+
+    # ------------------------------------------------------------------
+    # Event emission
+    # ------------------------------------------------------------------
+
+    def _emit(
+        self,
+        investigation_id: str,
+        event_type: str,
+        payload: dict | None = None,
+    ) -> None:
+        """Append an event to the store if one is configured."""
+        if self._store is None:
+            return
+        with contextlib.suppress(Exception):
+            self._store.append_event(
+                investigation_id,
+                actor="runner",
+                event_type=event_type,
+                payload=payload or {},
+            )
 
     # ------------------------------------------------------------------
     # Async model calls
@@ -187,6 +214,10 @@ class InvestigationRunner:
         contract_hash = hash_contract(self.contract)
         control_sha256 = _hash_input(self._CONTROL_INPUT)
 
+        self._emit(investigation_id, "investigation_started", {
+            "contract_hash": contract_hash,
+        })
+
         # ------------------------------------------------------------------
         # 1. Repeatability controls
         # ------------------------------------------------------------------
@@ -198,6 +229,13 @@ class InvestigationRunner:
         )
         controls = [old_control, new_control]
         if not all(control.repeatability_confirmed for control in controls):
+            failed_envs = [
+                c.run1.environment for c in controls if not c.repeatability_confirmed
+            ]
+            self._emit(investigation_id, "control_failed", {
+                "reason": "repeatability_not_confirmed",
+                "failed_envs": failed_envs,
+            })
             return InvestigationEvidence(
                 investigation_id=investigation_id,
                 project_name=self.PROJECT_NAME,
@@ -214,12 +252,19 @@ class InvestigationRunner:
                 patch_results=[],
             )
 
+        self._emit(investigation_id, "control_completed", {
+            "old_repeatability": old_control.repeatability_confirmed,
+            "new_repeatability": new_control.repeatability_confirmed,
+        })
+
         # The fixture holdouts are fixed before any model proposal is requested.
         sealed_holdouts = list(FIXTURE_HOLDOUTS)
 
         # ------------------------------------------------------------------
         # 2. Search for witness
         # ------------------------------------------------------------------
+        self._emit(investigation_id, "preflight_ok", {})
+
         searcher = SearchController(self.contract, self.budget, self.runner)
         progress: SearchProgress = searcher.run_search(investigation_id)
 
@@ -234,6 +279,12 @@ class InvestigationRunner:
             cand = progress.witness
             pr = cand.pair_result
             assert pr is not None  # guaranteed when witness is set
+
+            self._emit(investigation_id, "witness_found", {
+                "input_sha256": cand.input_sha256,
+                "old_conclusion": pr.comparison.get("old_conclusion"),
+                "new_conclusion": pr.comparison.get("new_conclusion"),
+            })
 
             old_run_ev = RunEvidence(
                 run_id=pr.old_run.run_id,
@@ -269,6 +320,9 @@ class InvestigationRunner:
             reduction = reduce_witness(
                 cand.input_json, self.contract, self.runner
             )
+            self._emit(investigation_id, "reduction_completed", {
+                "original_length": len(cand.input_json.get("signal", [])),
+            })
 
             # ------------------------------------------------------------------
             # 4. Model explanation (Nemotron call)
@@ -292,8 +346,17 @@ class InvestigationRunner:
                     witness_summary, env_diff
                 )
                 model_proposals.append(explanation_proposal)
+                self._emit(investigation_id, "model_explanation_received", {
+                    "is_mock": explanation_proposal.is_mock,
+                    "model_id": explanation_proposal.model_id,
+                })
+            except NebiusError as exc:
+                self._emit(investigation_id, "model_call_failed", {
+                    "call_type": "explanation",
+                    "error": str(exc),
+                })
             except Exception:  # noqa: BLE001
-                pass  # model call is best-effort; investigation continues
+                self._emit(investigation_id, "model_explanation_failed", {})
 
             # ------------------------------------------------------------------
             # 5. Intervention
@@ -307,6 +370,13 @@ class InvestigationRunner:
                     runner=self.runner,
                     proposal=explanation_prop,
                 )
+            if intervention_result is not None:
+                self._emit(investigation_id, "intervention_completed", {
+                    "assessment": getattr(intervention_result, "assessment", None),
+                    "prediction_supported": getattr(
+                        intervention_result, "prediction_supported", None
+                    ),
+                })
 
             # ------------------------------------------------------------------
             # 6. Model patch proposal (Nemotron call)
@@ -322,12 +392,25 @@ class InvestigationRunner:
                     allowed_paths=["fixture/project/pipeline.py"],
                 )
                 model_proposals.append(patch_proposal)
+                self._emit(investigation_id, "model_patch_received", {
+                    "is_mock": patch_proposal.is_mock,
+                    "model_id": patch_proposal.model_id,
+                })
+            except NebiusError as exc:
+                self._emit(investigation_id, "model_call_failed", {
+                    "call_type": "patch",
+                    "error": str(exc),
+                })
             except Exception:  # noqa: BLE001
-                pass
+                self._emit(investigation_id, "model_patch_failed", {})
 
             # ------------------------------------------------------------------
             # 7. Use the holdouts frozen before model patch generation
             # ------------------------------------------------------------------
+            self._emit(investigation_id, "holdouts_sealed", {
+                "count": len(sealed_holdouts),
+            })
+
             # ------------------------------------------------------------------
             # 8. Verify overfitted patch → should FAIL
             # ------------------------------------------------------------------
@@ -336,6 +419,12 @@ class InvestigationRunner:
                     OVERFITTED_PATCH, sealed_holdouts, self.contract, self.runner
                 )
                 patch_results.append(overfitted_result)
+                self._emit(investigation_id, "patch_verified", {
+                    "kind": "overfitted",
+                    "verdict": overfitted_result.verdict,
+                    "num_passed": overfitted_result.num_passed,
+                    "num_failed": overfitted_result.num_failed,
+                })
             except Exception:  # noqa: BLE001
                 pass
 
@@ -347,19 +436,32 @@ class InvestigationRunner:
                     GOOD_PATCH, sealed_holdouts, self.contract, self.runner
                 )
                 patch_results.append(good_result)
+                self._emit(investigation_id, "patch_verified", {
+                    "kind": "good",
+                    "verdict": good_result.verdict,
+                    "num_passed": good_result.num_passed,
+                    "num_failed": good_result.num_failed,
+                })
             except Exception:  # noqa: BLE001
                 pass
 
             verdict = VerdictKind.supported_conclusion_change
         elif progress.status == "exhausted":
             verdict = VerdictKind.no_violation_found
+            self._emit(investigation_id, "witness_not_found", {
+                "candidates_tried": progress.attempted,
+            })
         else:
             verdict = VerdictKind.inconclusive
+            self._emit(investigation_id, "witness_not_found", {
+                "candidates_tried": progress.attempted,
+                "reason": "budget_exhausted_or_inconclusive",
+            })
 
         # ------------------------------------------------------------------
         # 10. Assemble final InvestigationEvidence
         # ------------------------------------------------------------------
-        return InvestigationEvidence(
+        evidence = InvestigationEvidence(
             investigation_id=investigation_id,
             project_name=self.PROJECT_NAME,
             contract_hash=contract_hash,
@@ -374,6 +476,15 @@ class InvestigationRunner:
             intervention=intervention_result,
             patch_results=patch_results,
         )
+
+        self._emit(investigation_id, "report_assembled", {
+            "verdict": verdict.value,
+        })
+        self._emit(investigation_id, "investigation_completed", {
+            "verdict": verdict.value,
+        })
+
+        return evidence
 
 
 # ---------------------------------------------------------------------------

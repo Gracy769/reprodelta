@@ -58,7 +58,7 @@ def create_app() -> FastAPI:
         return get_redoc_html(
             openapi_url=app.openapi_url,
             title="ReproDelta — API reference",
-            redoc_js_url="/assets/vendor/redoc.standalone.js",
+            redoc_js_url="/assets/api-docs/redoc.standalone.js",
             redoc_favicon_url="/assets/favicon.svg",
             with_google_fonts=False,
         )

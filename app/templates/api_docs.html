@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#f2f5f3" />
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
-  <link rel="stylesheet" href="/assets/vendor/swagger-ui.css" />
+  <link rel="stylesheet" href="/assets/api-docs/swagger-ui.css" />
   <title>ReproDelta — API documentation</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; }
@@ -43,7 +43,7 @@
   </nav></header>
   <main class="docs-main"><div class="docs-kicker">Developer reference / v0.1.0</div><div id="swagger-ui"></div></main>
   <noscript>Enable JavaScript to browse the interactive API reference. The schema is available at <a href="{{ openapi_url }}">{{ openapi_url }}</a>.</noscript>
-  <script src="/assets/vendor/swagger-ui-bundle.js"></script>
+  <script src="/assets/api-docs/swagger-ui-bundle.js"></script>
   <script>
     SwaggerUIBundle({
       url: {{ openapi_url | tojson }},

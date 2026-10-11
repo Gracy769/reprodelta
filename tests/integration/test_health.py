@@ -46,15 +46,15 @@ async def test_api_docs_and_brand_assets_are_served_locally():
         docs = await client.get("/docs")
         redoc = await client.get("/redoc")
         logo = await client.get("/assets/favicon.svg")
-        swagger_script = await client.get("/assets/vendor/swagger-ui-bundle.js")
-        swagger_style = await client.get("/assets/vendor/swagger-ui.css")
-        redoc_script = await client.get("/assets/vendor/redoc.standalone.js")
+        swagger_script = await client.get("/assets/api-docs/swagger-ui-bundle.js")
+        swagger_style = await client.get("/assets/api-docs/swagger-ui.css")
+        redoc_script = await client.get("/assets/api-docs/redoc.standalone.js")
 
     assert docs.status_code == redoc.status_code == 200
     assert "/assets/favicon.svg" in docs.text
-    assert "/assets/vendor/swagger-ui-bundle.js" in docs.text
-    assert "/assets/vendor/swagger-ui.css" in docs.text
-    assert "/assets/vendor/redoc.standalone.js" in redoc.text
+    assert "/assets/api-docs/swagger-ui-bundle.js" in docs.text
+    assert "/assets/api-docs/swagger-ui.css" in docs.text
+    assert "/assets/api-docs/redoc.standalone.js" in redoc.text
     assert "cdn.jsdelivr.net" not in docs.text + redoc.text
     assert all(
         response.status_code == 200

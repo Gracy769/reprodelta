@@ -6,10 +6,11 @@ returned to the browser. Repository source is never executed by this module.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from typing import Annotated
 
@@ -55,10 +56,14 @@ def _ensure_table(conn: psycopg.Connection) -> None:
             provider TEXT NOT NULL,
             account_name TEXT NOT NULL,
             encrypted_token TEXT NOT NULL,
+            encrypted_refresh_token TEXT,
+            token_expires_at TIMESTAMPTZ,
             connected_at TIMESTAMPTZ NOT NULL,
             PRIMARY KEY (owner_id, provider)
         )"""
     )
+    conn.execute("ALTER TABLE connected_source_accounts ADD COLUMN IF NOT EXISTS encrypted_refresh_token TEXT")
+    conn.execute("ALTER TABLE connected_source_accounts ADD COLUMN IF NOT EXISTS token_expires_at TIMESTAMPTZ")
 
 
 @lru_cache(maxsize=1)
@@ -130,12 +135,52 @@ def _saved_token(owner_id: str, provider: str) -> str:
     with psycopg.connect(_database_dsn(), row_factory=dict_row) as conn:
         _ensure_table(conn)
         row = conn.execute(
-            "SELECT encrypted_token FROM connected_source_accounts WHERE owner_id=%s AND provider=%s",
+            """SELECT encrypted_token, encrypted_refresh_token, token_expires_at
+               FROM connected_source_accounts WHERE owner_id=%s AND provider=%s FOR UPDATE""",
             (owner_id, provider),
         ).fetchone()
-    if row is None:
-        raise HTTPException(404, f"Connect {provider.title()} first")
-    return _cipher().decrypt(row["encrypted_token"].encode()).decode()
+        if row is None:
+            raise HTTPException(404, f"Connect {provider.title()} first")
+        expires_at = row["token_expires_at"]
+        if provider == "gitlab" and expires_at and expires_at <= datetime.now(UTC) + timedelta(seconds=60):
+            encrypted_refresh = row["encrypted_refresh_token"]
+            if not encrypted_refresh:
+                raise HTTPException(401, "GitLab session expired; reconnect GitLab")
+            refresh = _cipher().decrypt(encrypted_refresh.encode()).decode()
+            access_token, refresh_token, new_expiry = _refresh_gitlab_token(refresh)
+            row["encrypted_token"] = _cipher().encrypt(access_token.encode()).decode()
+            conn.execute(
+                """UPDATE connected_source_accounts SET encrypted_token=%s,
+                   encrypted_refresh_token=%s, token_expires_at=%s
+                   WHERE owner_id=%s AND provider=%s""",
+                (row["encrypted_token"], _cipher().encrypt(refresh_token.encode()).decode(),
+                 new_expiry, owner_id, provider),
+            )
+        return _cipher().decrypt(row["encrypted_token"].encode()).decode()
+
+
+def _refresh_gitlab_token(refresh_token: str) -> tuple[str, str, datetime]:
+    settings = get_settings()
+    if not settings.gitlab_oauth_client_id or not settings.gitlab_oauth_client_secret:
+        raise HTTPException(503, "GitLab OAuth is not configured")
+    try:
+        with httpx.Client(timeout=12, follow_redirects=False) as client:
+            response = client.post("https://gitlab.com/oauth/token", data={
+                "grant_type": "refresh_token", "refresh_token": refresh_token,
+                "client_id": settings.gitlab_oauth_client_id,
+                "client_secret": settings.gitlab_oauth_client_secret,
+            })
+            response.raise_for_status()
+            payload = response.json()
+        access, refresh = payload.get("access_token"), payload.get("refresh_token")
+        seconds = payload.get("expires_in")
+        if not isinstance(access, str) or not access or not isinstance(refresh, str) or not refresh:
+            raise ValueError("GitLab token response incomplete")
+        if not isinstance(seconds, int) or isinstance(seconds, bool) or seconds <= 0:
+            raise ValueError("GitLab token expiry missing")
+        return access, refresh, datetime.now(UTC) + timedelta(seconds=seconds)
+    except (httpx.HTTPError, ValueError) as exc:
+        raise HTTPException(401, "GitLab session expired; reconnect GitLab") from exc
 
 
 def _github_repository(value: str) -> str:
@@ -177,6 +222,8 @@ async def connect_source(
                 ON CONFLICT (owner_id, provider) DO UPDATE SET
                 account_name=EXCLUDED.account_name,
                 encrypted_token=EXCLUDED.encrypted_token,
+                encrypted_refresh_token=NULL,
+                token_expires_at=NULL,
                 connected_at=EXCLUDED.connected_at""",
             (owner_id, provider, account, encrypted, datetime.now(UTC)),
         )
@@ -196,7 +243,7 @@ def disconnect_source(provider: str, owner_id: Annotated[str, Depends(current_us
 
 @router.get("/{provider}/repositories")
 async def repositories(provider: str, owner_id: Annotated[str, Depends(current_user)]):
-    token = _saved_token(owner_id, provider)
+    token = await asyncio.to_thread(_saved_token, owner_id, provider)
     if provider == "github":
         data = await _host_get(
             provider,
@@ -259,7 +306,7 @@ async def repositories(provider: str, owner_id: Annotated[str, Depends(current_u
 
 @router.get("/{provider}/changes")
 async def changes(provider: str, repository: str, owner_id: Annotated[str, Depends(current_user)]):
-    token = _saved_token(owner_id, provider)
+    token = await asyncio.to_thread(_saved_token, owner_id, provider)
     if provider == "github":
         repository = _github_repository(repository)
         data = await _host_get(
@@ -299,7 +346,7 @@ async def changes(provider: str, repository: str, owner_id: Annotated[str, Depen
 
 @router.get("/{provider}/issues")
 async def issues(provider: str, repository: str, owner_id: Annotated[str, Depends(current_user)]):
-    token = _saved_token(owner_id, provider)
+    token = await asyncio.to_thread(_saved_token, owner_id, provider)
     if provider == "github":
         repository = _github_repository(repository)
         data = await _host_get(provider, token, f"/repos/{repository}/issues", {"state": "open", "per_page": 50})
@@ -328,7 +375,7 @@ async def change_advice(
 ):
     if number < 1:
         raise HTTPException(422, "Invalid change number")
-    token = _saved_token(owner_id, provider)
+    token = await asyncio.to_thread(_saved_token, owner_id, provider)
     if provider == "github":
         repository = _github_repository(repository)
         data = await _host_get(

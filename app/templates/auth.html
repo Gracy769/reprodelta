@@ -42,6 +42,7 @@
         <div id="auth-message" role="status" aria-live="polite" hidden></div>
         <div class="social-stack" aria-label="Continue with a provider">
           <button type="button" class="social-button" data-provider="github"><img class="provider-logo" src="/assets/github.svg" alt="" /> Continue with GitHub <span aria-hidden="true">↗</span></button>
+          {% if gitlab_oauth_enabled %}<button type="button" class="social-button" data-provider="gitlab"><span class="provider-icon gitlab" aria-hidden="true">GL</span> Continue with GitLab <span aria-hidden="true">↗</span></button>{% endif %}
           <button type="button" class="social-button" data-provider="google" {% if not firebase_config and not auth_base_url %}disabled title="Google sign-in is being configured for this domain"{% endif %}><img class="provider-logo" src="/assets/google.svg" alt="" /> Continue with Google <span aria-hidden="true">↗</span></button>
         </div>
         <p class="provider-note">GitHub grants access to your repositories so you can choose a change to inspect. {% if not firebase_config and not auth_base_url %}Google sign-in is being configured for this domain.{% endif %}{% if not auth_base_url %} Email sign-in is not available yet.{% endif %}</p>

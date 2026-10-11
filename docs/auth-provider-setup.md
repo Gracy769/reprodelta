@@ -29,10 +29,14 @@ read token for selected repositories in the workspace.
 
 Create a GitLab OAuth application with callback
 `https://reprodelta-web-production.up.railway.app/oauth/gitlab/callback` and
-`read_api` scope. Set `GITLAB_OAUTH_CLIENT_ID` and
+**only `read_api` scope**. `read_repository` alone does not grant the project,
+merge request, and issue API access that the picker needs. Runner, write,
+registry, observability, profile, and email scopes are unnecessary. Set
+`GITLAB_OAUTH_CLIENT_ID` and
 `GITLAB_OAUTH_CLIENT_SECRET` on `reprodelta-web`. Until those variables are
 configured, GitLab sign-in returns a clear unavailable message; a signed-in
-user may still connect GitLab with a `read_api` personal token.
+user may still connect GitLab with a `read_api` personal token. The app encrypts
+GitLab refresh tokens and rotates them when access tokens expire.
 
 ## Google with Firebase
 

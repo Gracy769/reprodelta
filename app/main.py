@@ -51,10 +51,11 @@ def create_app() -> FastAPI:
                 firebase_frame = f" https://{domain}"
         firebase_connect = " https://identitytoolkit.googleapis.com https://securetoken.googleapis.com" if settings.firebase_project_id else ""
         response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+            "default-src 'self'; script-src 'self' 'unsafe-inline' https://apis.google.com; "
             "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
             f"connect-src 'self'{auth_connect}{firebase_connect}{firebase_frame}; "
-            f"frame-src 'self'{firebase_frame}; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+            f"frame-src 'self' https://accounts.google.com{firebase_frame}; "
+            "object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
         )
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-Content-Type-Options"] = "nosniff"

@@ -11,7 +11,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi import HTTPException
 
-from app.api import auth_bridge, connections, source_oauth
+from app.api import account_pages, auth_bridge, connections, source_oauth
 from app.main import app
 
 
@@ -33,6 +33,53 @@ async def test_account_pages_expose_real_forms_and_assets():
     assert css.status_code == js.status_code == 200
     assert '/assets/github.svg' in signup.text
     assert '/assets/google.svg' in signup.text
+
+
+@pytest.mark.asyncio
+async def test_gitlab_button_uses_first_party_oauth_when_configured(monkeypatch):
+    monkeypatch.setattr(account_pages, "get_settings", lambda: SimpleNamespace(
+        neon_auth_base_url=None, gitlab_oauth_client_id="id", gitlab_oauth_client_secret="secret",
+        firebase_api_key=None, firebase_auth_domain=None, firebase_project_id=None, firebase_app_id=None,
+    ))
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="https://reprodelta.example") as client:
+        response = await client.get("/signin")
+    assert response.status_code == 200
+    assert 'data-provider="gitlab"' in response.text
+    assert "https://apis.google.com" in response.headers["content-security-policy"]
+
+
+def test_gitlab_refresh_token_rotation(monkeypatch):
+    monkeypatch.setattr(connections, "get_settings", lambda: SimpleNamespace(
+        gitlab_oauth_client_id="id", gitlab_oauth_client_secret="secret",
+    ))
+
+    class Reply:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"access_token": "new-access", "refresh_token": "new-refresh", "expires_in": 7200}
+
+    class Client:
+        def __init__(self, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def post(self, url, data):
+            assert url == "https://gitlab.com/oauth/token"
+            assert data["grant_type"] == "refresh_token"
+            assert data["refresh_token"] == "old-refresh"
+            return Reply()
+
+    monkeypatch.setattr(connections.httpx, "Client", Client)
+    access, refresh, expiry = connections._refresh_gitlab_token("old-refresh")
+    assert (access, refresh) == ("new-access", "new-refresh")
+    assert expiry > datetime.now(UTC) + timedelta(hours=1)
 
 
 @pytest.mark.asyncio

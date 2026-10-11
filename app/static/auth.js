@@ -48,8 +48,8 @@
     button.addEventListener("click", async () => {
       button.disabled = true;
       try {
-        if (button.dataset.provider === "github") {
-          window.location.assign("/oauth/github/start?next=/investigations/new");
+        if (["github", "gitlab"].includes(button.dataset.provider)) {
+          window.location.assign(`/oauth/${button.dataset.provider}/start?next=/investigations/new`);
           return;
         }
         if (button.dataset.provider === "google" && firebaseConfig) {
@@ -80,8 +80,11 @@
         const provider = button.dataset.provider;
         const providerName = { github: "GitHub", gitlab: "GitLab", google: "Google" }[provider] || provider;
         notice(error.code === "auth/popup-blocked" ? "Allow the Google sign-in popup and try again." :
+          error.code === "auth/unauthorized-domain" ? "Add this Railway domain in Firebase Authentication → Settings → Authorized domains." :
+          error.code === "auth/operation-not-allowed" ? "Enable Google under Firebase Authentication → Sign-in method." :
+          error.code === "auth/invalid-api-key" ? "Check that all four Firebase Web app settings in Railway come from the same project." :
           error.message.includes("PROVIDER_NOT_SUPPORTED") || error.message.includes("not supported")
-          ? `${providerName} sign-in needs provider activation. Use email or Google for now; connect your source host in the workspace.`
+          ? `${providerName} sign-in needs provider activation. Choose another sign-in method for now.`
           : error.message);
         button.disabled = false;
       }

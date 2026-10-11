@@ -114,9 +114,17 @@ async def oauth_callback(provider: str, request: Request, code: str = "", state:
         async with httpx.AsyncClient(timeout=12, follow_redirects=False) as client:
             token_response = await client.post(PROVIDERS[provider]["token"], data=payload, headers={"Accept": "application/json"})
             token_response.raise_for_status()
-            access_token = token_response.json().get("access_token")
+            token_data = token_response.json()
+            access_token = token_data.get("access_token")
             if not isinstance(access_token, str) or not access_token:
                 raise ValueError("Missing OAuth token")
+            if provider == "gitlab":
+                refresh_token = token_data.get("refresh_token")
+                expires_in = token_data.get("expires_in")
+                if not isinstance(refresh_token, str) or not refresh_token:
+                    raise ValueError("Missing GitLab refresh token")
+                if not isinstance(expires_in, int) or isinstance(expires_in, bool) or expires_in <= 0:
+                    raise ValueError("Missing GitLab token expiry")
             user_response = await client.get(PROVIDERS[provider]["user"], headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"})
             user_response.raise_for_status()
             user = user_response.json()
@@ -136,12 +144,19 @@ async def oauth_callback(provider: str, request: Request, code: str = "", state:
     with psycopg.connect(_database_dsn()) as conn:
         _ensure_table(conn)
         conn.execute(
-            """INSERT INTO connected_source_accounts (owner_id, provider, account_name, encrypted_token, connected_at)
-               VALUES (%s, %s, %s, %s, %s)
+            """INSERT INTO connected_source_accounts
+               (owner_id, provider, account_name, encrypted_token, encrypted_refresh_token, token_expires_at, connected_at)
+               VALUES (%s, %s, %s, %s, %s, %s, %s)
                ON CONFLICT (owner_id, provider) DO UPDATE SET account_name=EXCLUDED.account_name,
-                   encrypted_token=EXCLUDED.encrypted_token, connected_at=EXCLUDED.connected_at""",
+                   encrypted_token=EXCLUDED.encrypted_token,
+                   encrypted_refresh_token=EXCLUDED.encrypted_refresh_token,
+                   token_expires_at=EXCLUDED.token_expires_at,
+                   connected_at=EXCLUDED.connected_at""",
             (owner_id, provider, source_account,
-             _cipher().encrypt(access_token.encode()).decode(), datetime.now(UTC)),
+             _cipher().encrypt(access_token.encode()).decode(),
+             _cipher().encrypt(refresh_token.encode()).decode() if provider == "gitlab" else None,
+             datetime.now(UTC) + timedelta(seconds=expires_in) if provider == "gitlab" else None,
+             datetime.now(UTC)),
         )
     now = datetime.now(UTC)
     session = jwt.encode(

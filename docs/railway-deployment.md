@@ -30,6 +30,9 @@ Users can instead connect a fine-grained read token for selected repositories.
 The workspace SSH key is only for terminal access to running services. Deploys
 are authenticated by Railway CLI login or the GitHub integration. The private
 SSH key stays on the developer machine and is never stored in this repository.
+This release was pushed to GitHub and uploaded with `railway up --service
+reprodelta-web --ci`. Automatic redeployment from GitHub commits has not yet
+been confirmed in this Railway workspace.
 
 Before considering a deployment complete, check the Railway deployment status,
 `/health`, the home page, `/demo/investigation`, and the GitHub sign-in callback.

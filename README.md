@@ -83,10 +83,11 @@ The Railway project is linked to the GitHub repository and deploys from `main`.
 It uses the root Dockerfile, a Postgres service, and a generated public domain.
 The Dockerfile runs the reviewed NumPy fixture in two pinned worker environments
 and serves FastAPI on Railway's `PORT`. Set the application variables as described
-in [Railway deployment](docs/railway-deployment.md). New commits to `main` trigger
-a deployment through Railway's GitHub integration. No local Docker installation
-is required. The Railway workspace SSH key permits access to a running service;
-it does not authenticate deployments.
+in [Railway deployment](docs/railway-deployment.md). This release was deployed
+with the Railway CLI after pushing to `main`; automatic GitHub redeployment has
+not yet been verified. No local Docker installation is required. The Railway
+workspace SSH key permits access to a running service; it does not authenticate
+deployments.
 
 ## Previous Antideploy deployment
 

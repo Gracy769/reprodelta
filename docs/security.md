@@ -38,3 +38,24 @@ Store provider keys in a secret manager/environment injection for the API servic
 ## Stop conditions
 
 Stop and mark `setup failure` for missing/changed environment manifests, runner isolation failure, or failed hash verification. Stop and mark `inconclusive` when a required oracle or control cannot run, when old/old or new/new variation overwhelms the declared margin, or when several dependency changes remain confounded. Never convert these into “no regression.”
+
+## Source-host connection boundary (implemented 11 October 2026)
+
+The workspace authenticates the ReproDelta user through Neon Auth. The API
+accepts only JWTs signed by the configured JWKS and checks issuer, audience,
+expiry, and subject. GitHub and GitLab connections are indexed by that subject
+in Postgres. Read tokens are encrypted at rest with a key derived from the
+application `SECRET_KEY`; they never enter runner processes, model prompts,
+browser storage, or API responses. Users can disconnect and delete the token.
+This is an application-level boundary; a future production release should
+rotate to a dedicated key-management service and audit connection access.
+
+Source-host API bases are fixed in code, repository identifiers are validated,
+redirects are disabled, and list sizes are bounded. Retrieved diff text is
+untrusted data. The current advisor applies deterministic pattern checks only
+and reports that no repository code was executed. See [GitHub's fine-grained
+app permissions](https://docs.github.com/en/rest/apps/apps) and [GitLab's
+projects API](https://docs.gitlab.com/api/projects/) for source-side access
+controls. [Better Auth's cookie guidance](https://better-auth.com/docs/concepts/cookies)
+notes that direct cross-site sessions can be affected by browser cookie
+policies; a same-origin Auth proxy is a follow-up for broad browser support.

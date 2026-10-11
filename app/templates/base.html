@@ -32,6 +32,7 @@
       --sp-8: 32px;
     }
     *, *::before, *::after { box-sizing: border-box; }
+    [hidden] { display: none !important; }
     html { scroll-behavior: smooth; }
     body { margin: 0; color: var(--text); background: var(--surface); font: 16px/1.55 var(--font-sans); }
     h1, h2, h3, h4, p { margin-top: 0; }
@@ -138,9 +139,10 @@
       <ul class="nav-links" role="list">
         <li><a href="/">Workbench</a></li>
         <li><a href="/investigations/new">New investigation</a></li>
+        <li><a href="/workspace">Workspace</a></li>
         <li><a href="/docs">API</a></li>
       </ul>
-      <a href="/investigations/new" class="nav-cta">Launch demo <span aria-hidden="true">↗</span></a>
+      <a href="/signup" class="nav-cta">Create account <span aria-hidden="true">↗</span></a>
       {% if mock_llm_mode is defined and mock_llm_mode %}<span class="mock-mode">MODEL IN MOCK MODE</span>{% endif %}
     </div>
   </nav>

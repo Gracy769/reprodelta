@@ -15,6 +15,40 @@ repair against frozen independent cases.
 > - Reports include `run_mode` (`local_simulation`, `pinned_workers`, or `unverified`) and a `simulated_mode` flag.
 > - Docker remains unverified on this host — see **Docker** section.
 
+## Accounts and source connections
+
+`/signup` and `/signin` are custom ReproDelta pages. Antideploy's managed Neon
+Auth supplies email/password and Google sign-in; account passwords are never
+handled by the ReproDelta API. The source-host workspace is at `/workspace`.
+It obtains a short-lived JWT from Neon Auth and the API verifies its signature,
+issuer, audience, expiry, and subject against `NEON_AUTH_JWKS_URL` before reading
+the user's source connections. The Auth instance must trust the site's origin.
+
+GitHub and GitLab social **sign-in** are visible as options, but the currently
+provisioned Auth instance reports those providers are not enabled. Activating
+them requires provider OAuth applications and configuration in the Auth service;
+the UI reports that state rather than pretending the redirect worked. Google
+and email are available now. A user who signs in with either can connect
+GitHub with a fine-grained token limited to repository metadata and pull
+request read access, or GitLab with a `read_api` token. ReproDelta verifies the
+token with that host, encrypts it with a key derived from `SECRET_KEY`, stores it
+in Postgres by Auth user ID, and never returns it to the browser. Disconnect
+deletes the saved token. Rotating `SECRET_KEY` invalidates saved connections.
+
+The workspace lists up to 100 repositories per source and up to 50 open PRs or
+merge requests in the selected repository. **Get scoped advice** reads at most
+100 changed files, detects dependency manifests and NumPy references, and
+reports the checked scope. It does **not** run repository code or claim a
+verdict on the selected PR. The only executable investigation remains the
+reviewed NumPy fixture under `/investigations/new`. Supporting arbitrary
+repositories requires the isolation and contract-approval gates in
+[`docs/security.md`](docs/security.md).
+
+The Auth service URL and JWKS URL are supplied to the deployed API as
+`NEON_AUTH_BASE_URL` and `NEON_AUTH_JWKS_URL`. Local development can read those
+from an ignored `.env`; never commit Auth cookies, personal access tokens, or
+the app's `SECRET_KEY`.
+
 ## Quick start (Docker)
 
 ```sh

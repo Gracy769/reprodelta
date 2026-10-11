@@ -56,6 +56,16 @@ Use exactly these user-facing classes, with supporting evidence and scope: `obse
 
 **P0 — working demonstration:** curated project; approved contract; paired runner; live valid-input search; witness reduction; one intervention; frozen holdouts; evidence report; Nemotron on Nebius. **P1:** authenticated project upload, PR integration, additional templates, richer trace instrumentation. **Later:** stochastic/GPU workflows, statistical equivalence claims, multi-library upgrade attribution, automated PR authoring.
 
+**Implementation note, 11 October 2026:** Account pages and a source-picker
+workspace now exist. Managed Neon Auth provides email/password and Google;
+GitHub/GitLab social providers require separate OAuth configuration. Users can
+connect a source host with a limited read token, select an open PR/MR, and run
+a **metadata-only diff review**. That review is not an executable project
+investigation and must never be presented as a test result. Arbitrary source
+execution remains outside the supported public demo until the isolation,
+snapshot, manifest, contract, and ownership checks in the security model are
+implemented and verified.
+
 The hackathon submission additionally needs a public repository with an open-source license, working demo, and a public video under three minutes. Check the [official rules](https://nebiusglobalaihackathon.devpost.com/rules) before submission.
 
 ## Success measures and research test

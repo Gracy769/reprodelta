@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#091812" />
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/assets/auth.css" />
+  <title>{{ 'Create account' if mode == 'signup' else 'Sign in' }} — ReproDelta</title>
+</head>
+<body data-mode="{{ mode }}" data-auth-base="{{ auth_base_url or '' }}">
+  <a class="skip-link" href="#account-form">Skip to account form</a>
+  <div class="auth-layout">
+    <aside class="story-panel" aria-label="About ReproDelta">
+      <a class="brand" href="/"><img src="/assets/favicon.svg" alt="" /><span>reprodelta<span class="slash">/</span></span></a>
+      <div class="story-content">
+        <p class="eyebrow"><span class="pulse" aria-hidden="true"></span> THE EVIDENCE WORKBENCH</p>
+        <h1>When the code runs,<br /><em>but the answer moves.</em></h1>
+        <p class="story-lede">Connect your source host, find the changes worth investigating, and keep every conclusion tied to reproducible evidence.</p>
+        <div class="story-points">
+          <div><b>01</b><span>Choose a repository and change</span></div>
+          <div><b>02</b><span>Inspect the dependency diff</span></div>
+          <div><b>03</b><span>Run a bounded replay when a supported fixture is ready</span></div>
+        </div>
+      </div>
+      <div class="signal-art" aria-hidden="true">
+        <div class="art-grid"></div>
+        <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
+        <div class="axis axis-a"><span>ENV A</span><strong>1.26.4</strong><i>float64</i></div>
+        <div class="axis axis-b"><span>ENV B</span><strong>2.0.2</strong><i>float32</i></div>
+        <div class="delta-glyph">Δ</div>
+        <div class="art-caption">SAME INPUT / DIFFERENT CONCLUSION</div>
+      </div>
+      <div class="story-foot">REPRODELTA / 2026 <span>CURATED NUMPY REPLAY</span></div>
+    </aside>
+    <main class="form-panel">
+      <div class="form-top"><a href="/" aria-label="Back to ReproDelta">← Back to site</a><span>{% if mode == 'signup' %}Already have an account? <a href="/signin">Sign in →</a>{% else %}New to ReproDelta? <a href="/signup">Create account →</a>{% endif %}</span></div>
+      <div class="form-wrap">
+        <p class="form-kicker">{{ 'START YOUR WORKSPACE' if mode == 'signup' else 'WELCOME BACK' }}</p>
+        <h2>{{ 'Create your account.' if mode == 'signup' else 'Sign in to ReproDelta.' }}</h2>
+        <p class="form-lede">{{ 'One place to review dependency changes and trace scientific conclusions.' if mode == 'signup' else 'Your repositories and investigations are waiting.' }}</p>
+        <div id="auth-message" role="status" aria-live="polite" hidden></div>
+        <div class="social-stack" aria-label="Continue with a provider">
+          <button type="button" class="social-button" data-provider="github"><span class="provider-icon">GH</span> Continue with GitHub <span aria-hidden="true">↗</span></button>
+          <button type="button" class="social-button" data-provider="gitlab"><span class="provider-icon gitlab">GL</span> Continue with GitLab <span aria-hidden="true">↗</span></button>
+          <button type="button" class="social-button" data-provider="google"><span class="provider-icon google">G</span> Continue with Google <span aria-hidden="true">↗</span></button>
+        </div>
+        <div class="divider"><span>or continue with email</span></div>
+        <form id="account-form" novalidate>
+          {% if mode == 'signup' %}<label for="name">Your name</label><input id="name" name="name" autocomplete="name" required maxlength="100" placeholder="Ada Lovelace" />{% endif %}
+          <label for="email">Email address</label><input id="email" name="email" type="email" autocomplete="email" required placeholder="you@yourlab.org" />
+          <div class="password-label"><label for="password">Password</label></div>
+          <div class="password-wrap"><input id="password" name="password" type="password" autocomplete="{{ 'new-password' if mode == 'signup' else 'current-password' }}" required minlength="8" placeholder="At least 8 characters" /><button type="button" id="toggle-password" aria-label="Show password">Show</button></div>
+          {% if mode == 'signup' %}<p class="field-note">Use at least 8 characters. Keep this password unique to ReproDelta.</p>{% endif %}
+          <button id="submit-account" class="submit-button" type="submit">{{ 'Create account' if mode == 'signup' else 'Sign in' }} <span aria-hidden="true">↗</span></button>
+        </form>
+        <p class="form-foot">Your connected source tokens stay server side and are encrypted. ReproDelta never runs repository code in the website process.</p>
+      </div>
+    </main>
+  </div>
+  <script src="/assets/auth.js" defer></script>
+</body>
+</html>

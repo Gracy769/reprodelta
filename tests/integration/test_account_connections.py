@@ -11,7 +11,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi import HTTPException
 
-from app.api import connections
+from app.api import auth_bridge, connections
 from app.main import app
 
 
@@ -31,6 +31,66 @@ async def test_account_pages_expose_real_forms_and_assets():
     assert "Connect GitHub" in workspace.text
     assert "never sent to the runner" in workspace.text
     assert css.status_code == js.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_auth_bridge_rejects_other_origins_and_unlisted_paths(monkeypatch):
+    monkeypatch.setattr(
+        auth_bridge,
+        "get_settings",
+        lambda: SimpleNamespace(neon_auth_base_url="https://auth.example.test"),
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1:8002") as client:
+        unknown = await client.get("/auth/admin/users")
+        wrong_origin = await client.post(
+            "/auth/sign-in/email",
+            headers={"Origin": "https://evil.example"},
+            json={"email": "a@example.com", "password": "password123"},
+        )
+    assert unknown.status_code == 404
+    assert wrong_origin.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_auth_bridge_preserves_http_only_session_cookie(monkeypatch):
+    monkeypatch.setattr(
+        auth_bridge,
+        "get_settings",
+        lambda: SimpleNamespace(neon_auth_base_url="https://auth.example.test"),
+    )
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def request(self, method, url, **kwargs):
+            assert url == "https://auth.example.test/sign-in/email"
+            assert kwargs["headers"]["Origin"] == "http://127.0.0.1:8002"
+            assert kwargs["headers"]["Cookie"] == "__Secure-neon-auth.session_token=opaque"
+            return httpx.Response(
+                200,
+                headers={
+                    "set-cookie": "__Secure-neon-auth.session_token=opaque; Path=/; HttpOnly; Secure; SameSite=None"
+                },
+                json={"user": {"id": "u1"}},
+            )
+
+    original_client = auth_bridge.httpx.AsyncClient
+    transport = httpx.ASGITransport(app=app)
+    async with original_client(transport=transport, base_url="http://127.0.0.1:8002") as client:
+        monkeypatch.setattr(auth_bridge.httpx, "AsyncClient", lambda **kwargs: FakeClient())
+        response = await client.post(
+            "/auth/sign-in/email",
+            headers={"Origin": "http://127.0.0.1:8002", "Cookie": "other-secret=hidden; __Secure-neon-auth.session_token=opaque"},
+            json={"email": "a@example.com", "password": "password123"},
+        )
+    assert response.status_code == 200
+    assert "HttpOnly" in response.headers["set-cookie"]
+    assert response.headers["cache-control"] == "no-store"
 
 
 def test_signed_neon_jwt_required_for_private_source_routes(monkeypatch):

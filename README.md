@@ -20,6 +20,9 @@ repair against frozen independent cases.
 `/signup` and `/signin` are custom ReproDelta pages. Antideploy's managed Neon
 Auth supplies email/password and Google sign-in; account passwords are never
 handled by the ReproDelta API. The source-host workspace is at `/workspace`.
+The narrow `/auth/` bridge forwards only email sign-in, sign-up, sign-out,
+session, and JWT requests to Neon Auth so their HttpOnly cookies remain on the
+site's origin. Social sign-in still uses the provider's managed redirect.
 It obtains a short-lived JWT from Neon Auth and the API verifies its signature,
 issuer, audience, expiry, and subject against `NEON_AUTH_JWKS_URL` before reading
 the user's source connections. The Auth instance must trust the site's origin.

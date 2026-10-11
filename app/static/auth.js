@@ -12,7 +12,8 @@
   }
   async function auth(path, data) {
     if (!base) throw new Error("Sign-in is being configured. Please try again shortly.");
-    const response = await fetch(base + path, {
+    const social = path === "/sign-in/social";
+    const response = await fetch((social ? base : "/auth") + path, {
       method: "POST", credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),

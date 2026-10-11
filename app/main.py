@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.account_pages import router as account_pages_router
+from app.api.auth_bridge import router as auth_bridge_router
 from app.api.connections import router as connections_router
 from app.api.health import router as health_router
 from app.api.investigations import router as investigations_router
@@ -54,6 +55,7 @@ def create_app() -> FastAPI:
     app.include_router(investigations_router)
     app.include_router(pages_router)
     app.include_router(account_pages_router)
+    app.include_router(auth_bridge_router)
     app.include_router(connections_router)
 
     @app.get("/docs", response_class=HTMLResponse, include_in_schema=False)

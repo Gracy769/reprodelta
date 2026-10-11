@@ -16,8 +16,14 @@
   };
   async function account(path, options = {}) {
     if (!base) throw new Error("Sign-in is not configured yet.");
-    const response = await fetch(base + path, { credentials: "include", ...options });
-    const data = await response.json().catch(() => null);
+    let response = await fetch("/auth" + path, { credentials: "include", ...options });
+    let data = await response.json().catch(() => null);
+    // Social sign-in callbacks originate at the managed Auth domain. Browsers
+    // that retain its partitioned cookie can complete the session directly.
+    if (path !== "/sign-out" && (response.status === 401 || data === null)) {
+      response = await fetch(base + path, { credentials: "include", ...options });
+      data = await response.json().catch(() => null);
+    }
     if (!response.ok) throw new Error(data?.message || data?.error || "Account service is unavailable.");
     return data;
   }
@@ -125,6 +131,7 @@
   });
   $("signout").addEventListener("click", async () => {
     try { await account("/sign-out", { method: "POST" }); } catch { /* Always leave the workspace. */ }
+    try { await fetch(base + "/sign-out", { method: "POST", credentials: "include" }); } catch { /* Social cookies may be unavailable. */ }
     window.location.assign("/signin");
   });
   async function start() {

@@ -57,5 +57,7 @@ and reports that no repository code was executed. See [GitHub's fine-grained
 app permissions](https://docs.github.com/en/rest/apps/apps) and [GitLab's
 projects API](https://docs.gitlab.com/api/projects/) for source-side access
 controls. [Better Auth's cookie guidance](https://better-auth.com/docs/concepts/cookies)
-notes that direct cross-site sessions can be affected by browser cookie
-policies; a same-origin Auth proxy is a follow-up for broad browser support.
+notes that cross-site cookies can be affected by browser policy. A narrow
+same-origin bridge covers email/password and session/JWT endpoints; social
+OAuth redirects remain managed by the Auth provider and need browser testing
+with real provider accounts before broad compatibility can be claimed.

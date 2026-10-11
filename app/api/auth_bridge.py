@@ -30,7 +30,8 @@ ALLOWED = {
 async def bridge_auth(request: Request, path: str) -> Response:
     if (request.method, path) not in ALLOWED:
         raise HTTPException(404, "Auth route not found")
-    base = get_settings().neon_auth_base_url
+    settings = get_settings()
+    base = settings.neon_auth_base_url
     if not base or not base.startswith("https://"):
         raise HTTPException(503, "Sign-in is not configured")
     origin = request.headers.get("origin")
@@ -38,7 +39,8 @@ async def bridge_auth(request: Request, path: str) -> Response:
         if not origin:
             raise HTTPException(403, "Origin is required")
         parts = urlsplit(origin)
-        host = request.headers.get("host", "")
+        public_host = urlsplit(settings.app_url).netloc if settings.app_url else ""
+        host = public_host or request.headers.get("host", "")
         scheme_ok = parts.scheme == "https" or (
             parts.scheme == "http" and parts.hostname in {"localhost", "127.0.0.1"}
         )

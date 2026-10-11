@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     secret_key: str = "change-me-in-production"
     neon_auth_base_url: str | None = None
     neon_auth_jwks_url: str | None = None
+    app_url: str | None = None
 
     # Logging
     log_level: str = "INFO"

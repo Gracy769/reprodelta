@@ -38,7 +38,7 @@ async def test_auth_bridge_rejects_other_origins_and_unlisted_paths(monkeypatch)
     monkeypatch.setattr(
         auth_bridge,
         "get_settings",
-        lambda: SimpleNamespace(neon_auth_base_url="https://auth.example.test"),
+        lambda: SimpleNamespace(neon_auth_base_url="https://auth.example.test", app_url=None),
     )
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1:8002") as client:
@@ -57,7 +57,10 @@ async def test_auth_bridge_preserves_http_only_session_cookie(monkeypatch):
     monkeypatch.setattr(
         auth_bridge,
         "get_settings",
-        lambda: SimpleNamespace(neon_auth_base_url="https://auth.example.test"),
+        lambda: SimpleNamespace(
+            neon_auth_base_url="https://auth.example.test",
+            app_url="https://reprodelta.antideploy.app",
+        ),
     )
 
     class FakeClient:
@@ -69,7 +72,7 @@ async def test_auth_bridge_preserves_http_only_session_cookie(monkeypatch):
 
         async def request(self, method, url, **kwargs):
             assert url == "https://auth.example.test/sign-in/email"
-            assert kwargs["headers"]["Origin"] == "http://127.0.0.1:8002"
+            assert kwargs["headers"]["Origin"] == "https://reprodelta.antideploy.app"
             assert kwargs["headers"]["Cookie"] == "__Secure-neon-auth.session_token=opaque"
             return httpx.Response(
                 200,
@@ -81,11 +84,14 @@ async def test_auth_bridge_preserves_http_only_session_cookie(monkeypatch):
 
     original_client = auth_bridge.httpx.AsyncClient
     transport = httpx.ASGITransport(app=app)
-    async with original_client(transport=transport, base_url="http://127.0.0.1:8002") as client:
+    async with original_client(transport=transport, base_url="http://internal.local") as client:
         monkeypatch.setattr(auth_bridge.httpx, "AsyncClient", lambda **kwargs: FakeClient())
         response = await client.post(
             "/auth/sign-in/email",
-            headers={"Origin": "http://127.0.0.1:8002", "Cookie": "other-secret=hidden; __Secure-neon-auth.session_token=opaque"},
+            headers={
+                "Origin": "https://reprodelta.antideploy.app",
+                "Cookie": "other-secret=hidden; __Secure-neon-auth.session_token=opaque",
+            },
             json={"email": "a@example.com", "password": "password123"},
         )
     assert response.status_code == 200

@@ -1,164 +1,89 @@
 {% extends "base.html" %}
 
-{% block title %}ReproDelta — Workbench{% endblock %}
+{% block title %}ReproDelta — Find the change behind the conclusion{% endblock %}
 
 {% block extra_style %}
-  .hero {
-    padding: var(--sp-8) 0 var(--sp-6);
-    border-bottom: 1px solid var(--border);
-    margin-bottom: var(--sp-8);
-  }
-  .hero h1 {
-    font-size: 28px;
-    font-weight: 700;
-    color: var(--text);
-    margin-bottom: var(--sp-3);
-  }
-  .hero p {
-    font-size: 16px;
-    color: var(--text-muted);
-    max-width: 65ch;
-    line-height: 1.7;
-  }
-
-  /* Status badge */
-  .status-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--sp-2);
-    font-size: 13px;
-    font-family: var(--font-mono);
-    padding: var(--sp-1) var(--sp-3);
-    border-radius: 4px;
-    border: 1px solid;
-    margin-bottom: var(--sp-4);
-  }
-  .status-badge.ok {
-    color: var(--supported);
-    border-color: var(--supported);
-    background: #f0fdf4;
-  }
-  .status-badge.ok::before {
-    content: "●";
-    font-size: 10px;
-  }
-
-  /* Navigation cards */
-  .nav-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: var(--sp-4);
-    margin-top: var(--sp-6);
-  }
-  .nav-card {
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: var(--sp-6);
-    text-decoration: none;
-    color: var(--text);
-    background: var(--surface);
-    transition: border-color 0.15s, background 0.15s;
-  }
-  .nav-card:hover {
-    border-color: var(--accent);
-    background: var(--surface-muted);
-  }
-  .nav-card:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
-    border-radius: 6px;
-  }
-  .nav-card h2 {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--accent);
-    margin-bottom: var(--sp-2);
-  }
-  .nav-card p {
-    font-size: 14px;
-    color: var(--text-muted);
-    line-height: 1.5;
-  }
-
-  .section-title {
-    font-size: 18px;
-    font-weight: 600;
-    margin-bottom: var(--sp-4);
-    color: var(--text);
-  }
+  main { padding-top: 0; }
+  .home-hero { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(300px, .75fr); min-height: 610px; border-bottom: 1px solid var(--border); }
+  .hero-copy { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; padding: 76px 44px 76px 0; animation: rise-in .6s ease both; }
+  .hero-copy h1 { max-width: 800px; margin: 24px 0; font-size: clamp(58px, 7.5vw, 112px); line-height: .9; letter-spacing: -.085em; font-weight: 650; }
+  .hero-copy h1 em { font-style: normal; color: var(--accent); }
+  .hero-copy p { max-width: 570px; color: #304239; font-size: 19px; line-height: 1.45; }
+  .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
+  .hero-graphic { display: flex; flex-direction: column; justify-content: center; border-left: 1px solid var(--border); padding: 28px; background-color: #e7ede8; background-image: linear-gradient(to right, rgba(127,151,133,.14) 1px, transparent 1px), linear-gradient(to bottom, rgba(127,151,133,.14) 1px, transparent 1px); background-size: 30px 30px; }
+  .graphic-label { font: 11px/1.3 var(--font-mono); text-transform: uppercase; letter-spacing: .05em; color: #3e5a47; margin-bottom: 10px; }
+  .compare-card { padding: 20px; background: var(--panel); border: 1px solid var(--border); box-shadow: 8px 8px 0 rgba(13,52,25,.12); animation: rise-in .65s .14s ease both; }
+  .compare-top { display: flex; align-items: center; justify-content: space-between; padding-bottom: 13px; border-bottom: 1px solid var(--border); font: 11px var(--font-mono); color: var(--text-muted); text-transform: uppercase; }
+  .compare-top span:last-child { color: var(--accent); }
+  .compare-row { padding: 18px 0; border-bottom: 1px solid #e1e8e2; }
+  .compare-row:last-child { border: 0; padding-bottom: 0; }
+  .compare-row small { display: block; color: var(--text-muted); font: 11px var(--font-mono); text-transform: uppercase; margin-bottom: 7px; }
+  .compare-row code { display: block; font-size: 19px; letter-spacing: -.04em; color: var(--text); }
+  .compare-row strong { display: inline-block; margin-top: 8px; font: 700 11px var(--font-mono); text-transform: uppercase; padding: 3px 8px; }
+  .compare-row .before { background: #e5f0ea; color: #315b3e; }
+  .compare-row .after { background: #f9e9e3; color: #8f3e2c; }
+  .connector { margin: 4px 0; color: var(--accent); font: 24px var(--font-mono); }
+  .home-section { padding: 78px 0; border-bottom: 1px solid var(--border); }
+  .home-section h2 { max-width: 810px; margin: 18px 0 30px; font-size: clamp(38px, 5vw, 66px); line-height: .98; letter-spacing: -.065em; font-weight: 620; }
+  .section-lede { max-width: 700px; color: var(--text-muted); font-size: 18px; line-height: 1.5; }
+  .workflow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin-top: 42px; border: 1px solid var(--border); background: var(--panel); }
+  .workflow article { min-height: 232px; padding: 26px; border-right: 1px solid var(--border); }
+  .workflow article:last-child { border: 0; }
+  .workflow .step { display: block; font: 12px var(--font-mono); color: var(--accent); margin-bottom: 36px; }
+  .workflow h3 { font-size: 23px; line-height: 1.1; letter-spacing: -.04em; margin-bottom: 12px; }
+  .workflow p { font-size: 14px; color: var(--text-muted); margin: 0; }
+  .fixture { display: grid; grid-template-columns: .85fr 1.15fr; gap: 40px; align-items: start; }
+  .fixture-data { border: 1px solid var(--border); background: var(--panel); }
+  .fixture-data div { display: grid; grid-template-columns: 135px 1fr; gap: 10px; padding: 15px 20px; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .fixture-data div:last-child { border: 0; }
+  .fixture-data span { font: 11px var(--font-mono); color: var(--text-muted); text-transform: uppercase; }
+  .fixture-data code { overflow-wrap: anywhere; }
+  .footer-cta { display: flex; align-items: end; justify-content: space-between; gap: 30px; padding: 82px 0 14px; }
+  .footer-cta h2 { max-width: 740px; margin: 16px 0 0; font-size: clamp(42px, 6vw, 78px); line-height: .94; letter-spacing: -.07em; font-weight: 620; }
+  @media (max-width: 900px) { .home-hero { grid-template-columns: 1fr; } .hero-copy { padding: 66px 0 40px; } .hero-graphic { border-left: 0; border-top: 1px solid var(--border); } .fixture { grid-template-columns: 1fr; } }
+  @media (max-width: 650px) { .hero-copy h1 { font-size: clamp(56px, 13vw, 80px); } .hero-copy p { font-size: 17px; } .home-section { padding: 58px 0; } .workflow { grid-template-columns: 1fr; } .workflow article { min-height: 0; border-right: 0; border-bottom: 1px solid var(--border); } .workflow article:last-child { border: 0; } .workflow .step { margin-bottom: 16px; } .fixture-data div { grid-template-columns: 1fr; gap: 4px; } .footer-cta { align-items: flex-start; flex-direction: column; padding-top: 58px; } }
 {% endblock %}
 
 {% block content %}
-  <section class="hero" aria-labelledby="hero-heading">
-    <div class="status-badge ok" role="status" aria-live="polite">
-      service ok — v0.1.0
+<section class="home-hero" aria-labelledby="hero-heading">
+  <div class="hero-copy">
+    <span class="eyebrow">Dependency change investigation / 001</span>
+    <h1 id="hero-heading">Same code.<br><em>Different</em> conclusion.</h1>
+    <p>ReproDelta replays a Python project across dependency versions, finds a concrete input that changes its conclusion, and checks the mechanism against evidence.</p>
+    <div class="hero-actions"><a class="btn btn-primary" href="/investigations/new">Start the demo <span aria-hidden="true">↗</span></a><a class="btn btn-secondary" href="#how-it-works">Explore the workflow <span aria-hidden="true">↓</span></a></div>
+  </div>
+  <div class="hero-graphic" aria-label="Illustration of two dependency environments reaching different classifications">
+    <div class="graphic-label">One input / two environments</div>
+    <div class="compare-card">
+      <div class="compare-top"><span>Signal classifier</span><span>Δ detected</span></div>
+      <div class="compare-row"><small>Environment A · NumPy 1.26.4</small><code>dtype → float64</code><strong class="before">one classification</strong></div>
+      <div class="connector" aria-hidden="true">↓</div>
+      <div class="compare-row"><small>Environment B · NumPy 2.0.2</small><code>dtype → float32</code><strong class="after">different classification</strong></div>
     </div>
-    <h1 id="hero-heading">ReproDelta</h1>
-    <p>
-      Investigates conclusion changes across Python dependency upgrades.
-      Replays immutable inputs in two environments, searches for a valid
-      counterexample, tests a suspected mechanism, and checks a proposed
-      repair against frozen independent cases.
-    </p>
-    <p style="margin-top:var(--sp-4);">
-      <a href="/investigations/new"
-         style="display:inline-block;padding:var(--sp-2) var(--sp-6);background:var(--accent);color:#fff;text-decoration:none;border-radius:4px;font-size:15px;font-weight:600;">
-        Start Demo Investigation
-      </a>
-    </p>
-  </section>
+  </div>
+</section>
 
-  <section aria-labelledby="demo-heading" style="margin-bottom:var(--sp-8);">
-    <h2 id="demo-heading" class="section-title">Demo Project</h2>
-    <div style="border:1px solid var(--border);border-radius:6px;padding:var(--sp-6);background:var(--surface-muted);">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:var(--sp-4);">
-        <div>
-          <h3 style="font-size:16px;font-weight:600;margin-bottom:var(--sp-2);">Signal Classifier (NumPy 1.26 → 2.0)</h3>
-          <p style="font-size:14px;color:var(--text-muted);max-width:60ch;line-height:1.6;">
-            Curated fixture demonstrating a NumPy NEP-50 scalar promotion change that flips a
-            classification near the decision threshold. The investigation finds the exact
-            8-element signal, explains the mechanism, and verifies a correct repair against
-            frozen holdout inputs.
-          </p>
-          <p style="font-size:13px;color:var(--text-muted);margin-top:var(--sp-3);">
-            Witness input: <code style="font-family:var(--font-mono);">[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0000001192]</code>
-          </p>
-        </div>
-        <a href="/investigations/new"
-           style="display:inline-block;padding:var(--sp-2) var(--sp-4);border:1px solid var(--accent);color:var(--accent);text-decoration:none;border-radius:4px;font-size:14px;font-weight:600;white-space:nowrap;">
-          Start Investigation →
-        </a>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-4);margin-top:var(--sp-4);">
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:var(--sp-3);">
-          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:var(--sp-1);">Old environment</div>
-          <div style="font-family:var(--font-mono);font-size:13px;">NumPy 1.26.4</div>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">float32 / Python float → float64 (NEP 50 pre-change)</div>
-        </div>
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:var(--sp-3);">
-          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:var(--sp-1);">New environment</div>
-          <div style="font-family:var(--font-mono);font-size:13px;">NumPy 2.0.2</div>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">float32 / Python float → float32 (NEP 50 change)</div>
-        </div>
-      </div>
-    </div>
-  </section>
+<section id="how-it-works" class="home-section" aria-labelledby="workflow-heading">
+  <span class="section-kicker">01 / The workflow</span>
+  <h2 id="workflow-heading">From a suspicious upgrade to a bounded explanation.</h2>
+  <p class="section-lede">The demo works from a curated NumPy fixture. Every conclusion has a traceable input, environment, and check; unanswered questions remain visible.</p>
+  <div class="workflow">
+    <article><span class="step">[ 01 ] / REPLAY</span><h3>Run both worlds</h3><p>Freeze the contract and replay valid inputs in the old and new environments.</p></article>
+    <article><span class="step">[ 02 ] / ISOLATE</span><h3>Find the witness</h3><p>Search within a fixed budget, then reduce the input that flips the classification.</p></article>
+    <article><span class="step">[ 03 ] / VERIFY</span><h3>Test the repair</h3><p>Probe the proposed mechanism and check a repair against independent holdout inputs.</p></article>
+  </div>
+</section>
 
-  <section aria-labelledby="nav-heading">
-    <h2 id="nav-heading" class="section-title">Workbench</h2>
-    <nav class="nav-cards" aria-label="Workbench sections">
-      <a href="/investigations/new" class="nav-card">
-        <h2>New Investigation</h2>
-        <p>Review the signal classifier contract and start the full investigation loop.</p>
-      </a>
-      <a href="/docs" class="nav-card">
-        <h2>API Reference</h2>
-        <p>Interactive OpenAPI documentation for all backend endpoints.</p>
-      </a>
-      <a href="/health" class="nav-card">
-        <h2>Health</h2>
-        <p>Service liveness check — returns version and current status.</p>
-      </a>
-    </nav>
-  </section>
+<section class="home-section fixture" aria-labelledby="fixture-heading">
+  <div><span class="section-kicker">02 / Curated fixture</span><h2 id="fixture-heading">Small signal. Real behavior change.</h2><p class="section-lede">NumPy's scalar promotion change can alter precision near a decision boundary. The demo uses a fixed eight-element signal so the investigation stays reproducible and reviewable.</p><a class="btn btn-secondary" href="/investigations/new">Inspect the contract <span aria-hidden="true">↗</span></a></div>
+  <div class="fixture-data" aria-label="Demo fixture details">
+    <div><span>Project</span><strong>Signal Classifier</strong></div>
+    <div><span>Versions</span><code>NumPy 1.26.4 → NumPy 2.0.2</code></div>
+    <div><span>Witness input</span><code>[1, 1, 1, 1, 1, 1, 1, 1.0000001192]</code></div>
+    <div><span>What changes</span><strong>Classification near the threshold</strong></div>
+    <div><span>Scope</span><strong>Curated demo, not arbitrary repository analysis</strong></div>
+  </div>
+</section>
+
+<section class="footer-cta" aria-labelledby="cta-heading"><div><span class="section-kicker">Ready to investigate?</span><h2 id="cta-heading">Make the difference explainable.</h2></div><a class="btn btn-primary" href="/investigations/new">Launch investigation <span aria-hidden="true">↗</span></a></section>
 {% endblock %}

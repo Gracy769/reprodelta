@@ -28,7 +28,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import PlainTextResponse, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.config import get_settings
 from app.domain.contract import FIXTURE_CONTRACT, hash_contract
@@ -36,7 +36,7 @@ from app.domain.types import BudgetConfig
 from app.domain.validator import validate_input
 from app.orchestrator.executor import PairedRunRequest, PairedRunResult, run_pair
 from app.orchestrator.investigation import InvestigationRunner
-from app.providers.runner import LocalRunnerAdapter, RunnerAdapter
+from app.providers.runner import LocalRunnerAdapter, RunnerAdapter, WorkerHttpRunnerAdapter
 
 router = APIRouter(prefix="/api")
 
@@ -84,11 +84,9 @@ def get_runner() -> RunnerAdapter:
     settings = get_settings()
     if settings.runner_mode == "local":
         return LocalRunnerAdapter(fixture_dir=_default_fixture_dir())
-    from app.providers.runner import DockerRunnerAdapter
-    return DockerRunnerAdapter(
-        worker_old_container=settings.worker_old_container,
-        worker_new_container=settings.worker_new_container,
-    )
+    if settings.runner_mode == "worker_http":
+        return WorkerHttpRunnerAdapter(settings.worker_old_url, settings.worker_new_url)
+    raise ValueError(f"Unknown RUNNER_MODE: {settings.runner_mode}")
 
 
 # ---------------------------------------------------------------------------
@@ -98,8 +96,8 @@ def get_runner() -> RunnerAdapter:
 class CreateInvestigationRequest(BaseModel):
     project_id: uuid.UUID
     description: str = ""
-    max_candidates: int = 50
-    max_runs: int = 200
+    max_candidates: int = Field(default=50, ge=1, le=1000)
+    max_runs: int = Field(default=200, ge=1, le=4000)
 
 
 class RunPairRequest(BaseModel):
@@ -246,11 +244,13 @@ async def start_investigation(
 
     Returns 202 Accepted immediately.  Poll GET .../progress for updates.
     """
-    _get_investigation_or_404(investigation_id)
+    record = _get_investigation_or_404(investigation_id)
+    if not _contract_approvals.get(record["project_id"], {}).get("approved"):
+        raise HTTPException(status_code=409, detail="Approve the project contract before starting")
     state = _investigation_state.setdefault(investigation_id, {})
 
-    if state.get("status") in ("running",):
-        raise HTTPException(status_code=409, detail="Investigation already running")
+    if state.get("status") != "draft":
+        raise HTTPException(status_code=409, detail="Investigation has already been started")
 
     state["status"] = "running"
     _investigations[investigation_id]["status"] = "running"

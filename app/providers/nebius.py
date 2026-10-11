@@ -1,6 +1,6 @@
 """
 Nebius Token Factory client for NVIDIA Nemotron model.
-Uses the OpenAI-compatible API at https://api.studio.nebius.com/v1/
+Uses the OpenAI-compatible Nebius Token Factory API.
 
 When NEBIUS_API_KEY is not set, runs in mock mode with canned responses.
 All model output is treated as untrusted data and validated by callers.
@@ -30,7 +30,7 @@ MOCK_RESPONSES: dict[str, str] = {
 [MOCK_LLM_MODE - NEBIUS_API_KEY not set]""",
 
     "explanation": """Proposed mechanism: NumPy 2.0 NEP 50 changes scalar type promotion.
-When a float32 array is divided by a Python float (2.0), NumPy 1.26 promotes to float64
+When a float32 scalar is divided by a Python float (2.0), NumPy 1.26 promotes to float64
 (higher precision), while NumPy 2.0 stays float32 (lower precision).
 Near the classification threshold, this precision difference can change the conclusion.
 Falsifiable prediction: an explicit float32 division (np.float32(2.0)) in NumPy 1.26 
@@ -43,9 +43,9 @@ ensuring consistent intermediate dtype in both NumPy versions.
 --- a/fixture/project/pipeline.py
 +++ b/fixture/project/pipeline.py
 @@ -28,7 +28,7 @@
-     # Normalize: divide by a Python float scalar
--    normalized = signal / 2.0
-+    normalized = signal / np.float32(2.0)
+    # Normalize each scalar by a Python float
+-    normalized = np.array([sample / 2.0 for sample in signal])
++    normalized = np.array([sample / np.float32(2.0) for sample in signal])
      
 [MOCK_LLM_MODE - NEBIUS_API_KEY not set]""",
 }
@@ -109,19 +109,21 @@ class NebiusClient:
         The model identifier to use for live calls.
     """
 
-    _API_BASE = "https://api.studio.nebius.com/v1"
+    _API_BASE = "https://api.tokenfactory.nebius.com/v1"
 
     def __init__(
         self,
         api_key: str | None,
-        model_id: str = "nvidia/llama-3.1-nemotron-70b-instruct",
+        model_id: str = "nvidia/Nemotron-3_5-Lightning",
+        api_base: str = _API_BASE,
     ) -> None:
         self._api_key = api_key
         self.model_id = model_id
+        self._api_base = api_base.rstrip("/")
 
     @property
     def is_mock_mode(self) -> bool:
-        return self._api_key is None
+        return not bool(self._api_key)
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -158,7 +160,7 @@ class NebiusClient:
         import json as _json
         import urllib.request
 
-        url = f"{self._API_BASE}/chat/completions"
+        url = f"{self._api_base}/chat/completions"
         payload = _json.dumps({
             "model": self.model_id,
             "messages": [

@@ -6,10 +6,12 @@ RUN pip install --no-cache-dir numpy==2.0.2
 WORKDIR /runner
 
 COPY runner/entrypoint.py ./entrypoint.py
+COPY runner/server.py ./server.py
+COPY fixture/project/ /fixture/project/
+ENV FIXTURE_DIR=/fixture/project EXPECTED_RUNNER_KIND=new
 
 # Non-root user
-RUN useradd -m -u 1000 runner && chown -R runner:runner /runner
+RUN useradd -m -u 1000 runner && chown -R runner:runner /runner /fixture/project
 USER runner
 
-# No ENTRYPOINT here — compose overrides it; default reads stdin.
-CMD ["python", "entrypoint.py"]
+CMD ["python", "server.py"]

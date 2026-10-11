@@ -5,7 +5,7 @@ The model proposes a patch; the independent verifier runs it against
 frozen holdout inputs. The repair proposer cannot read or modify holdouts.
 
 For the fixture:
-- Good patch: replace `signal / 2.0` with `signal / np.float32(2.0)` 
+- Good patch: replace scalar `sample / 2.0` with `sample / np.float32(2.0)`
   (this is actually the same as the intervention — fixing the dtype consistency)
 - Overfitted patch: add a special case `if signal[7] >= 1.0: return 0.4999...`
   (handles the specific witness but breaks holdout cases)
@@ -106,8 +106,8 @@ GOOD_PATCH = PatchDiff(
         "--- a/fixture/project/pipeline.py\n"
         "+++ b/fixture/project/pipeline.py\n"
         "@@ -28 +28 @@\n"
-        "-    normalized = signal / 2.0\n"
-        "+    normalized = signal / np.float32(2.0)"
+        "-    normalized = np.array([sample / 2.0 for sample in signal])\n"
+        "+    normalized = np.array([sample / np.float32(2.0) for sample in signal])"
     ),
     description="Use np.float32 divisor to ensure consistent intermediate dtype",
     rationale="Prevents NEP 50 from changing precision between NumPy 1.26 and 2.0",

@@ -7,7 +7,7 @@ conclusion difference disappeared (supporting the proposed mechanism) or
 persisted (contradicting it).
 
 For the fixture: the proposed intervention is to explicitly use float32
-division (signal / np.float32(2.0)) instead of (signal / 2.0).
+scalar division (sample / np.float32(2.0)) instead of (sample / 2.0).
 This tests whether the NEP 50 precision difference is the mechanism.
 
 The intervention patches only the fixture's pipeline code IN MEMORY

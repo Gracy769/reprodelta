@@ -19,9 +19,9 @@ import asyncio
 import contextlib
 import hashlib
 import json
-import os
 from datetime import UTC, datetime
 
+from app.config import get_settings
 from app.domain.contract import ContractBody, hash_contract
 from app.domain.evidence import (
     ControlEvidence,
@@ -140,8 +140,11 @@ class InvestigationRunner:
         self.contract = contract
         self.budget = budget
         self.runner = runner
+        settings = get_settings()
         self._nebius = nebius_client or NebiusClient(
-            api_key=os.environ.get("NEBIUS_API_KEY"),
+            api_key=settings.nebius_api_key,
+            model_id=settings.nebius_model_id,
+            api_base=settings.nebius_base_url,
         )
 
     # ------------------------------------------------------------------
@@ -194,6 +197,25 @@ class InvestigationRunner:
             self._CONTROL_INPUT, "new", self.contract, self.runner, control_sha256
         )
         controls = [old_control, new_control]
+        if not all(control.repeatability_confirmed for control in controls):
+            return InvestigationEvidence(
+                investigation_id=investigation_id,
+                project_name=self.PROJECT_NAME,
+                contract_hash=contract_hash,
+                contract_body=self.contract,
+                controls=controls,
+                witness=None,
+                reduction=None,
+                verdict=VerdictKind.setup_failure,
+                scope=self.SCOPE,
+                timestamp=datetime.now(UTC),
+                model_proposals=[],
+                intervention=None,
+                patch_results=[],
+            )
+
+        # The fixture holdouts are fixed before any model proposal is requested.
+        sealed_holdouts = list(FIXTURE_HOLDOUTS)
 
         # ------------------------------------------------------------------
         # 2. Search for witness
@@ -304,10 +326,8 @@ class InvestigationRunner:
                 pass
 
             # ------------------------------------------------------------------
-            # 7. Seal holdouts (frozen before patch generation)
+            # 7. Use the holdouts frozen before model patch generation
             # ------------------------------------------------------------------
-            sealed_holdouts = list(FIXTURE_HOLDOUTS)
-
             # ------------------------------------------------------------------
             # 8. Verify overfitted patch → should FAIL
             # ------------------------------------------------------------------

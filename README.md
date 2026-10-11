@@ -6,8 +6,14 @@ cares about changes. It replays immutable inputs in two environments, searches
 for a valid counterexample, tests a suspected mechanism, and checks a proposed
 repair against frozen independent cases.
 
-> **Implementation status:** working first version — see `AGENTS.md` for
-> contributor rules and the `docs/` directory for full specifications.
+> **Implementation status:** hackathon fixture. Docker runs the curated input in
+> real NumPy 1.26.4 and 2.0.2 workers. Local mode simulates their precision
+> difference for development. Investigation and approval state is in memory.
+
+The model proposes an explanation and patch text, but this demo verifies two
+predefined fixture repair variants. It does not apply arbitrary model patches.
+PostgreSQL models and migrations are present; the API does not yet persist
+investigations or approvals, so restarting the API clears them.
 
 ## Quick start (Docker)
 
@@ -62,8 +68,9 @@ alembic upgrade head
 python fixture/verify_difference.py
 ```
 
-Expected output confirms that the known witness input produces different
-conclusions in the two simulated environments.
+This script checks a precision simulation. The Docker demo uses actual NumPy
+versions. To verify the fixture directly without Docker, run `fixture/project/run.py`
+with the same JSON signal under NumPy 1.26.4 and 2.0.2.
 
 ## Environment variables
 
@@ -72,10 +79,11 @@ Copy `.env.example` to `.env` and edit as needed.
 | Variable | Default | Description |
 |---|---|---|
 | `NEBIUS_API_KEY` | *(blank)* | Nebius Token Factory key. Blank = mock LLM mode. |
-| `NEBIUS_MODEL_ID` | `nvidia/llama-3.1-nemotron-70b-instruct` | Model to call. Check current availability at `https://api.studio.nebius.com/v1/models`. |
+| `NEBIUS_MODEL_ID` | `nvidia/Nemotron-3_5-Lightning` | Model to call. Check current availability at `https://api.tokenfactory.nebius.com/v1/models`. |
+| `NEBIUS_BASE_URL` | `https://api.tokenfactory.nebius.com/v1` | Nebius API base URL. |
 | `DATABASE_URL` | `postgresql+asyncpg://replay:replay@db:5432/replay` | PostgreSQL connection string. |
 | `ARTIFACT_DIR` | `/data/artifacts` | Content-addressed artifact storage root. |
-| `RUNNER_MODE` | `local` | `local` = in-process (dev/CI). `docker` = dispatch to worker containers. |
+| `RUNNER_MODE` | `local` | `local` = in-process simulation; Compose overrides this to `worker_http` for actual paired workers. |
 | `WORKER_OLD_CONTAINER` | `worker-old` | Docker container name for the NumPy 1.26 worker. |
 | `WORKER_NEW_CONTAINER` | `worker-new` | Docker container name for the NumPy 2.0 worker. |
 | `SECRET_KEY` | `change-me-in-production` | Application secret key. Change before any public deployment. |
@@ -84,8 +92,7 @@ Copy `.env.example` to `.env` and edit as needed.
 ## Test results
 
 ```sh
-python -m pytest tests/ -q --timeout=30
-# 358 passed, 2 skipped
+python -m pytest tests/ -q
 ```
 
 Test coverage by layer:
@@ -94,7 +101,7 @@ Test coverage by layer:
 |---|---|---|
 | Domain unit | `test_domain`, `test_contract`, `test_validator` | Types, contract hash, input validity |
 | Artifact | `test_artifacts` | SHA-256 round-trip, integrity check |
-| Fixture | `test_fixture`, `test_witness` | Empirically verified NumPy behavior difference |
+| Fixture | `test_fixture`, `test_witness` | Fixture logic and precision simulation |
 | Runner | `test_runner` | Manifest validation, path-traversal rejection |
 | Executor | `test_executor` | Paired run comparison, VerdictKind assignment |
 | Search | `test_search` | Witness found, invalid candidates rejected, budget stops search |
@@ -116,9 +123,8 @@ change.
 
 **Mechanism (NEP 50 scalar promotion):**
 
-- NumPy 1.26: `float32_array / 2.0` → `float64` intermediate (Python float
-  upcasts the array)
-- NumPy 2.0: `float32_array / 2.0` → `float32` intermediate (no upcasting,
+- NumPy 1.26: each `float32_scalar / 2.0` → `float64` intermediate
+- NumPy 2.0: each `float32_scalar / 2.0` → `float32` intermediate (no upcasting,
   NEP 50)
 
 Near the classification threshold this precision difference flips the
@@ -135,7 +141,7 @@ signal = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0000001192092896]
 > **Label:** constructed demonstration case — not an independently observed
 > research defect. See `fixture/project/pipeline.py`.
 
-**Intervention:** replacing `signal / 2.0` with `signal / np.float32(2.0)`
+**Intervention:** replacing each `sample / 2.0` with `sample / np.float32(2.0)`
 forces float32 arithmetic in both environments, making conclusions consistent.
 The intervention assessment is `supported`.
 
@@ -198,7 +204,7 @@ The system uses exactly these bounded verdict classes (never a global
 - Live Nebius/Nemotron calls require `NEBIUS_API_KEY` in `.env`. Without it
   the system runs in mock LLM mode and labels all proposals accordingly.
 - The investigation uses a local in-process runner by default (`RUNNER_MODE=local`).
-  Set `RUNNER_MODE=docker` to dispatch to the pinned worker containers.
+  Docker Compose sets `RUNNER_MODE=worker_http` to dispatch to the pinned workers.
 - The repository is private until submission. Add an open-source license and
   make it public per the [hackathon rules](https://nebiusglobalaihackathon.devpost.com/rules)
   before submitting.

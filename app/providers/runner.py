@@ -3,17 +3,16 @@ Runner adapter — API-side component that dispatches work to isolated workers.
 
 Two implementations:
 - LocalRunnerAdapter: runs the fixture directly in-process (RUNNER_MODE=local)
-- DockerRunnerAdapter: dispatches via `docker exec` to named containers
+- WorkerHttpRunnerAdapter: submits manifests to pinned Compose workers
 """
 from __future__ import annotations
 
-import json
-import subprocess
 import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Literal
 
+import httpx
 import numpy as np
 from pydantic import BaseModel, ConfigDict
 
@@ -56,7 +55,7 @@ def _run_fixture_inprocess(input_json: dict, kind: Literal["old", "new"]) -> dic
 
     NumPy behaviour simulation:
     - kind="old": signal.astype(float64) / 2.0  (NumPy 1.26 promotion)
-    - kind="new": signal / 2.0  (float32 stays float32, NEP 50)
+    - kind="new": scalar division preserved as float32
 
     _mode override in input_json:
     - "explicit_float32": signal / np.float32(2.0) — the good patch
@@ -72,15 +71,15 @@ def _run_fixture_inprocess(input_json: dict, kind: Literal["old", "new"]) -> dic
         normalized = signal / np.float32(2.0)
         power = normalized ** 2
         mid = len(power) // 2
-        high = float(np.sum(power[mid:]))
-        total = float(np.sum(power))
-        ratio = high / total if total != 0.0 else 0.0
+        high = np.sum(power[mid:])
+        total = np.sum(power)
+        ratio = float(high / total) if total != 0.0 else 0.0
         conclusion = "above_threshold" if ratio > 0.5 else "below_threshold"
         return {
             "ratio": ratio,
             "conclusion": conclusion,
             "threshold": 0.5,
-            "numpy_version": np.__version__,
+            "numpy_version": f"simulated-{kind}-using-{np.__version__}",
             "intermediate_dtype": str(normalized.dtype),
         }
     elif mode == "overfitted":
@@ -89,22 +88,22 @@ def _run_fixture_inprocess(input_json: dict, kind: Literal["old", "new"]) -> dic
                 "ratio": 0.4999999,
                 "conclusion": "below_threshold",
                 "threshold": 0.5,
-                "numpy_version": np.__version__,
+                "numpy_version": f"simulated-{kind}-using-{np.__version__}",
                 "intermediate_dtype": "float32",
             }
         # fall through to normal
-        normalized = signal / 2.0
+        normalized = np.array([sample / 2.0 for sample in signal])
         power = normalized ** 2
         mid = len(power) // 2
-        high = float(np.sum(power[mid:]))
-        total = float(np.sum(power))
-        ratio = high / total if total != 0.0 else 0.0
+        high = np.sum(power[mid:])
+        total = np.sum(power)
+        ratio = float(high / total) if total != 0.0 else 0.0
         conclusion = "above_threshold" if ratio > 0.5 else "below_threshold"
         return {
             "ratio": ratio,
             "conclusion": conclusion,
             "threshold": 0.5,
-            "numpy_version": np.__version__,
+            "numpy_version": f"simulated-{kind}-using-{np.__version__}",
             "intermediate_dtype": str(normalized.dtype),
         }
     elif kind == "old":
@@ -113,25 +112,25 @@ def _run_fixture_inprocess(input_json: dict, kind: Literal["old", "new"]) -> dic
         normalized = signal_f64 / 2.0
         power = normalized ** 2
         mid = len(power) // 2
-        high = float(np.sum(power[mid:]))
-        total = float(np.sum(power))
-        ratio = high / total if total != 0.0 else 0.0
+        high = np.sum(power[mid:])
+        total = np.sum(power)
+        ratio = float(high / total) if total != 0.0 else 0.0
         conclusion = "above_threshold" if ratio > 0.5 else "below_threshold"
         return {
             "ratio": ratio,
             "conclusion": conclusion,
             "threshold": 0.5,
-            "numpy_version": np.__version__,
+            "numpy_version": f"simulated-{kind}-using-{np.__version__}",
             "intermediate_dtype": "float64",
         }
     else:
         # kind="new": standard pipeline (float32 stays float32)
-        normalized = signal / 2.0
+        normalized = np.array([sample / 2.0 for sample in signal])
         power = normalized ** 2
         mid = len(power) // 2
-        high = float(np.sum(power[mid:]))
-        total = float(np.sum(power))
-        ratio = high / total if total != 0.0 else 0.0
+        high = np.sum(power[mid:])
+        total = np.sum(power)
+        ratio = float(high / total) if total != 0.0 else 0.0
         conclusion = "above_threshold" if ratio > 0.5 else "below_threshold"
         return {
             "ratio": ratio,
@@ -173,91 +172,32 @@ class LocalRunnerAdapter(RunnerAdapter):
             )
 
 
-class DockerRunnerAdapter(RunnerAdapter):
-    """Dispatches runs via `docker exec` into named worker containers.
+class WorkerHttpRunnerAdapter(RunnerAdapter):
+    """Submit manifests to the two fixed, private-network worker services."""
 
-    Container names are read from config (WORKER_OLD_CONTAINER / WORKER_NEW_CONTAINER).
-    The manifest is passed via stdin; the result is read from stdout.
-    """
-
-    def __init__(self, worker_old_container: str, worker_new_container: str) -> None:
-        self.worker_old_container = worker_old_container
-        self.worker_new_container = worker_new_container
-
-    def _container_name(self, kind: Literal["old", "new"]) -> str:
-        return self.worker_old_container if kind == "old" else self.worker_new_container
+    def __init__(self, old_url: str, new_url: str) -> None:
+        self.urls = {"old": old_url, "new": new_url}
 
     def submit(self, manifest: RunManifest) -> RunResult:
-        container = self._container_name(manifest.kind)
-        manifest_bytes = json.dumps(manifest.model_dump()).encode()
-
         try:
-            proc = subprocess.run(
-                ["docker", "exec", "-i", container, "python", "/runner/entrypoint.py"],
-                input=manifest_bytes,
-                capture_output=True,
-                timeout=manifest.timeout_seconds + 5,  # small grace period
+            response = httpx.post(
+                self.urls[manifest.kind],
+                json=manifest.model_dump(),
+                timeout=manifest.timeout_seconds + 5,
             )
-        except subprocess.TimeoutExpired:
+            payload = response.json()
+            status = "ok" if response.is_success and payload.get("status") == "ok" else "error"
             return RunResult(
                 run_id=manifest.run_id,
-                status="timeout",
-                exit_code=None,
-                outputs={},
-                stderr="docker exec timed out",
+                status=status,
+                exit_code=payload.get("exit_code", 0 if status == "ok" else 1),
+                outputs=payload.get("outputs", {}),
+                stderr=payload.get("stderr", payload.get("error", "")),
             )
-        except FileNotFoundError:
-            return RunResult(
-                run_id=manifest.run_id,
-                status="error",
-                exit_code=None,
-                outputs={},
-                stderr="docker not found on PATH",
-            )
-
-        stdout = proc.stdout.decode("utf-8", errors="replace")
-        stderr = proc.stderr.decode("utf-8", errors="replace")
-
-        if proc.returncode != 0:
-            try:
-                payload = json.loads(stdout)
-                return RunResult(
-                    run_id=manifest.run_id,
-                    status="error",
-                    exit_code=proc.returncode,
-                    outputs=payload.get("outputs", {}),
-                    stderr=stderr,
-                )
-            except json.JSONDecodeError:
-                return RunResult(
-                    run_id=manifest.run_id,
-                    status="error",
-                    exit_code=proc.returncode,
-                    outputs={},
-                    stderr=stderr or stdout[:500],
-                )
-
-        try:
-            payload = json.loads(stdout)
-        except json.JSONDecodeError:
-            return RunResult(
-                run_id=manifest.run_id,
-                status="error",
-                exit_code=proc.returncode,
-                outputs={},
-                stderr=f"Invalid JSON from runner: {stdout[:500]}",
-            )
-
-        status: Literal["ok", "error", "timeout"] = (
-            "ok" if payload.get("status") == "ok" else "error"
-        )
-        return RunResult(
-            run_id=manifest.run_id,
-            status=status,
-            exit_code=payload.get("exit_code"),
-            outputs=payload.get("outputs", {}),
-            stderr=stderr,
-        )
+        except httpx.TimeoutException:
+            return RunResult(run_id=manifest.run_id, status="timeout", exit_code=None, outputs={}, stderr="Worker timed out")
+        except (httpx.HTTPError, ValueError) as exc:
+            return RunResult(run_id=manifest.run_id, status="error", exit_code=None, outputs={}, stderr=str(exc))
 
 
 def make_run_id() -> str:

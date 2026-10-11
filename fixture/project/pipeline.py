@@ -9,8 +9,8 @@ NumPy 1.26→2.0 behavior difference. It is NOT an independently observed
 research defect.
 
 NumPy behavior that creates the difference:
-- NumPy 1.26: float32 array * Python float scalar → float64 (upcasting)
-- NumPy 2.0:  float32 array * Python float scalar → float32 (no upcasting)
+- NumPy 1.26: each float32 scalar / Python float → float64 (upcasting)
+- NumPy 2.0:  each float32 scalar / Python float → float32 (no upcasting)
 This changes intermediate precision in the power computation, which can
 flip the classification near the threshold.
 
@@ -29,24 +29,19 @@ def compute_power_ratio(signal: np.ndarray) -> float:
     The signal must be a 1D float32 array with at least 4 elements.
     Returns a Python float (the ratio).
 
-    The intermediate computation uses float32 arithmetic because the input
-    is float32. Under NumPy 1.26, multiplying a float32 array by a Python
-    float scalar upcasts to float64 (higher precision). Under NumPy 2.0
-    with NEP 50, the result stays float32 (can differ near boundaries).
+    The scalar division deliberately exposes NEP 50. Array division does not:
+    a float32 array divided by 2.0 stays float32 in both tested releases.
     """
-    # Normalize: divide by a Python float scalar
-    # NumPy 1.26: signal / 2.0 → float64 intermediate
-    # NumPy 2.0:  signal / 2.0 → float32 intermediate (NEP 50)
-    normalized = signal / 2.0
+    # NumPy 1.26 promotes each scalar result to float64; NumPy 2.0 keeps float32.
+    normalized = np.array([sample / 2.0 for sample in signal])
 
     # Compute element-wise squared power
     power = normalized ** 2
 
     # Split into two halves and sum each
     mid = len(power) // 2
-    low_power = np.sum(power[:mid])
     high_power = np.sum(power[mid:])
-    total_power = low_power + high_power
+    total_power = np.sum(power)
 
     if total_power == 0.0:
         return 0.0
@@ -71,7 +66,7 @@ def classify_signal(signal: np.ndarray) -> dict:
     ratio = compute_power_ratio(signal)
     conclusion = "above_threshold" if ratio > THRESHOLD else "below_threshold"
     # Record what dtype the intermediate computation used
-    normalized = signal / 2.0
+    normalized = np.array([sample / 2.0 for sample in signal])
     return {
         "ratio": ratio,
         "conclusion": conclusion,

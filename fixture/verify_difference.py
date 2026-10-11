@@ -9,8 +9,8 @@ This does NOT require two separate NumPy installs — it simulates the
 precision difference by using explicit dtype-preserving and dtype-promoting
 arithmetic to model each environment's behavior.
 
-NumPy 1.26 behavior: float32 array / Python float → float64 intermediate (upcasting)
-NumPy 2.0 behavior:  float32 array / Python float → float32 intermediate (NEP 50)
+NumPy 1.26 behavior: float32 scalar / Python float → float64 intermediate (upcasting)
+NumPy 2.0 behavior:  float32 scalar / Python float → float32 intermediate (NEP 50)
 """
 import json
 import sys

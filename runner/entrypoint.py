@@ -4,8 +4,8 @@ Isolated runner entry point.
 Reads a JSON manifest from stdin, validates it, runs the fixture pipeline,
 and writes a JSON result to stdout.
 
-Security: this process has no network access, no database credentials,
-no Nebius API key. It only executes the curated fixture project.
+Security: this process receives no database credentials or Nebius API key.
+It only executes the curated fixture project inside an isolated worker service.
 
 Manifest shape:
 {
@@ -28,6 +28,7 @@ Output shape:
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -41,7 +42,11 @@ DEFAULT_TIMEOUT = 30
 
 # The fixture project is at /fixture/project inside the container
 # (or relative path in development)
-FIXTURE_DIR = Path(os.environ.get("FIXTURE_DIR", "/fixture/project"))
+FIXTURE_DIR = Path(
+    os.environ.get(
+        "FIXTURE_DIR", str(Path(__file__).resolve().parent.parent / "fixture" / "project")
+    )
+)
 
 
 def validate_manifest(manifest: dict) -> None:
@@ -51,6 +56,9 @@ def validate_manifest(manifest: dict) -> None:
         raise ValueError(f"Missing manifest fields: {missing}")
     if manifest["kind"] not in ("old", "new"):
         raise ValueError(f"Invalid kind: {manifest['kind']!r}")
+    expected_kind = os.environ.get("EXPECTED_RUNNER_KIND")
+    if expected_kind and manifest["kind"] != expected_kind:
+        raise ValueError("Manifest kind does not match this worker")
     if manifest["entry_point"] not in ALLOWED_ENTRY_POINTS:
         raise ValueError(f"Entry point not allowed: {manifest['entry_point']!r}")
     if not isinstance(manifest["input_json"], dict):
@@ -64,6 +72,11 @@ def validate_manifest(manifest: dict) -> None:
 def run_fixture(manifest: dict) -> dict:
     """Execute the fixture pipeline and return the result."""
     validate_manifest(manifest)
+    actual_sha256 = hashlib.sha256(
+        json.dumps(manifest["input_json"], sort_keys=True).encode()
+    ).hexdigest()
+    if manifest["candidate_sha256"].lower() != actual_sha256:
+        raise ValueError("candidate_sha256 does not match input_json")
 
     run_id = manifest["run_id"]
     entry_point = manifest["entry_point"]
@@ -81,19 +94,12 @@ def run_fixture(manifest: dict) -> dict:
     if not script_path.exists():
         raise RuntimeError(f"Entry point not found: {script_path}")
 
-    # Pass the run kind to the subprocess via environment variable so that the
-    # fixture can simulate old vs new numpy scalar-promotion behaviour in local mode.
-    import copy
-    env = copy.copy(os.environ)
-    env["RUNNER_KIND"] = manifest.get("kind", "new")
-
     proc = subprocess.run(
         [sys.executable, str(script_path)],
         input=input_bytes,
         capture_output=True,
         timeout=timeout,
         cwd=str(FIXTURE_DIR),
-        env=env,
     )
 
     stdout = proc.stdout.decode("utf-8", errors="replace")

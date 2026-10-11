@@ -22,7 +22,8 @@ class Settings(BaseSettings):
 
     # Nebius / LLM — optional; None means mock mode
     nebius_api_key: str | None = None
-    nebius_model_id: str = "nvidia/llama-3.1-nemotron-70b-instruct"
+    nebius_model_id: str = "nvidia/Nemotron-3_5-Lightning"
+    nebius_base_url: str = "https://api.tokenfactory.nebius.com/v1"
 
     # Application security
     secret_key: str = "change-me-in-production"
@@ -35,8 +36,8 @@ class Settings(BaseSettings):
 
     # Runner
     runner_mode: str = "local"
-    worker_old_container: str = "worker-old"
-    worker_new_container: str = "worker-new"
+    worker_old_url: str = "http://worker-old:9000/run"
+    worker_new_url: str = "http://worker-new:9000/run"
 
     @field_validator("log_level")
     @classmethod
@@ -46,7 +47,7 @@ class Settings(BaseSettings):
     @property
     def mock_llm(self) -> bool:
         """True when no Nebius API key is configured."""
-        return self.nebius_api_key is None
+        return not bool(self.nebius_api_key)
 
 
 _settings: Settings | None = None

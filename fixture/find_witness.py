@@ -3,8 +3,8 @@ Empirically find a float32 input signal where NumPy 1.26 and NumPy 2.0
 would produce different conclusions (different intermediate dtypes).
 
 This simulates the two behaviors without needing two separate numpy installs.
-NumPy 1.26 behavior: float32 array / 2.0 -> float64 (upcast to float64)
-NumPy 2.0 behavior:  float32 array / 2.0 -> float32 (stays float32, NEP 50)
+NumPy 1.26 behavior: float32 scalar / 2.0 -> float64
+NumPy 2.0 behavior:  float32 scalar / 2.0 -> float32 (NEP 50)
 
 We search for a signal where:
   - compute_ratio_float64(signal) > 0.5  (old behavior conclusion: above_threshold)

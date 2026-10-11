@@ -1,11 +1,19 @@
 """Integration tests for runner/entrypoint.py validate_manifest and run_fixture."""
 from __future__ import annotations
 
+import hashlib
+import json
+import threading
+from http.server import ThreadingHTTPServer
+
 import pytest
 
+from app.providers.runner import RunManifest, WorkerHttpRunnerAdapter
 from runner.entrypoint import FIXTURE_DIR, run_fixture, validate_manifest
+from runner.server import Handler
 
-VALID_SHA = "a" * 64  # 64 hex chars
+VALID_INPUT = {"signal": [1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 0.5, 0.5]}
+VALID_SHA = hashlib.sha256(json.dumps(VALID_INPUT, sort_keys=True).encode()).hexdigest()
 
 
 class TestValidateManifest:
@@ -15,7 +23,7 @@ class TestValidateManifest:
             "kind": "old",
             "candidate_sha256": VALID_SHA,
             "entry_point": "run.py",
-            "input_json": {"signal": [1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 0.5, 0.5]},
+            "input_json": VALID_INPUT,
         }
         base.update(overrides)
         return base
@@ -81,7 +89,7 @@ class TestRunFixture:
             "kind": "old",
             "candidate_sha256": VALID_SHA,
             "entry_point": "run.py",
-            "input_json": {"signal": [1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 0.5, 0.5]},
+            "input_json": VALID_INPUT,
             "timeout_seconds": 30,
         }
 
@@ -105,3 +113,31 @@ class TestRunFixture:
         outputs = result["outputs"]
         assert "result" in outputs
         assert outputs["result"]["conclusion"] in ("above_threshold", "below_threshold")
+
+    def test_mismatched_input_hash_is_rejected(self):
+        manifest = self._manifest()
+        manifest["candidate_sha256"] = "a" * 64
+        with pytest.raises(ValueError, match="does not match"):
+            run_fixture(manifest)
+
+
+def test_worker_http_transport_returns_fixture_result():
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        url = f"http://127.0.0.1:{server.server_port}/run"
+        adapter = WorkerHttpRunnerAdapter(url, url)
+        result = adapter.submit(RunManifest(
+            run_id="http-test",
+            kind="new",
+            candidate_sha256=VALID_SHA,
+            entry_point="run.py",
+            input_json=VALID_INPUT,
+        ))
+        assert result.status == "ok"
+        assert result.outputs["result"]["conclusion"] in ("above_threshold", "below_threshold")
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)

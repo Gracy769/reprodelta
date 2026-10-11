@@ -13,8 +13,14 @@ router = APIRouter()
 
 def _context() -> dict[str, str | bool | None]:
     settings = get_settings()
+    firebase_config = None
+    if all((settings.firebase_api_key, settings.firebase_auth_domain,
+            settings.firebase_project_id, settings.firebase_app_id)):
+        firebase_config = {"apiKey": settings.firebase_api_key, "authDomain": settings.firebase_auth_domain,
+                           "projectId": settings.firebase_project_id, "appId": settings.firebase_app_id}
     return {
         "auth_base_url": settings.neon_auth_base_url,
+        "firebase_config": firebase_config,
         "gitlab_oauth_enabled": bool(settings.gitlab_oauth_client_id and settings.gitlab_oauth_client_secret),
     }
 

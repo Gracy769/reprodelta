@@ -59,6 +59,9 @@
     .nav-links a:hover, .nav-links a[aria-current="page"] { background: var(--panel); color: var(--accent); }
     .nav-cta { margin-left: auto; display: inline-flex; align-items: center; gap: 20px; padding: 0 24px; background: var(--accent); color: #fff; text-decoration: none; font-size: 13px; font-weight: 700; transition: background .18s ease; }
     .nav-cta:hover { color: #fff; background: var(--accent-hover); }
+    .nav-signin { display: inline-flex; align-items: center; padding: 0 18px; border-left: 1px solid var(--border); color: var(--text); font-size: 13px; font-weight: 700; text-decoration: none; }
+    .nav-signin:hover { color: var(--accent); background: var(--panel); }
+    .nav-signin[hidden] { display: none; }
     .mock-mode { align-self: center; margin-left: 12px; padding: 5px 8px; border: 1px solid #e8cc94; background: #fff4db; color: #6f4100; font: 10px var(--font-mono); }
 
     main { max-width: 1180px; min-height: 70vh; margin: auto; padding: 48px 48px 88px; border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
@@ -143,6 +146,7 @@
         <li><a href="/workspace">Workspace</a></li>
         <li><a href="/docs">API</a></li>
       </ul>
+      <a href="/signin" class="nav-signin" id="nav-signin" hidden>Sign in</a>
       <a href="/signin" class="nav-cta" id="nav-account">Sign in <span aria-hidden="true">↗</span></a>
       {% if mock_llm_mode is defined and mock_llm_mode %}<span class="mock-mode">MODEL IN MOCK MODE</span>{% endif %}
     </div>

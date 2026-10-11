@@ -40,6 +40,21 @@
   .fixture-data code { overflow-wrap: anywhere; }
   .footer-cta { display: flex; align-items: end; justify-content: space-between; gap: 30px; padding: 82px 0 14px; }
   .footer-cta h2 { max-width: 740px; margin: 16px 0 0; font-size: clamp(42px, 6vw, 78px); line-height: .94; letter-spacing: -.07em; font-weight: 620; }
+  .hero-copy .eyebrow { animation: rise-in .6s .06s both; }
+  .hero-copy h1 { animation: rise-in .8s .15s both; }
+  .hero-copy h1 em { display:inline-block; animation: headline-drift 6s 1s ease-in-out infinite; }
+  .hero-copy p { animation: rise-in .8s .3s both; }
+  .hero-actions { animation: rise-in .8s .42s both; }
+  .compare-card { animation: rise-in .7s .18s both, card-hover 7s 1s ease-in-out infinite; }
+  .compare-row strong.after { animation: signal-pulse 3.5s 1.1s ease-in-out infinite; }
+  .motion-enabled .reveal-target { opacity:0; transform:translateY(22px); transition:opacity .7s ease, transform .7s cubic-bezier(.2,.7,.2,1); }
+  .motion-enabled .reveal-target.in-view { opacity:1; transform:translateY(0); }
+  .motion-enabled .workflow article:nth-child(2) { transition-delay:.1s; }
+  .motion-enabled .workflow article:nth-child(3) { transition-delay:.2s; }
+  @keyframes headline-drift { 50% { transform:translateY(-5px); } }
+  @keyframes card-hover { 50% { transform:translateY(-7px); } }
+  @keyframes signal-pulse { 50% { box-shadow:0 0 0 4px #f9e9e3,0 0 0 7px #e1ab93; } }
+  @media (prefers-reduced-motion: reduce) { .motion-enabled .reveal-target { opacity:1;transform:none; } }
   @media (max-width: 900px) { .home-hero { grid-template-columns: 1fr; } .hero-copy { padding: 66px 0 40px; } .hero-graphic { border-left: 0; border-top: 1px solid var(--border); } .fixture { grid-template-columns: 1fr; } }
   @media (max-width: 650px) { .hero-copy h1 { font-size: clamp(56px, 13vw, 80px); } .hero-copy p { font-size: 17px; } .home-section { padding: 58px 0; } .workflow { grid-template-columns: 1fr; } .workflow article { min-height: 0; border-right: 0; border-bottom: 1px solid var(--border); } .workflow article:last-child { border: 0; } .workflow .step { margin-bottom: 16px; } .fixture-data div { grid-template-columns: 1fr; gap: 4px; } .footer-cta { align-items: flex-start; flex-direction: column; padding-top: 58px; } }
 {% endblock %}
@@ -86,4 +101,5 @@
 </section>
 
 <section class="footer-cta" aria-labelledby="cta-heading"><div><span class="section-kicker">Ready to investigate?</span><h2 id="cta-heading">Make the difference explainable.</h2></div><a class="btn btn-primary" href="/investigations/new" data-auth-action="investigation">Get started <span aria-hidden="true">↗</span></a></section>
+<script src="/assets/home-motion.js" defer></script>
 {% endblock %}

@@ -75,7 +75,7 @@ def current_user(authorization: Annotated[str | None, Header()] = None) -> str:
         try:
             claims = jwt.decode(token, settings.secret_key, algorithms=["HS256"], issuer="reprodelta", audience="reprodelta")
             subject = claims.get("sub")
-            if isinstance(subject, str) and subject.startswith(("github:", "gitlab:")):
+            if isinstance(subject, str) and subject.startswith(("github:", "gitlab:", "firebase:")):
                 return subject
         except jwt.PyJWTError:
             pass

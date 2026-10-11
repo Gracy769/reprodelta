@@ -34,14 +34,28 @@ Create a GitLab OAuth application with callback
 configured, GitLab sign-in returns a clear unavailable message; a signed-in
 user may still connect GitLab with a `read_api` personal token.
 
-## Google and email
+## Google with Firebase
 
-The earlier managed Neon Auth bridge is still present for Google and email.
-Those methods need a Neon Auth instance with the Railway domain trusted, plus
-`NEON_AUTH_BASE_URL` and `NEON_AUTH_JWKS_URL`. Railway's own GitHub account
-integration does not configure end-user Google or email auth. Do not claim those
-methods work on Railway until their full redirect and session flow is tested.
+1. Create a Firebase project on the no-cost Spark plan and register a Web app.
+   Spark does not require a payment method for Google Authentication.
+2. In **Authentication → Sign-in method**, enable Google. Add
+   `reprodelta-web-production.up.railway.app` to **Authentication → Settings →
+   Authorized domains**.
+3. In Railway's `reprodelta-web` service, set the Web app's public config fields
+   as `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`, and
+   `FIREBASE_APP_ID`. The API key is a public browser identifier, not an admin
+   credential. Railway redeploys the app after variable changes.
+4. Test **Continue with Google** on `/signin`. The app uses a popup, verifies
+   the Firebase ID token server side, and stores a Secure, HttpOnly ReproDelta
+   session cookie. Then connect GitHub on `/workspace` to show repositories
+   without replacing that Google session.
+
+Email/password remains on the older managed Neon Auth bridge and is unavailable
+unless `NEON_AUTH_BASE_URL` and `NEON_AUTH_JWKS_URL` are configured.
 
 Sources: [GitHub OAuth web flow](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps),
 [GitHub OAuth scopes](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps),
 [GitLab OAuth applications](https://docs.gitlab.com/integration/oauth_provider/).
+Firebase: [Spark pricing](https://firebase.google.com/pricing),
+[Google sign-in](https://firebase.google.com/docs/auth/web/google-signin),
+[ID token verification](https://firebase.google.com/docs/auth/admin/verify-id-tokens).

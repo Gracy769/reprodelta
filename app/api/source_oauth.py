@@ -1,4 +1,4 @@
-"""First-party source-host OAuth login with server-side token storage.
+"""First-party OAuth login with server-side source-host token storage.
 
 OAuth credentials and access tokens never reach browser JavaScript. The browser
 receives a short lived signed identity token for read-only API requests.
@@ -62,13 +62,27 @@ def _safe_next(path: str) -> str:
     return path if path in {"/workspace", "/investigations/new"} else "/investigations/new"
 
 
+def _session_claims(token: str | None) -> dict:
+    if not token or len(get_settings().secret_key) < 32:
+        raise HTTPException(401, "Sign in to continue")
+    try:
+        return jwt.decode(
+            token, get_settings().secret_key, algorithms=["HS256"],
+            issuer="reprodelta", audience="reprodelta",
+            options={"require": ["sub", "name", "exp"]},
+        )
+    except jwt.PyJWTError as exc:
+        raise HTTPException(401, "Session expired") from exc
+
+
 @router.get("/{provider}/start")
-async def oauth_start(provider: str, request: Request, next: str = "/investigations/new"):
+async def oauth_start(provider: str, request: Request, next: str = "/investigations/new", link: bool = False):
     client_id, _ = _credentials(provider)
+    link_owner = _session_claims(request.cookies.get("rd_session"))["sub"] if link else None
     nonce = secrets.token_urlsafe(32)
     now = datetime.now(UTC)
     challenge = jwt.encode(
-        {"state": nonce, "next": _safe_next(next), "iss": "reprodelta-oauth", "exp": now + timedelta(minutes=10)},
+        {"state": nonce, "next": _safe_next(next), "link_owner": link_owner, "iss": "reprodelta-oauth", "exp": now + timedelta(minutes=10)},
         get_settings().secret_key,
         algorithm="HS256",
     )
@@ -109,10 +123,16 @@ async def oauth_callback(provider: str, request: Request, code: str = "", state:
     except (httpx.HTTPError, ValueError) as exc:
         raise HTTPException(502, f"{provider.title()} sign-in failed") from exc
     user_id = user.get("id")
-    account = user.get("login" if provider == "github" else "username")
-    if not isinstance(user_id, int) or not isinstance(account, str) or not account:
+    source_account = user.get("login" if provider == "github" else "username")
+    if not isinstance(user_id, int) or not isinstance(source_account, str) or not source_account:
         raise HTTPException(502, "Provider identity was incomplete")
-    owner_id = f"{provider}:{user_id}"
+    owner_id, account = f"{provider}:{user_id}", source_account
+    link_owner = claims.get("link_owner")
+    if link_owner:
+        prior = _session_claims(request.cookies.get("rd_session"))
+        if prior["sub"] != link_owner:
+            raise HTTPException(401, "Account changed during connection")
+        owner_id, account = prior["sub"], prior["name"]
     with psycopg.connect(_database_dsn()) as conn:
         _ensure_table(conn)
         conn.execute(
@@ -120,7 +140,8 @@ async def oauth_callback(provider: str, request: Request, code: str = "", state:
                VALUES (%s, %s, %s, %s, %s)
                ON CONFLICT (owner_id, provider) DO UPDATE SET account_name=EXCLUDED.account_name,
                    encrypted_token=EXCLUDED.encrypted_token, connected_at=EXCLUDED.connected_at""",
-            (owner_id, provider, account, _cipher().encrypt(access_token.encode()).decode(), datetime.now(UTC)),
+            (owner_id, provider, source_account,
+             _cipher().encrypt(access_token.encode()).decode(), datetime.now(UTC)),
         )
     now = datetime.now(UTC)
     session = jwt.encode(
@@ -137,15 +158,8 @@ async def oauth_callback(provider: str, request: Request, code: str = "", state:
 
 @router.get("/session")
 async def oauth_session(request: Request):
-    if len(get_settings().secret_key) < 32 or get_settings().secret_key == "change-me-in-production":
-        raise HTTPException(503, "Sign-in is not configured")
     token = request.cookies.get("rd_session")
-    if not token:
-        raise HTTPException(401, "Sign in to continue")
-    try:
-        claims = jwt.decode(token, get_settings().secret_key, algorithms=["HS256"], issuer="reprodelta", audience="reprodelta")
-    except jwt.PyJWTError as exc:
-        raise HTTPException(401, "Session expired") from exc
+    claims = _session_claims(token)
     response = JSONResponse({"user": {"name": claims["name"], "provider": claims["sub"].split(":", 1)[0]}, "token": token})
     response.headers["Cache-Control"] = "no-store"
     return response

@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api.account_pages import router as account_pages_router
 from app.api.auth_bridge import router as auth_bridge_router
 from app.api.connections import router as connections_router
+from app.api.firebase_auth import router as firebase_auth_router
 from app.api.health import router as health_router
 from app.api.investigations import router as investigations_router
 from app.api.pages import router as pages_router
@@ -41,10 +42,19 @@ def create_app() -> FastAPI:
             parts = urlsplit(settings.neon_auth_base_url)
             if parts.scheme == "https" and parts.hostname:
                 auth_connect = f" https://{parts.hostname}"
+        firebase_frame = ""
+        if settings.firebase_auth_domain:
+            from urllib.parse import urlsplit
+
+            domain = urlsplit("https://" + settings.firebase_auth_domain).hostname
+            if domain and domain == settings.firebase_auth_domain and domain.endswith((".firebaseapp.com", ".web.app")):
+                firebase_frame = f" https://{domain}"
+        firebase_connect = " https://identitytoolkit.googleapis.com https://securetoken.googleapis.com" if settings.firebase_project_id else ""
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; script-src 'self' 'unsafe-inline'; "
             "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
-            f"connect-src 'self'{auth_connect}; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+            f"connect-src 'self'{auth_connect}{firebase_connect}{firebase_frame}; "
+            f"frame-src 'self'{firebase_frame}; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
         )
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-Content-Type-Options"] = "nosniff"
@@ -58,6 +68,7 @@ def create_app() -> FastAPI:
     app.include_router(account_pages_router)
     app.include_router(auth_bridge_router)
     app.include_router(source_oauth_router)
+    app.include_router(firebase_auth_router)
     app.include_router(connections_router)
 
     @app.get("/docs", response_class=HTMLResponse, include_in_schema=False)

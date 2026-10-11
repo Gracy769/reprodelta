@@ -46,6 +46,7 @@
     card.querySelector(".connect-form").hidden = Boolean(connected);
     const oauthLink = card.querySelector(".oauth-source-link");
     if (oauthLink) oauthLink.hidden = Boolean(connected);
+    card.querySelector(".source-note").hidden = Boolean(connected);
     card.querySelector(".disconnect").hidden = !connected;
   }
   async function loadConnections() {
@@ -75,16 +76,32 @@
       button.setAttribute("aria-selected", String(state.currentRepo?.provider === repo.provider && state.currentRepo?.key === repo.key));
       const body = document.createElement("span"); const name = document.createElement("strong"); name.textContent = repo.name;
       const details = document.createElement("small"); details.textContent = `${repo.provider.toUpperCase()} · ${repo.fork ? "Fork · " : ""}${repo.starred ? "Starred · " : ""}${repo.description || "No description"}`;
-      body.append(name, details); const pill = document.createElement("span"); pill.className = "pill"; pill.textContent = repo.private ? "PRIVATE" : "PUBLIC";
+      body.append(name, details); const pill = document.createElement("span"); pill.className = "pill";
+      const selected = state.currentRepo?.provider === repo.provider && state.currentRepo?.key === repo.key;
+      pill.textContent = `${selected ? "SELECTED · " : ""}${repo.private ? "PRIVATE" : "PUBLIC"}`;
       button.append(body, pill); button.addEventListener("click", () => selectRepo(repo)); list.append(button);
     }
   }
   async function selectRepo(repo) {
     state.currentRepo = repo; state.currentChange = null; $("review-change").disabled = true; $("advice-card").hidden = true;
+    $("selected-repository").hidden = false;
+    $("selected-repository-name").textContent = repo.name;
+    $("selected-repository-status").textContent = "Loading pull requests and issues…";
+    const repositoryLink = $("selected-repository-link");
+    repositoryLink.hidden = !/^https:\/\/(github\.com|gitlab\.com)\//.test(repo.url || "");
+    if (!repositoryLink.hidden) repositoryLink.href = repo.url;
     renderRepos(); empty($("change-list"), "Loading open changes…");
     empty($("issue-list"), "Loading open issues…");
+    $("selected-repository").scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "center" });
+    const loaded = { changes: null, issues: null };
+    const updateStatus = () => {
+      if (state.currentRepo !== repo) return;
+      const label = (count, noun) => count === null ? `${noun} loading` : count === -1 ? `${noun} unavailable` : `${count} open ${noun}`;
+      $("selected-repository-status").textContent = `${label(loaded.changes, "PRs")} · ${label(loaded.issues, "issues")}`;
+    };
     api(`/${repo.provider}/issues?repository=${encodeURIComponent(repo.key)}`).then((result) => {
       if (state.currentRepo !== repo) return;
+      loaded.issues = result.issues.length; updateStatus();
       const list = $("issue-list"); clear(list);
       if (!result.issues.length) { empty(list, "No open issues in this repository."); return; }
       for (const issue of result.issues) {
@@ -92,10 +109,11 @@
         link.target = "_blank"; link.rel = "noopener noreferrer";
         link.textContent = `#${issue.number} ${issue.title} ↗`; list.append(link);
       }
-    }).catch((error) => { if (state.currentRepo === repo) empty($("issue-list"), error.message); });
+    }).catch((error) => { if (state.currentRepo === repo) { loaded.issues = -1; updateStatus(); empty($("issue-list"), error.message); } });
     try {
       const result = await api(`/${repo.provider}/changes?repository=${encodeURIComponent(repo.key)}`);
       if (state.currentRepo !== repo) return;
+      loaded.changes = result.changes.length; updateStatus();
       const list = $("change-list"); clear(list);
       if (!result.changes.length) { empty(list, "No open PRs or merge requests in this repository."); return; }
       for (const change of result.changes) {
@@ -109,7 +127,7 @@
         }); list.append(button);
       }
       if (result.has_more) show("Showing the first 50 open changes. Narrow your choice in the source host if it is missing.");
-    } catch (error) { empty($("change-list"), error.message); }
+    } catch (error) { if (state.currentRepo === repo) { loaded.changes = -1; updateStatus(); empty($("change-list"), error.message); } }
   }
   $("review-change").addEventListener("click", async () => {
     const repo = state.currentRepo, change = state.currentChange;
@@ -141,7 +159,7 @@
       } catch (error) { show(error.message); } finally { button.disabled = false; }
     });
     card.querySelector(".disconnect").addEventListener("click", async () => {
-      try { await api(`/${provider}`, { method: "DELETE" }); state.currentRepo = null; state.currentChange = null;
+      try { await api(`/${provider}`, { method: "DELETE" }); state.currentRepo = null; state.currentChange = null; $("selected-repository").hidden = true;
         empty($("change-list"), "Select a repository to load open changes."); $("advice-card").hidden = true;
         show(`${provider} disconnected and its stored token removed.`, true); await loadConnections();
       } catch (error) { show(error.message); }

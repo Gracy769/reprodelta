@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     github_oauth_client_secret: str | None = None
     gitlab_oauth_client_id: str | None = None
     gitlab_oauth_client_secret: str | None = None
+    firebase_api_key: str | None = None
+    firebase_auth_domain: str | None = None
+    firebase_project_id: str | None = None
+    firebase_app_id: str | None = None
 
     # Logging
     log_level: str = "INFO"

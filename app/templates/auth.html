@@ -42,9 +42,9 @@
         <div id="auth-message" role="status" aria-live="polite" hidden></div>
         <div class="social-stack" aria-label="Continue with a provider">
           <button type="button" class="social-button" data-provider="github"><img class="provider-logo" src="/assets/github.svg" alt="" /> Continue with GitHub <span aria-hidden="true">↗</span></button>
-          <button type="button" class="social-button" data-provider="google" {% if not auth_base_url %}disabled title="Google sign-in is being configured for this domain"{% endif %}><img class="provider-logo" src="/assets/google.svg" alt="" /> Continue with Google <span aria-hidden="true">↗</span></button>
+          <button type="button" class="social-button" data-provider="google" {% if not firebase_config and not auth_base_url %}disabled title="Google sign-in is being configured for this domain"{% endif %}><img class="provider-logo" src="/assets/google.svg" alt="" /> Continue with Google <span aria-hidden="true">↗</span></button>
         </div>
-        <p class="provider-note">GitHub access to private repositories requires GitHub's broad <code>repo</code> OAuth permission. ReproDelta only reads repository metadata and selected changes. {% if not auth_base_url %}Google and email sign-in are being configured for this domain.{% endif %}</p>
+        <p class="provider-note">GitHub grants access to your repositories so you can choose a change to inspect. {% if not firebase_config and not auth_base_url %}Google sign-in is being configured for this domain.{% endif %}{% if not auth_base_url %} Email sign-in is not available yet.{% endif %}</p>
         <div class="divider"><span>or continue with email</span></div>
         <form id="account-form" novalidate>
           {% if mode == 'signup' %}<label for="name">Your name</label><input id="name" name="name" autocomplete="name" required maxlength="100" placeholder="Ada Lovelace" />{% endif %}
@@ -58,6 +58,7 @@
       </div>
     </main>
   </div>
+  {% if firebase_config %}<script id="firebase-config" type="application/json">{{ firebase_config | tojson }}</script><script src="/assets/firebase/firebase-app-compat.js" defer></script><script src="/assets/firebase/firebase-auth-compat.js" defer></script>{% endif %}
   <script src="/assets/auth.js" defer></script>
 </body>
 </html>

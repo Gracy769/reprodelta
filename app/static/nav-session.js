@@ -10,6 +10,7 @@
     .then((session) => {
       if (!session?.user) return;
       document.getElementById("nav-investigation").hidden = false;
+      document.getElementById("nav-signin").hidden = false;
       account.href = "/workspace";
       account.innerHTML = "Workspace <span aria-hidden=\"true\">↗</span>";
       document.querySelectorAll('[data-auth-action="workspace"]').forEach((link) => {

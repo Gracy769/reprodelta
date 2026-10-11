@@ -5,6 +5,7 @@
   const form = document.getElementById("account-form");
   const message = document.getElementById("auth-message");
   const submit = document.getElementById("submit-account");
+  const firebaseConfig = document.getElementById("firebase-config");
   function notice(text, good = false) {
     message.textContent = text;
     message.classList.toggle("success", good);
@@ -51,6 +52,24 @@
           window.location.assign("/oauth/github/start?next=/investigations/new");
           return;
         }
+        if (button.dataset.provider === "google" && firebaseConfig) {
+          if (!window.firebase?.auth) throw new Error("Google sign-in could not load. Refresh and try again.");
+          if (!firebase.apps.length) firebase.initializeApp(JSON.parse(firebaseConfig.textContent));
+          const result = await firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider());
+          const idToken = await result.user.getIdToken();
+          const exchanged = await fetch("/firebase/session", {
+            method: "POST", credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id_token: idToken }),
+          });
+          if (!exchanged.ok) {
+            const detail = await exchanged.json().catch(() => ({}));
+            throw new Error(detail.detail || "Google sign-in could not be completed.");
+          }
+          await firebase.auth().signOut().catch(() => {});
+          window.location.assign("/investigations/new");
+          return;
+        }
         const result = await auth("/sign-in/social", {
           provider: button.dataset.provider,
           callbackURL: window.location.origin + "/workspace",
@@ -60,7 +79,8 @@
       } catch (error) {
         const provider = button.dataset.provider;
         const providerName = { github: "GitHub", gitlab: "GitLab", google: "Google" }[provider] || provider;
-        notice(error.message.includes("PROVIDER_NOT_SUPPORTED") || error.message.includes("not supported")
+        notice(error.code === "auth/popup-blocked" ? "Allow the Google sign-in popup and try again." :
+          error.message.includes("PROVIDER_NOT_SUPPORTED") || error.message.includes("not supported")
           ? `${providerName} sign-in needs provider activation. Use email or Google for now; connect your source host in the workspace.`
           : error.message);
         button.disabled = false;

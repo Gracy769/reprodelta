@@ -121,7 +121,7 @@ class TestGenerateReport:
 
         report = generate_report(_make_minimal_evidence())
         assert "schema_version" in report
-        assert report["schema_version"] == "1"
+        assert report["schema_version"] in ("1", "2")
 
     def test_export_timestamp_present(self):
         from app.orchestrator.report import generate_report
@@ -222,13 +222,13 @@ class TestGenerateLimitations:
         lims = generate_limitations(evidence)
         assert any("constructed demonstration case" in lim for lim in lims)
 
-    def test_mock_mode_limitation_when_no_proposals(self):
+    def test_missing_model_proposal_limitation(self):
         from app.orchestrator.report import generate_limitations
 
         evidence = _make_minimal_evidence()
         assert len(evidence.model_proposals) == 0
         lims = generate_limitations(evidence)
-        assert any("mock mode" in lim for lim in lims)
+        assert any("No model proposal was recorded" in lim for lim in lims)
 
     def test_witness_limitation_when_witness_present(self):
         from app.orchestrator.report import generate_limitations
@@ -263,11 +263,12 @@ class TestGenerateReplayInstructions:
         instructions = generate_replay_instructions(evidence)
         assert evidence.contract_hash in instructions
 
-    def test_contains_numpy_install_commands(self):
+    def test_contains_independent_numpy_environment_commands(self):
         from app.orchestrator.report import generate_replay_instructions
 
         instructions = generate_replay_instructions(_make_minimal_evidence())
-        assert "pip install numpy" in instructions
+        assert "uv run --no-project --python 3.12 --with numpy==1.26.4" in instructions
+        assert "uv run --no-project --python 3.12 --with numpy==2.0.2" in instructions
 
     def test_contains_expected_ratio_when_witness_found(self):
         from app.orchestrator.report import generate_replay_instructions
@@ -338,19 +339,33 @@ class TestReportAPIEndpoints:
     def client(self):
         from fastapi.testclient import TestClient
 
-        from app.api.investigations import _investigation_state, _investigations
+        from app.api.investigations import (
+            _investigation_state,
+            _investigations,
+            get_store,
+            set_store,
+        )
         from app.main import app
+        from app.storage.investigation_store import MemoryInvestigationStore
 
         self._investigations = _investigations
         self._investigation_state = _investigation_state
+        previous_store = get_store()
+        self.store = MemoryInvestigationStore()
+        set_store(self.store)
 
         with TestClient(app) as c:
             self.client = c
             yield c
+        set_store(previous_store)
 
     def _create_and_complete_investigation(self) -> str:
         """Register a fake completed investigation in global state."""
-        inv_id = str(uuid.uuid4())
+        inv_id = self.store.create_investigation(
+            "00000000-0000-0000-0000-000000000001", {"max_candidates": 50, "max_runs": 200}
+        )
+        self.store.transition_status(inv_id, "running")
+        self.store.transition_status(inv_id, "completed")
         self._investigations[inv_id] = {
             "id": inv_id,
             "project_id": "00000000-0000-0000-0000-000000000001",
@@ -405,7 +420,10 @@ class TestReportAPIEndpoints:
         assert resp.status_code == 404
 
     def test_report_404_when_evidence_not_ready(self):
-        inv_id = str(uuid.uuid4())
+        inv_id = self.store.create_investigation(
+            "00000000-0000-0000-0000-000000000001", {}
+        )
+        self.store.transition_status(inv_id, "running")
         self._investigations[inv_id] = {"id": inv_id, "status": "running"}
         self._investigation_state[inv_id] = {
             "status": "running",

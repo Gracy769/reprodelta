@@ -26,6 +26,7 @@ services:
       - .env
     environment:
       RUNNER_MODE: worker_http
+      PERSIST_INVESTIGATIONS: "true"
     volumes:
       - artifacts:/data/artifacts
     depends_on:

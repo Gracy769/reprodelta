@@ -37,6 +37,7 @@ from app.domain.validator import validate_input
 from app.orchestrator.executor import PairedRunRequest, PairedRunResult, run_pair
 from app.orchestrator.investigation import InvestigationRunner
 from app.providers.runner import LocalRunnerAdapter, RunnerAdapter, WorkerHttpRunnerAdapter
+from app.storage.investigation_store import InvestigationStore, make_investigation_store
 
 router = APIRouter(prefix="/api")
 
@@ -57,17 +58,31 @@ _DEMO_PROJECT = {
 }
 
 # ---------------------------------------------------------------------------
-# In-memory state
+# In-memory cache for active investigation work; the store is authoritative.
 # ---------------------------------------------------------------------------
 
-# { project_id_str: {"approved": bool, "approved_at": datetime | None, "approved_by": str | None} }
-_contract_approvals: dict[str, dict[str, Any]] = {}
-
-# { investigation_id_str: InvestigationRecord }
+# { investigation_id_str: InvestigationRecord (metadata) }
 _investigations: dict[str, dict[str, Any]] = {}
 
 # { investigation_id_str: {"status": str, "progress": SearchProgress|None, "evidence": InvestigationEvidence|None} }
 _investigation_state: dict[str, dict[str, Any]] = {}
+
+# Created lazily after settings have loaded; tests can replace it.
+_store: InvestigationStore | None = None
+
+
+def get_store() -> InvestigationStore:
+    """Return the configured investigation store (injectable for tests)."""
+    global _store
+    if _store is None:
+        _store = make_investigation_store()
+    return _store
+
+
+def set_store(store: InvestigationStore | None) -> None:
+    """Replace the module-level store (used in tests)."""
+    global _store
+    _store = store
 
 
 # ---------------------------------------------------------------------------
@@ -104,6 +119,12 @@ class RunPairRequest(BaseModel):
     input_json: dict
 
 
+class VerifyPatchRequest(BaseModel):
+    diff_text: str = Field(max_length=100_000)
+    description: str = ""
+    rationale: str = ""
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -120,12 +141,30 @@ def _ensure_demo_project(project_id: uuid.UUID) -> None:
 
 
 def _get_investigation_or_404(investigation_id: str) -> dict[str, Any]:
-    record = _investigations.get(investigation_id)
-    if record is None:
+    try:
+        uuid.UUID(investigation_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Investigation not found") from exc
+    stored = get_store().get_investigation(investigation_id)
+    if stored is None:
         raise HTTPException(
             status_code=404,
             detail=f"Investigation {investigation_id} not found",
         )
+    record = _investigations.get(investigation_id)
+    if record is None:
+        budget = stored.get("budget_json", {})
+        record = {
+            "id": investigation_id,
+            "project_id": stored["project_id"],
+            "description": "",
+            "created_at": stored.get("created_at"),
+            "runs": [],
+            "max_candidates": budget.get("max_candidates", 50),
+            "max_runs": budget.get("max_runs", 200),
+        }
+        _investigations[investigation_id] = record
+    record["status"] = stored["status"]
     return record
 
 
@@ -133,32 +172,53 @@ def _get_investigation_or_404(investigation_id: str) -> dict[str, Any]:
 # Background task helper
 # ---------------------------------------------------------------------------
 
-def _run_investigation_sync(investigation_id: str, runner: RunnerAdapter) -> None:
+def _run_investigation_sync(
+    investigation_id: str,
+    runner: RunnerAdapter,
+    store: InvestigationStore,
+) -> None:
     """Synchronous wrapper executed in a thread via asyncio.to_thread."""
     state = _investigation_state.setdefault(investigation_id, {})
     state["status"] = "running"
     state["progress"] = None
     state["evidence"] = None
     try:
+        saved = store.get_investigation(investigation_id)
+        budget_values = saved.get("budget_json", {}) if saved else {}
         budget = BudgetConfig(
-            max_candidates=_investigations[investigation_id].get("max_candidates", 50),
-            max_runs=_investigations[investigation_id].get("max_runs", 200),
+            max_candidates=budget_values.get("max_candidates", 50),
+            max_runs=budget_values.get("max_runs", 200),
         )
         inv_runner = InvestigationRunner(
             contract=FIXTURE_CONTRACT,
             budget=budget,
             runner=runner,
+            store=store,
         )
         evidence = inv_runner.run_full_investigation(investigation_id)
+        from app.orchestrator.report import generate_report, generate_text_summary
+
+        store.store_evidence(investigation_id, evidence.model_dump(mode="json"))
+        store.store_report(
+            investigation_id,
+            generate_report(evidence),
+            generate_text_summary(evidence),
+        )
+        store.transition_status(investigation_id, "completed")
         state["evidence"] = evidence
         state["status"] = "completed"
-        # Expose search progress summary via evidence
-        state["progress"] = None  # progress is embedded in evidence
         _investigations[investigation_id]["status"] = "completed"
     except Exception as exc:  # noqa: BLE001
         state["status"] = "failed"
         state["error"] = str(exc)
         _investigations[investigation_id]["status"] = "failed"
+        try:
+            store.append_event(
+                investigation_id, "runner", "investigation_failed", {"error": str(exc)}
+            )
+            store.transition_status(investigation_id, "failed")
+        except Exception:  # noqa: BLE001
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -177,7 +237,7 @@ async def get_contract(project_id: uuid.UUID) -> dict:
     _ensure_demo_project(project_id)
     body = FIXTURE_CONTRACT.model_dump()
     contract_hash = hash_contract(FIXTURE_CONTRACT)
-    approval = _contract_approvals.get(str(project_id), {})
+    approval = get_store().get_approval(str(project_id)) or {}
     return {
         "project_id": str(project_id),
         "contract": body,
@@ -192,23 +252,25 @@ async def get_contract(project_id: uuid.UUID) -> dict:
 async def approve_contract(project_id: uuid.UUID) -> dict:
     """Record contract approval for a project."""
     _ensure_demo_project(project_id)
-    _contract_approvals[str(project_id)] = {
-        "approved": True,
-        "approved_at": datetime.now(UTC).isoformat(),
-        "approved_by": "user",
-    }
+    approval = get_store().approve_contract(str(project_id), hash_contract(FIXTURE_CONTRACT))
     return {
         "project_id": str(project_id),
         "approved": True,
-        "contract_hash": hash_contract(FIXTURE_CONTRACT),
+        "contract_hash": approval["contract_hash"],
     }
 
 
 @router.post("/investigations", status_code=201)
 async def create_investigation(body: CreateInvestigationRequest) -> dict:
-    """Create a new (in-memory) investigation for a project."""
+    """Create a new investigation for a project."""
     _ensure_demo_project(body.project_id)
-    inv_id = str(uuid.uuid4())
+    store = get_store()
+    budget_json = {"max_candidates": body.max_candidates, "max_runs": body.max_runs}
+    inv_id = store.create_investigation(
+        project_id=str(body.project_id),
+        budget_json=budget_json,
+        owner_id="user",
+    )
     record: dict[str, Any] = {
         "id": inv_id,
         "project_id": str(body.project_id),
@@ -245,18 +307,20 @@ async def start_investigation(
     Returns 202 Accepted immediately.  Poll GET .../progress for updates.
     """
     record = _get_investigation_or_404(investigation_id)
-    if not _contract_approvals.get(record["project_id"], {}).get("approved"):
+    approval = get_store().get_approval(record["project_id"]) or {}
+    if approval.get("contract_hash") != hash_contract(FIXTURE_CONTRACT):
         raise HTTPException(status_code=409, detail="Approve the project contract before starting")
-    state = _investigation_state.setdefault(investigation_id, {})
-
-    if state.get("status") != "draft":
+    if record["status"] != "draft":
         raise HTTPException(status_code=409, detail="Investigation has already been started")
 
+    state = _investigation_state.setdefault(investigation_id, {})
+    store = get_store()
+    store.transition_status(investigation_id, "running")
     state["status"] = "running"
     _investigations[investigation_id]["status"] = "running"
 
     asyncio.create_task(
-        asyncio.to_thread(_run_investigation_sync, investigation_id, runner)
+        asyncio.to_thread(_run_investigation_sync, investigation_id, runner, store)
     )
 
     return {"investigation_id": investigation_id, "status": "running"}
@@ -264,10 +328,10 @@ async def start_investigation(
 
 @router.get("/investigations/{investigation_id}/progress")
 async def get_progress(investigation_id: str) -> dict:
-    """Return the current investigation progress (status + search counts)."""
-    _get_investigation_or_404(investigation_id)
+    """Return the current investigation progress (status + events)."""
+    record = _get_investigation_or_404(investigation_id)
     state = _investigation_state.get(investigation_id, {})
-    status = state.get("status", "draft")
+    status = record["status"]
 
     result: dict[str, Any] = {
         "investigation_id": investigation_id,
@@ -276,15 +340,24 @@ async def get_progress(investigation_id: str) -> dict:
 
     evidence = state.get("evidence")
     if evidence is not None:
-        # Build a lightweight progress summary from the completed evidence
         result["witness_found"] = evidence.witness is not None
         result["verdict"] = evidence.verdict.value if evidence.verdict else None
     else:
-        result["witness_found"] = False
-        result["verdict"] = None
+        saved_report = get_store().get_report(investigation_id) if status == "completed" else None
+        result["witness_found"] = saved_report.get("witness") is not None if saved_report else False
+        result["verdict"] = saved_report.get("verdict") if saved_report else None
 
-    if state.get("error"):
-        result["error"] = state["error"]
+    # Include events from the store
+    store = get_store()
+    events = store.get_events(investigation_id)
+    result["events"] = events
+    result["event_count"] = len(events)
+    error_event = next(
+        (event for event in reversed(events) if event.get("event_type") == "investigation_failed"),
+        None,
+    )
+    if state.get("error") or error_event:
+        result["error"] = state.get("error") or error_event.get("payload", {}).get("error")
 
     return result
 
@@ -292,10 +365,15 @@ async def get_progress(investigation_id: str) -> dict:
 @router.get("/investigations/{investigation_id}/evidence")
 async def get_evidence(investigation_id: str) -> dict:
     """Return the full InvestigationEvidence once the investigation is complete."""
-    _get_investigation_or_404(investigation_id)
+    record = _get_investigation_or_404(investigation_id)
+    if record["status"] != "completed":
+        raise HTTPException(status_code=404, detail="Evidence not yet available")
     state = _investigation_state.get(investigation_id, {})
     evidence = state.get("evidence")
     if evidence is None:
+        persisted = get_store().get_evidence(investigation_id)
+        if persisted is not None:
+            return persisted
         status = state.get("status", "draft")
         raise HTTPException(
             status_code=404,
@@ -309,9 +387,18 @@ async def get_report(investigation_id: str) -> dict:
     """Return the full JSON evidence bundle for a completed investigation."""
     from app.orchestrator.report import generate_report
 
-    _get_investigation_or_404(investigation_id)
+    record = _get_investigation_or_404(investigation_id)
+    if record["status"] != "completed":
+        raise HTTPException(status_code=404, detail="Report not yet available")
     state = _investigation_state.get(investigation_id, {})
     evidence = state.get("evidence")
+
+    # Try store first (persisted across restarts)
+    store = get_store()
+    persisted = store.get_report(investigation_id)
+    if persisted is not None:
+        return persisted
+
     if evidence is None:
         status = state.get("status", "draft")
         raise HTTPException(
@@ -326,10 +413,15 @@ async def get_report_text(investigation_id: str) -> PlainTextResponse:
     """Return the plain-text evidence summary for a completed investigation."""
     from app.orchestrator.report import generate_text_summary
 
-    _get_investigation_or_404(investigation_id)
+    record = _get_investigation_or_404(investigation_id)
+    if record["status"] != "completed":
+        raise HTTPException(status_code=404, detail="Report not yet available")
     state = _investigation_state.get(investigation_id, {})
     evidence = state.get("evidence")
     if evidence is None:
+        persisted = get_store().get_report_text(investigation_id)
+        if persisted is not None:
+            return PlainTextResponse(persisted)
         status = state.get("status", "draft")
         raise HTTPException(
             status_code=404,
@@ -346,9 +438,12 @@ async def stream_progress(investigation_id: str) -> StreamingResponse:
     async def _event_generator():
         import json as _json
 
+        store = get_store()
+        last_seq = -1
+
         while True:
             state = _investigation_state.get(investigation_id, {})
-            status = state.get("status", "draft")
+            status = _get_investigation_or_404(investigation_id)["status"]
             evidence = state.get("evidence")
 
             payload: dict[str, Any] = {"status": status}
@@ -358,9 +453,16 @@ async def stream_progress(investigation_id: str) -> StreamingResponse:
             if state.get("error"):
                 payload["error"] = state["error"]
 
+            # Emit any new store events
+            events = store.get_events(investigation_id)
+            new_events = [e for e in events if e.get("sequence", -1) > last_seq]
+            if new_events:
+                last_seq = new_events[-1].get("sequence", last_seq)
+                payload["new_events"] = new_events
+
             yield f"data: {_json.dumps(payload)}\n\n"
 
-            if status in ("completed", "failed"):
+            if status in ("completed", "failed", "interrupted"):
                 break
             await _asyncio.sleep(1)
 
@@ -382,11 +484,8 @@ async def run_pair_endpoint(
     4. Return the PairedRunResult.
     """
     # Allow "demo" as a convenience alias
-    if investigation_id != "demo" and investigation_id not in _investigations:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Investigation {investigation_id} not found",
-        )
+    if investigation_id != "demo":
+        _get_investigation_or_404(investigation_id)
 
     validation = validate_input(FIXTURE_CONTRACT, body.input_json)
     if not validation.valid:
@@ -408,6 +507,63 @@ async def run_pair_endpoint(
     # Record in investigation if not demo
     if investigation_id in _investigations:
         _investigations[investigation_id]["runs"].append(result_dict)
-        _investigations[investigation_id]["status"] = "running"
+        get_store().append_event(
+            investigation_id,
+            actor="api",
+            event_type="paired_run_completed",
+            payload={
+                "candidate_sha256": candidate_sha256,
+                "old_status": result.old_run.status,
+                "new_status": result.new_run.status,
+                "conclusion_changed": result.conclusion_changed,
+            },
+        )
 
     return result_dict
+
+
+@router.post("/investigations/{investigation_id}/verify-patch")
+async def verify_patch_endpoint(
+    investigation_id: str,
+    body: VerifyPatchRequest,
+    runner: RunnerAdapter = Depends(get_runner),  # noqa: B008
+) -> dict:
+    """
+    Check a proposed patch diff's scope without claiming it was executed.
+
+    Steps:
+    1. Confirm the investigation exists.
+    2. Validate the diff against the path allowlist.
+    3. Return inconclusive for an in-scope diff until patched worker runs exist.
+    4. Store the result as an event.
+    5. Return the ConstrainedPatchVerificationResult.
+    """
+    from app.orchestrator.patch_verifier import ProposedPatch, apply_and_verify_patch
+
+    _get_investigation_or_404(investigation_id)
+
+    proposal = ProposedPatch(
+        diff_text=body.diff_text,
+        description=body.description,
+        rationale=body.rationale,
+    )
+
+    result = apply_and_verify_patch(
+        proposal=proposal,
+        runner=runner,
+    )
+
+    # Record as an event
+    store = get_store()
+    store.append_event(
+        investigation_id,
+        actor="api",
+        event_type="patch_verification_requested",
+        payload={
+            "verdict": result.verdict,
+            "parse_valid": result.parse_result.valid,
+            "description": body.description,
+        },
+    )
+
+    return result.model_dump(mode="json")

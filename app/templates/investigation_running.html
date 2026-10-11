@@ -92,7 +92,7 @@
   <li id="stage-repair">
     <div class="stage-icon" id="icon-repair">5</div>
     <div>
-      <div class="stage-label">Patch repair</div>
+      <div class="stage-label">Fixture repair checks</div>
       <div class="stage-detail" id="detail-repair">Waiting…</div>
     </div>
   </li>
@@ -143,21 +143,48 @@
         var status = data.status || "unknown";
         setText("status-msg", "Status: " + status);
 
-        if (status === "running" || status === "completed" || status === "failed") {
+        var events = data.events || [];
+        var seen = {};
+        events.forEach(function (event) {
+          seen[event.event_type] = true;
+          if (event.event_type === "candidate_rejected" || event.event_type === "candidate_run") {
+            var counts = event.payload || {};
+            setText("cnt-attempted", counts.attempted);
+            setText("cnt-valid", counts.valid);
+            setText("cnt-invalid", counts.invalid);
+            setText("cnt-budget", counts.budget_remaining);
+          }
+        });
+        if (seen.control_failed) {
+          setClass("icon-preflight", "failed");
+          setText("detail-preflight", "Repeatability control failed");
+        } else if (seen.control_completed) {
+          setClass("icon-preflight", "done");
+          setText("detail-preflight", "Repeatability confirmed");
+        } else if (status === "running") {
           setClass("icon-preflight", "running");
           setText("detail-preflight", "Running controls…");
         }
-        if (status === "completed") {
-          setClass("icon-preflight", "done");
-          setText("detail-preflight", "Controls complete");
+        if (seen.witness_found || seen.witness_not_found) {
           setClass("icon-search", "done");
-          setText("detail-search", "Search complete");
-          setClass("icon-reduction", data.witness_found ? "done" : "done");
-          setText("detail-reduction", data.witness_found ? "Witness found and reduced" : "No witness found");
+          setText("detail-search", seen.witness_found ? "Witness found" : "No witness found within budget");
+        } else if (seen.candidate_run || seen.candidate_rejected) {
+          setClass("icon-search", "running");
+          setText("detail-search", "Testing valid candidates…");
+        }
+        if (seen.reduction_completed) {
+          setClass("icon-reduction", "done");
+          setText("detail-reduction", "Witness reduction completed");
+        }
+        if (seen.intervention_completed) {
           setClass("icon-intervention", "done");
-          setText("detail-intervention", "Intervention complete");
+          setText("detail-intervention", "Intervention completed");
+        }
+        if (seen.patch_verified) {
           setClass("icon-repair", "done");
-          setText("detail-repair", "Patch verification complete");
+          setText("detail-repair", "Predefined fixture checks completed");
+        }
+        if (status === "completed") {
           setClass("icon-complete", "done");
           setText("detail-complete", "Verdict: " + (data.verdict || "unknown"));
           setText("status-msg", "Investigation complete.");
@@ -171,14 +198,11 @@
           }
           clearInterval(timer);
           setTimeout(function () { window.location.href = evidenceUrl; }, 1500);
-        } else if (status === "failed") {
-          setClass("icon-preflight", "failed");
-          setText("detail-preflight", "Investigation failed: " + (data.error || "unknown error"));
+        } else if (status === "failed" || status === "interrupted") {
+          setClass("icon-complete", "failed");
+          setText("detail-complete", status === "interrupted" ? "Interrupted before completion" : "Investigation failed");
           clearInterval(timer);
-          setText("status-msg", "Investigation failed: " + (data.error || ""));
-        } else {
-          setClass("icon-search", "running");
-          setText("detail-search", "Searching for witness…");
+          setText("status-msg", status === "interrupted" ? "Investigation interrupted; no completed verdict is available." : "Investigation failed: " + (data.error || ""));
         }
       })
       .catch(function () {

@@ -17,7 +17,9 @@ COPY migrations/ ./migrations/
 COPY alembic.ini ./
 
 # Non-root user for security
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+RUN useradd -m -u 1000 appuser \
+    && mkdir -p /data/artifacts \
+    && chown -R appuser:appuser /app /data/artifacts
 USER appuser
 
 EXPOSE 8000

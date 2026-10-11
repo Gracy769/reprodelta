@@ -6,13 +6,13 @@ cares about changes. It replays immutable inputs in two environments, searches
 for a valid counterexample, tests a suspected mechanism, and checks a proposed
 repair against frozen independent cases.
 
-> **Implementation status:** Phase 2 complete.
-> - Investigation state persists to `ARTIFACT_DIR` (FileSystem store) and survives restarts.
+> **Implementation status:** curated hackathon demo under development.
+> - Docker Compose enables filesystem persistence in `ARTIFACT_DIR`; completed investigations, approvals, evidence, and reports survive an API restart. Local mode defaults to memory storage.
 > - Interrupted investigations are never silently shown as completed.
 > - Stage events are emitted at each step (preflight, controls, search, reduction, explanation, intervention, repair, report).
-> - A constrained patch verifier validates proposed unified diffs against an allowlist before execution.
+> - Proposed diffs are checked against a source-path allowlist. They are **not applied or executed yet**, so their verdict is inconclusive. The separate predefined repair fixtures exercise the holdout checks.
 > - Mock LLM mode is explicit; `NebiusError` from live calls surfaces in investigation events.
-> - Reports include `run_mode` (`local_simulation` / `pinned_workers`) and a `simulated_mode` flag.
+> - Reports include `run_mode` (`local_simulation`, `pinned_workers`, or `unverified`) and a `simulated_mode` flag.
 > - Docker remains unverified on this host — see **Docker** section.
 
 ## Quick start (Docker)
@@ -35,7 +35,7 @@ open http://localhost:8000
 2. Review the signal classifier contract → click **Approve and Start**
 3. Watch live progress: controls → search → reduction → intervention → repair
 4. Inspect the evidence page — witness, model explanation, intervention result,
-   patch verification matrix
+   and the predefined fixture repair checks
 5. Download the evidence report (JSON bundle + text summary)
 
 ## Local development (no Docker)
@@ -68,7 +68,7 @@ alembic upgrade head
 python fixture/verify_difference.py
 ```
 
-This script checks a precision simulation. The Docker demo uses actual NumPy
+This script checks a precision simulation. Compose is configured to use actual NumPy
 versions. To verify the fixture directly without Docker, run `fixture/project/run.py`
 with the same JSON signal under NumPy 1.26.4 and 2.0.2.
 
@@ -87,12 +87,12 @@ Copy `.env.example` to `.env` and edit as needed.
 | `WORKER_OLD_CONTAINER` | `worker-old` | Docker container name for the NumPy 1.26 worker. |
 | `WORKER_NEW_CONTAINER` | `worker-new` | Docker container name for the NumPy 2.0 worker. |
 | `SECRET_KEY` | `change-me-in-production` | Application secret key. Change before any public deployment. |
-| `PERSIST_INVESTIGATIONS` | `false` | Set to `true` to enable FileSystem store in `ARTIFACT_DIR`. |
+| `PERSIST_INVESTIGATIONS` | `false` locally | Compose sets this to `true`; choose a writable `ARTIFACT_DIR` for local persistence. Startup fails if persistence is requested but storage is unavailable. |
 | `LOG_LEVEL` | `INFO` | Logging level. |
 
 ## Docker
 
-Docker Compose is configured but was **not run on this development host** (Docker Engine not available). The Compose config validates successfully. The worker Dockerfiles install pinned NumPy versions (1.26.4 and 2.0.2) and serve the `WorkerHttpRunnerAdapter` HTTP endpoint.
+Docker Compose is configured but was **not run or validated on this development host** (Docker is not installed). The worker Dockerfiles install pinned NumPy versions (1.26.4 and 2.0.2) and serve the `WorkerHttpRunnerAdapter` HTTP endpoint.
 
 To verify Docker locally:
 
@@ -104,13 +104,13 @@ docker compose up --build
 # and intermediate_dtype=float32 on new worker
 ```
 
-Until Docker is verified end-to-end, the investigation report sets `run_mode="local_simulation"` and `simulated_mode=true`.
+Local runs are labeled `local_simulation`. Reports label the run mode `pinned_workers` only when both expected NumPy versions appear in the evidence; otherwise it is `unverified`.
 
 ## Test results
 
 ```sh
-python -m pytest tests/ -q --timeout=30
-# 403 passed
+python -m pytest tests/ -q
+# Run the full suite; see the current test output for the count.
 ```
 
 Test coverage by layer:
@@ -132,7 +132,7 @@ Test coverage by layer:
 | Evaluation | `test_evaluation_fixtures` | Unchanged controls, invalid rejection, overfitted patch, good patch, report fields |
 | Report | `test_report` | Report JSON fields, text summary, replay instructions, run_mode flag |
 | Persistence | `test_persistence` | Restart recovery, interrupt detection, event ordering, report survives restart |
-| Patch verifier | `test_patch_verifier` | Path allowlist, good diff passes, overfitted diff fails, unknown diff inconclusive |
+| Proposed patch scope | `test_patch_verifier` | Rejects disallowed paths and never reports an unexecuted diff as a passing repair |
 | Worker failure | `test_worker_failure` | Timeout → setup_failure, budget exhausted stops search |
 | Integration | `test_api_investigations`, `test_investigation_flow` | Full end-to-end API and investigation run |
 

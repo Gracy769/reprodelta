@@ -259,13 +259,22 @@ class InvestigationRunner:
 
         # The fixture holdouts are fixed before any model proposal is requested.
         sealed_holdouts = list(FIXTURE_HOLDOUTS)
+        self._emit(investigation_id, "holdouts_sealed", {
+            "count": len(sealed_holdouts),
+            "sha256": _hash_input({"holdouts": sealed_holdouts}),
+        })
 
         # ------------------------------------------------------------------
         # 2. Search for witness
         # ------------------------------------------------------------------
         self._emit(investigation_id, "preflight_ok", {})
 
-        searcher = SearchController(self.contract, self.budget, self.runner)
+        searcher = SearchController(
+            self.contract,
+            self.budget,
+            self.runner,
+            on_progress=lambda event_type, payload: self._emit(investigation_id, event_type, payload),
+        )
         progress: SearchProgress = searcher.run_search(investigation_id)
 
         witness_evidence: WitnessEvidence | None = None
@@ -405,14 +414,7 @@ class InvestigationRunner:
                 self._emit(investigation_id, "model_patch_failed", {})
 
             # ------------------------------------------------------------------
-            # 7. Use the holdouts frozen before model patch generation
-            # ------------------------------------------------------------------
-            self._emit(investigation_id, "holdouts_sealed", {
-                "count": len(sealed_holdouts),
-            })
-
-            # ------------------------------------------------------------------
-            # 8. Verify overfitted patch → should FAIL
+            # 7. Verify overfitted patch → should FAIL
             # ------------------------------------------------------------------
             try:
                 overfitted_result = verify_patch(

@@ -17,6 +17,6 @@ Read [README.md](README.md) and [docs/product-requirements.md](docs/product-requ
 
 Phase 1 milestone (complete): bounded NumPy 1.26-to-2.0 demonstration — paired runner, valid witness search, intervention, and frozen repair gate all work end to end.
 
-Phase 2 milestone (complete): durable investigation state, stage event emission, constrained patch verifier (allowlisted diff paths, no arbitrary code in API process), `NebiusError` surfacing, replayable export with `run_mode` and `simulated_mode` flags. Docker end-to-end remains unverified on the current development host.
+Phase 2 status: Docker Compose enables filesystem persistence and stage events are available through the API. Proposed patch diffs receive only a path-scope check and remain inconclusive because they are not applied or executed. Predefined fixture repairs are separate checks. `NebiusError` is surfaced and exports label local simulation, pinned versions, or unverified mode. Docker end-to-end remains unverified on the current development host.
 
 Phase 3 targets (not yet started): Docker demo verified with pinned workers producing real float64/float32 evidence, full SQLAlchemy persistence with PostgreSQL, authenticated multi-investigation support.

@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import asyncio
 import asyncio as _asyncio
-import contextlib
 import hashlib
 import json
 import pathlib
@@ -38,7 +37,7 @@ from app.domain.validator import validate_input
 from app.orchestrator.executor import PairedRunRequest, PairedRunResult, run_pair
 from app.orchestrator.investigation import InvestigationRunner
 from app.providers.runner import LocalRunnerAdapter, RunnerAdapter, WorkerHttpRunnerAdapter
-from app.storage.investigation_store import InvestigationStore, MemoryInvestigationStore
+from app.storage.investigation_store import InvestigationStore, make_investigation_store
 
 router = APIRouter(prefix="/api")
 
@@ -59,11 +58,8 @@ _DEMO_PROJECT = {
 }
 
 # ---------------------------------------------------------------------------
-# In-memory state (kept for backward-compat — evidence objects need memory)
+# In-memory cache for active investigation work; the store is authoritative.
 # ---------------------------------------------------------------------------
-
-# { project_id_str: {"approved": bool, "approved_at": datetime | None, "approved_by": str | None} }
-_contract_approvals: dict[str, dict[str, Any]] = {}
 
 # { investigation_id_str: InvestigationRecord (metadata) }
 _investigations: dict[str, dict[str, Any]] = {}
@@ -71,16 +67,19 @@ _investigations: dict[str, dict[str, Any]] = {}
 # { investigation_id_str: {"status": str, "progress": SearchProgress|None, "evidence": InvestigationEvidence|None} }
 _investigation_state: dict[str, dict[str, Any]] = {}
 
-# Module-level investigation store (MemoryStore by default; tests can swap it)
-_store: InvestigationStore = MemoryInvestigationStore()
+# Created lazily after settings have loaded; tests can replace it.
+_store: InvestigationStore | None = None
 
 
 def get_store() -> InvestigationStore:
-    """Return the module-level investigation store (injectable for tests)."""
+    """Return the configured investigation store (injectable for tests)."""
+    global _store
+    if _store is None:
+        _store = make_investigation_store()
     return _store
 
 
-def set_store(store: InvestigationStore) -> None:
+def set_store(store: InvestigationStore | None) -> None:
     """Replace the module-level store (used in tests)."""
     global _store
     _store = store
@@ -121,7 +120,7 @@ class RunPairRequest(BaseModel):
 
 
 class VerifyPatchRequest(BaseModel):
-    diff_text: str
+    diff_text: str = Field(max_length=100_000)
     description: str = ""
     rationale: str = ""
 
@@ -142,12 +141,30 @@ def _ensure_demo_project(project_id: uuid.UUID) -> None:
 
 
 def _get_investigation_or_404(investigation_id: str) -> dict[str, Any]:
-    record = _investigations.get(investigation_id)
-    if record is None:
+    try:
+        uuid.UUID(investigation_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Investigation not found") from exc
+    stored = get_store().get_investigation(investigation_id)
+    if stored is None:
         raise HTTPException(
             status_code=404,
             detail=f"Investigation {investigation_id} not found",
         )
+    record = _investigations.get(investigation_id)
+    if record is None:
+        budget = stored.get("budget_json", {})
+        record = {
+            "id": investigation_id,
+            "project_id": stored["project_id"],
+            "description": "",
+            "created_at": stored.get("created_at"),
+            "runs": [],
+            "max_candidates": budget.get("max_candidates", 50),
+            "max_runs": budget.get("max_runs", 200),
+        }
+        _investigations[investigation_id] = record
+    record["status"] = stored["status"]
     return record
 
 
@@ -166,9 +183,11 @@ def _run_investigation_sync(
     state["progress"] = None
     state["evidence"] = None
     try:
+        saved = store.get_investigation(investigation_id)
+        budget_values = saved.get("budget_json", {}) if saved else {}
         budget = BudgetConfig(
-            max_candidates=_investigations[investigation_id].get("max_candidates", 50),
-            max_runs=_investigations[investigation_id].get("max_runs", 200),
+            max_candidates=budget_values.get("max_candidates", 50),
+            max_runs=budget_values.get("max_runs", 200),
         )
         inv_runner = InvestigationRunner(
             contract=FIXTURE_CONTRACT,
@@ -177,20 +196,18 @@ def _run_investigation_sync(
             store=store,
         )
         evidence = inv_runner.run_full_investigation(investigation_id)
+        from app.orchestrator.report import generate_report, generate_text_summary
+
+        store.store_evidence(investigation_id, evidence.model_dump(mode="json"))
+        store.store_report(
+            investigation_id,
+            generate_report(evidence),
+            generate_text_summary(evidence),
+        )
+        store.transition_status(investigation_id, "completed")
         state["evidence"] = evidence
         state["status"] = "completed"
         _investigations[investigation_id]["status"] = "completed"
-        # Store report via the persistence layer
-        try:
-            from app.orchestrator.report import generate_report, generate_text_summary
-            store.store_report(
-                investigation_id,
-                generate_report(evidence),
-                generate_text_summary(evidence),
-            )
-        except Exception:  # noqa: BLE001
-            pass
-        store.transition_status(investigation_id, "completed")
     except Exception as exc:  # noqa: BLE001
         state["status"] = "failed"
         state["error"] = str(exc)
@@ -220,7 +237,7 @@ async def get_contract(project_id: uuid.UUID) -> dict:
     _ensure_demo_project(project_id)
     body = FIXTURE_CONTRACT.model_dump()
     contract_hash = hash_contract(FIXTURE_CONTRACT)
-    approval = _contract_approvals.get(str(project_id), {})
+    approval = get_store().get_approval(str(project_id)) or {}
     return {
         "project_id": str(project_id),
         "contract": body,
@@ -235,15 +252,11 @@ async def get_contract(project_id: uuid.UUID) -> dict:
 async def approve_contract(project_id: uuid.UUID) -> dict:
     """Record contract approval for a project."""
     _ensure_demo_project(project_id)
-    _contract_approvals[str(project_id)] = {
-        "approved": True,
-        "approved_at": datetime.now(UTC).isoformat(),
-        "approved_by": "user",
-    }
+    approval = get_store().approve_contract(str(project_id), hash_contract(FIXTURE_CONTRACT))
     return {
         "project_id": str(project_id),
         "approved": True,
-        "contract_hash": hash_contract(FIXTURE_CONTRACT),
+        "contract_hash": approval["contract_hash"],
     }
 
 
@@ -294,19 +307,17 @@ async def start_investigation(
     Returns 202 Accepted immediately.  Poll GET .../progress for updates.
     """
     record = _get_investigation_or_404(investigation_id)
-    if not _contract_approvals.get(record["project_id"], {}).get("approved"):
+    approval = get_store().get_approval(record["project_id"]) or {}
+    if approval.get("contract_hash") != hash_contract(FIXTURE_CONTRACT):
         raise HTTPException(status_code=409, detail="Approve the project contract before starting")
-    state = _investigation_state.setdefault(investigation_id, {})
-
-    if state.get("status") != "draft":
+    if record["status"] != "draft":
         raise HTTPException(status_code=409, detail="Investigation has already been started")
 
+    state = _investigation_state.setdefault(investigation_id, {})
+    store = get_store()
+    store.transition_status(investigation_id, "running")
     state["status"] = "running"
     _investigations[investigation_id]["status"] = "running"
-
-    store = get_store()
-    with contextlib.suppress(KeyError, ValueError):
-        store.transition_status(investigation_id, "running")
 
     asyncio.create_task(
         asyncio.to_thread(_run_investigation_sync, investigation_id, runner, store)
@@ -318,9 +329,9 @@ async def start_investigation(
 @router.get("/investigations/{investigation_id}/progress")
 async def get_progress(investigation_id: str) -> dict:
     """Return the current investigation progress (status + events)."""
-    _get_investigation_or_404(investigation_id)
+    record = _get_investigation_or_404(investigation_id)
     state = _investigation_state.get(investigation_id, {})
-    status = state.get("status", "draft")
+    status = record["status"]
 
     result: dict[str, Any] = {
         "investigation_id": investigation_id,
@@ -332,17 +343,21 @@ async def get_progress(investigation_id: str) -> dict:
         result["witness_found"] = evidence.witness is not None
         result["verdict"] = evidence.verdict.value if evidence.verdict else None
     else:
-        result["witness_found"] = False
-        result["verdict"] = None
-
-    if state.get("error"):
-        result["error"] = state["error"]
+        saved_report = get_store().get_report(investigation_id) if status == "completed" else None
+        result["witness_found"] = saved_report.get("witness") is not None if saved_report else False
+        result["verdict"] = saved_report.get("verdict") if saved_report else None
 
     # Include events from the store
     store = get_store()
     events = store.get_events(investigation_id)
     result["events"] = events
     result["event_count"] = len(events)
+    error_event = next(
+        (event for event in reversed(events) if event.get("event_type") == "investigation_failed"),
+        None,
+    )
+    if state.get("error") or error_event:
+        result["error"] = state.get("error") or error_event.get("payload", {}).get("error")
 
     return result
 
@@ -350,10 +365,15 @@ async def get_progress(investigation_id: str) -> dict:
 @router.get("/investigations/{investigation_id}/evidence")
 async def get_evidence(investigation_id: str) -> dict:
     """Return the full InvestigationEvidence once the investigation is complete."""
-    _get_investigation_or_404(investigation_id)
+    record = _get_investigation_or_404(investigation_id)
+    if record["status"] != "completed":
+        raise HTTPException(status_code=404, detail="Evidence not yet available")
     state = _investigation_state.get(investigation_id, {})
     evidence = state.get("evidence")
     if evidence is None:
+        persisted = get_store().get_evidence(investigation_id)
+        if persisted is not None:
+            return persisted
         status = state.get("status", "draft")
         raise HTTPException(
             status_code=404,
@@ -367,7 +387,9 @@ async def get_report(investigation_id: str) -> dict:
     """Return the full JSON evidence bundle for a completed investigation."""
     from app.orchestrator.report import generate_report
 
-    _get_investigation_or_404(investigation_id)
+    record = _get_investigation_or_404(investigation_id)
+    if record["status"] != "completed":
+        raise HTTPException(status_code=404, detail="Report not yet available")
     state = _investigation_state.get(investigation_id, {})
     evidence = state.get("evidence")
 
@@ -391,10 +413,15 @@ async def get_report_text(investigation_id: str) -> PlainTextResponse:
     """Return the plain-text evidence summary for a completed investigation."""
     from app.orchestrator.report import generate_text_summary
 
-    _get_investigation_or_404(investigation_id)
+    record = _get_investigation_or_404(investigation_id)
+    if record["status"] != "completed":
+        raise HTTPException(status_code=404, detail="Report not yet available")
     state = _investigation_state.get(investigation_id, {})
     evidence = state.get("evidence")
     if evidence is None:
+        persisted = get_store().get_report_text(investigation_id)
+        if persisted is not None:
+            return PlainTextResponse(persisted)
         status = state.get("status", "draft")
         raise HTTPException(
             status_code=404,
@@ -416,7 +443,7 @@ async def stream_progress(investigation_id: str) -> StreamingResponse:
 
         while True:
             state = _investigation_state.get(investigation_id, {})
-            status = state.get("status", "draft")
+            status = _get_investigation_or_404(investigation_id)["status"]
             evidence = state.get("evidence")
 
             payload: dict[str, Any] = {"status": status}
@@ -457,11 +484,8 @@ async def run_pair_endpoint(
     4. Return the PairedRunResult.
     """
     # Allow "demo" as a convenience alias
-    if investigation_id != "demo" and investigation_id not in _investigations:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Investigation {investigation_id} not found",
-        )
+    if investigation_id != "demo":
+        _get_investigation_or_404(investigation_id)
 
     validation = validate_input(FIXTURE_CONTRACT, body.input_json)
     if not validation.valid:
@@ -483,7 +507,17 @@ async def run_pair_endpoint(
     # Record in investigation if not demo
     if investigation_id in _investigations:
         _investigations[investigation_id]["runs"].append(result_dict)
-        _investigations[investigation_id]["status"] = "running"
+        get_store().append_event(
+            investigation_id,
+            actor="api",
+            event_type="paired_run_completed",
+            payload={
+                "candidate_sha256": candidate_sha256,
+                "old_status": result.old_run.status,
+                "new_status": result.new_run.status,
+                "conclusion_changed": result.conclusion_changed,
+            },
+        )
 
     return result_dict
 
@@ -495,12 +529,12 @@ async def verify_patch_endpoint(
     runner: RunnerAdapter = Depends(get_runner),  # noqa: B008
 ) -> dict:
     """
-    Validate a proposed patch diff and verify it against frozen holdouts.
+    Check a proposed patch diff's scope without claiming it was executed.
 
     Steps:
     1. Confirm the investigation exists.
     2. Validate the diff against the path allowlist.
-    3. Detect the change type and run holdout verification.
+    3. Return inconclusive for an in-scope diff until patched worker runs exist.
     4. Store the result as an event.
     5. Return the ConstrainedPatchVerificationResult.
     """

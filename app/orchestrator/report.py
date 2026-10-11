@@ -34,21 +34,20 @@ _SCHEMA_VERSION = "2"
 
 def _detect_run_mode(evidence: InvestigationEvidence) -> str:
     """
-    Determine the run mode from the evidence.
-
-    Returns "local_simulation" if numpy_version starts with "simulated-",
-    otherwise "pinned_workers".
+    Label only runtime versions that the evidence actually establishes.
     """
-    # Check control run numpy versions
-    for ctrl in evidence.controls:
-        nv = ctrl.run1.numpy_version or ""
-        if nv.startswith("simulated-"):
-            return "local_simulation"
-    if evidence.witness is not None:
-        nv = evidence.witness.old_run.numpy_version or ""
-        if nv.startswith("simulated-"):
-            return "local_simulation"
-    return "pinned_workers"
+    if len(evidence.controls) < 2:
+        return "unverified"
+    old_version = evidence.controls[0].run1.numpy_version or ""
+    new_version = evidence.controls[1].run1.numpy_version or ""
+    witness_old = evidence.witness.old_run.numpy_version if evidence.witness else old_version
+    witness_new = evidence.witness.new_run.numpy_version if evidence.witness else new_version
+    versions = (old_version, new_version, witness_old or "", witness_new or "")
+    if all(version.startswith("simulated-") for version in versions):
+        return "local_simulation"
+    if versions == ("1.26.4", "2.0.2", "1.26.4", "2.0.2"):
+        return "pinned_workers"
+    return "unverified"
 
 
 def _collect_environment_versions(evidence: InvestigationEvidence) -> dict:
@@ -143,38 +142,21 @@ def generate_replay_commands(evidence: InvestigationEvidence) -> dict:
         ratio_str_old = f"{old_ratio:.11f}" if old_ratio is not None else "?"
         ratio_str_new = f"{new_ratio:.11f}" if new_ratio is not None else "?"
 
-        if simulated:
-            posix_witness = (
-                f"# NOTE: local simulation mode — results are approximated in-process\n"
-                f"# To reproduce with real NumPy environments, use RUNNER_MODE=worker_http\n"
-                f"echo '{input_json_str}' | NUMPY_VERSION=1.26.4 python run.py\n"
-                f"# Expected: ratio={ratio_str_old}, conclusion={old_conclusion}\n"
-                f"echo '{input_json_str}' | NUMPY_VERSION=2.0.2 python run.py\n"
-                f"# Expected: ratio={ratio_str_new}, conclusion={new_conclusion}"
-            )
-            windows_witness = (
-                f"# NOTE: local simulation mode — results are approximated in-process\n"
-                f"# To reproduce with real NumPy environments, use RUNNER_MODE=worker_http\n"
-                f'echo {input_json_str} | python run.py\n'
-                f"# Expected: ratio={ratio_str_old}, conclusion={old_conclusion}"
-            )
-        else:
-            posix_witness = (
-                f"pip install numpy==1.26.4\n"
-                f"echo '{input_json_str}' | python run.py\n"
-                f"# Expected: ratio={ratio_str_old}, conclusion={old_conclusion}\n"
-                f"pip install numpy==2.0.2\n"
-                f"echo '{input_json_str}' | python run.py\n"
-                f"# Expected: ratio={ratio_str_new}, conclusion={new_conclusion}"
-            )
-            windows_witness = (
-                f"pip install numpy==1.26.4\n"
-                f'echo {input_json_str} | python run.py\n'
-                f"# Expected: ratio={ratio_str_old}, conclusion={old_conclusion}\n"
-                f"pip install numpy==2.0.2\n"
-                f'echo {input_json_str} | python run.py\n'
-                f"# Expected: ratio={ratio_str_new}, conclusion={new_conclusion}"
-            )
+        posix_json = input_json_str.replace("'", "'\"'\"'")
+        windows_json = input_json_str.replace("'", "''")
+        note = "# Original investigation used local simulation. These commands run real NumPy.\n" if simulated else ""
+        posix_witness = (
+            f"{note}printf '%s' '{posix_json}' | uv run --no-project --python 3.12 --with numpy==1.26.4 python fixture/project/run.py\n"
+            f"# Recorded old result: ratio={ratio_str_old}, conclusion={old_conclusion}\n"
+            f"printf '%s' '{posix_json}' | uv run --no-project --python 3.12 --with numpy==2.0.2 python fixture/project/run.py\n"
+            f"# Recorded new result: ratio={ratio_str_new}, conclusion={new_conclusion}"
+        )
+        windows_witness = (
+            f"{note}'{windows_json}' | uv run --no-project --python 3.12 --with numpy==1.26.4 python fixture/project/run.py\n"
+            f"# Recorded old result: ratio={ratio_str_old}, conclusion={old_conclusion}\n"
+            f"'{windows_json}' | uv run --no-project --python 3.12 --with numpy==2.0.2 python fixture/project/run.py\n"
+            f"# Recorded new result: ratio={ratio_str_new}, conclusion={new_conclusion}"
+        )
     else:
         posix_witness = "# No witness was found within the search budget."
         windows_witness = "# No witness was found within the search budget."
@@ -183,13 +165,13 @@ def generate_replay_commands(evidence: InvestigationEvidence) -> dict:
     posix = (
         f"# ReproDelta replay — investigation {inv_id}\n"
         f"# Contract hash: {contract_hash}\n"
-        f"cd fixture/project\n"
+        "# Run from a clean repository checkout with uv installed.\n"
         f"{posix_witness}"
     )
     windows = (
         f"# ReproDelta replay — investigation {inv_id}\n"
         f"# Contract hash: {contract_hash}\n"
-        f"cd fixture\\project\n"
+        "# Run from a clean repository checkout with uv installed.\n"
         f"{windows_witness}"
     )
     return {"posix": posix, "windows": windows}
@@ -218,16 +200,22 @@ def generate_limitations(evidence: InvestigationEvidence) -> list[str]:
             "No Docker isolation was used. "
             "For isolated reproduction, use RUNNER_MODE=worker_http with pinned container images."
         )
-
-    # Check if any proposal was generated in mock mode
-    is_mock = any(
-        getattr(p, "is_mock", False) for p in evidence.model_proposals
-    )
-    if is_mock or len(evidence.model_proposals) == 0:
+    elif run_mode == "unverified":
         limitations.append(
-            "Model proposals were generated in mock mode; "
-            "a live Nebius/Nemotron call was not made."
+            "The report does not establish both pinned NumPy runtime versions; run mode is unverified."
         )
+
+    # Distinguish mock proposals from calls that produced no proposal.
+    if not evidence.model_proposals:
+        limitations.append(
+            "No model proposal was recorded; a live Nebius/Nemotron response was not confirmed."
+        )
+    elif any(getattr(p, "is_mock", False) for p in evidence.model_proposals):
+        limitations.append("At least one model proposal was generated in mock mode.")
+
+    limitations.append(
+        "Repair checks use predefined fixture variants; the model's proposed diff was not applied."
+    )
 
     if evidence.witness is not None:
         limitations.append(

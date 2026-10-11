@@ -7,8 +7,8 @@ Tests:
 3. test_patch_targeting_holdouts_rejected — diff with holdout in path → rejected
 4. test_patch_targeting_runner_rejected — diff with runner/ → rejected
 5. test_unparseable_diff_inconclusive — garbage text → invalid_patch
-6. test_good_patch_diff_passes_holdouts — explicit_float32 diff → passes
-7. test_overfitted_diff_fails_holdouts — overfitted diff → fails
+6. Recognizable text cannot pass an unexecuted patch.
+7. Proposed diffs remain inconclusive until the worker can apply them.
 """
 from __future__ import annotations
 
@@ -113,6 +113,10 @@ class TestValidatePatchProposal:
         result = validate_patch_proposal(_TESTS_DIFF)
         assert len(result.rejected_paths) > 0
 
+    def test_hidden_second_file_header_is_rejected(self):
+        proposal = f"diff --git a/tests/evil.py b/tests/evil.py\n{_GOOD_DIFF}"
+        assert validate_patch_proposal(proposal).valid is False
+
 
 # ---------------------------------------------------------------------------
 # Test apply_and_verify_patch
@@ -146,8 +150,8 @@ class TestApplyAndVerifyPatch:
         result = apply_and_verify_patch(proposal)
         assert result.verdict == "inconclusive"
 
-    def test_good_patch_diff_passes_holdouts(self):
-        """explicit_float32 diff → should pass all holdouts."""
+    def test_good_looking_diff_is_not_claimed_verified(self):
+        """Recognizing proposed code is not evidence that it ran."""
         proposal = ProposedPatch(
             diff_text=_GOOD_DIFF,
             description="Use np.float32 divisor",
@@ -155,11 +159,12 @@ class TestApplyAndVerifyPatch:
         )
         result = apply_and_verify_patch(proposal)
         assert isinstance(result, ConstrainedPatchVerificationResult)
-        assert result.verdict == "repair_passes_stated_checks"
-        assert len(result.holdout_results) > 0
+        assert result.verdict == "inconclusive"
+        assert result.holdout_results == []
+        assert result.patch_checks[-1].status == "not_run"
 
-    def test_overfitted_diff_fails_holdouts(self):
-        """Overfitted diff → should fail some holdouts."""
+    def test_overfitted_diff_is_not_claimed_verified(self):
+        """Even a known bad pattern is not an executed proposal."""
         proposal = ProposedPatch(
             diff_text=_OVERFITTED_DIFF,
             description="Special-case hack",
@@ -167,8 +172,8 @@ class TestApplyAndVerifyPatch:
         )
         result = apply_and_verify_patch(proposal)
         assert isinstance(result, ConstrainedPatchVerificationResult)
-        assert result.verdict == "repair_fails_stated_checks"
-        assert any(h.check_status == "fail" for h in result.holdout_results)
+        assert result.verdict == "inconclusive"
+        assert result.holdout_results == []
 
     def test_result_has_limitations(self):
         proposal = ProposedPatch(diff_text=_GOOD_DIFF, description="", rationale="")
@@ -186,7 +191,7 @@ class TestApplyAndVerifyPatch:
         assert len(result.patch_checks) >= 2
         check_types = [c.check_type for c in result.patch_checks]
         assert "path_allowlist" in check_types
-        assert "change_detection" in check_types
+        assert "patch_execution" in check_types
 
 
 # ---------------------------------------------------------------------------

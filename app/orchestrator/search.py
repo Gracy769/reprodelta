@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
+from collections.abc import Callable
 from typing import Literal
 
 import numpy as np
@@ -133,10 +134,12 @@ class SearchController:
         contract: ContractBody,
         budget: BudgetConfig,
         runner: RunnerAdapter,
+        on_progress: Callable[[str, dict], None] | None = None,
     ) -> None:
         self.contract = contract
         self.budget = budget
         self.runner = runner
+        self.on_progress = on_progress
 
     def run_search(
         self,
@@ -183,6 +186,14 @@ class SearchController:
                     pair_result=None,
                 )
                 records.append(record)
+                if self.on_progress:
+                    self.on_progress("candidate_rejected", {
+                        "attempted": attempted,
+                        "valid": valid_count,
+                        "invalid": invalid_count,
+                        "budget_remaining": budget_remaining,
+                        "reason": validation.reason,
+                    })
                 continue
 
             valid_count += 1
@@ -211,6 +222,14 @@ class SearchController:
                 pair_result=pair_result,
             )
             records.append(record)
+            if self.on_progress:
+                self.on_progress("candidate_run", {
+                    "attempted": attempted,
+                    "valid": valid_count,
+                    "invalid": invalid_count,
+                    "budget_remaining": budget_remaining,
+                    "conclusion_changed": conclusion_changed,
+                })
 
             if conclusion_changed and witness is None:
                 witness = record

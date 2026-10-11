@@ -11,6 +11,7 @@ Tests:
 from __future__ import annotations
 
 import tempfile
+import time
 from pathlib import Path
 
 import pytest
@@ -19,6 +20,127 @@ from app.storage.investigation_store import (
     FileSystemInvestigationStore,
     MemoryInvestigationStore,
 )
+
+
+def test_api_restores_contract_approval_and_report_after_restart(tmp_path):
+    """A new API store instance serves completed work without process dictionaries."""
+    from fastapi.testclient import TestClient
+
+    from app.api import investigations as api
+    from app.main import app
+
+    previous_store = api.get_store()
+    previous_records = dict(api._investigations)
+    previous_state = dict(api._investigation_state)
+    store = FileSystemInvestigationStore(tmp_path)
+    api.set_store(store)
+    project_id = str(api.DEMO_PROJECT_ID)
+    try:
+        with TestClient(app) as client:
+            approval = client.post(f"/api/projects/{project_id}/contract/approve")
+            assert approval.status_code == 200
+            created = client.post("/api/investigations", json={"project_id": project_id})
+            assert created.status_code == 201
+            inv_id = created.json()["id"]
+            store.transition_status(inv_id, "running")
+            store.store_evidence(inv_id, {"investigation_id": inv_id, "verdict": "no_violation_found"})
+            store.store_report(inv_id, {"investigation_id": inv_id, "verdict": "no_violation_found"}, "Saved report")
+            store.transition_status(inv_id, "completed")
+
+            api._investigations.clear()
+            api._investigation_state.clear()
+            api.set_store(FileSystemInvestigationStore(tmp_path))
+
+            assert client.get(f"/api/projects/{project_id}/contract").json()["approved"] is True
+            assert client.get(f"/api/investigations/{inv_id}").json()["status"] == "completed"
+            assert client.get(f"/api/investigations/{inv_id}/progress").json()["verdict"] == "no_violation_found"
+            assert client.get(f"/api/investigations/{inv_id}/evidence").json()["investigation_id"] == inv_id
+            assert client.get(f"/api/investigations/{inv_id}/report").json()["investigation_id"] == inv_id
+            assert client.get(f"/api/investigations/{inv_id}/report/text").text == "Saved report"
+    finally:
+        api.set_store(previous_store)
+        api._investigations.clear()
+        api._investigations.update(previous_records)
+        api._investigation_state.clear()
+        api._investigation_state.update(previous_state)
+
+
+def test_completed_local_investigation_survives_api_store_restart(tmp_path):
+    """Run the real API workflow, then read its evidence from a new store."""
+    from fastapi.testclient import TestClient
+
+    from app.api import investigations as api
+    from app.main import app
+
+    previous_store = api.get_store()
+    previous_records = dict(api._investigations)
+    previous_state = dict(api._investigation_state)
+    api.set_store(FileSystemInvestigationStore(tmp_path))
+    project_id = str(api.DEMO_PROJECT_ID)
+    try:
+        with TestClient(app) as client:
+            assert client.post(f"/api/projects/{project_id}/contract/approve").status_code == 200
+            created = client.post("/api/investigations", json={"project_id": project_id})
+            inv_id = created.json()["id"]
+            assert client.post(f"/api/investigations/{inv_id}/start").status_code == 202
+            deadline = time.monotonic() + 15
+            while time.monotonic() < deadline:
+                status = client.get(f"/api/investigations/{inv_id}/progress").json()["status"]
+                if status in ("completed", "failed"):
+                    break
+                time.sleep(0.05)
+            assert status == "completed"
+            original = client.get(f"/api/investigations/{inv_id}/report").json()
+            assert original["verdict"] == "supported_conclusion_change"
+
+            api._investigations.clear()
+            api._investigation_state.clear()
+            api.set_store(FileSystemInvestigationStore(tmp_path))
+            assert client.get(f"/api/investigations/{inv_id}/report").json() == original
+            assert client.get(f"/api/investigations/{inv_id}/evidence").json()["investigation_id"] == inv_id
+    finally:
+        api.set_store(previous_store)
+        api._investigations.clear()
+        api._investigations.update(previous_records)
+        api._investigation_state.clear()
+        api._investigation_state.update(previous_state)
+
+
+def test_configured_persistent_store_is_selected(tmp_path, monkeypatch):
+    from app.api import investigations as api
+    from app.config import Settings
+
+    previous_store = api.get_store()
+    monkeypatch.setattr(
+        "app.config._settings",
+        Settings(_env_file=None, artifact_dir=str(tmp_path), persist_investigations=True),
+    )
+    try:
+        api.set_store(None)
+        assert isinstance(api.get_store(), FileSystemInvestigationStore)
+    finally:
+        api.set_store(previous_store)
+
+
+@pytest.mark.parametrize("store_kind", ["memory", "filesystem"])
+def test_approved_contract_and_final_artifacts_are_immutable(tmp_path, store_kind):
+    store = MemoryInvestigationStore() if store_kind == "memory" else FileSystemInvestigationStore(tmp_path)
+    project_id = "00000000-0000-0000-0000-000000000001"
+    store.approve_contract(project_id, "a" * 64)
+    with pytest.raises(ValueError, match="immutable"):
+        store.approve_contract(project_id, "b" * 64)
+
+    inv_id = store.create_investigation(project_id, {})
+    store.transition_status(inv_id, "running")
+    store.store_evidence(inv_id, {"one": 1})
+    store.store_report(inv_id, {"one": 1}, "original")
+    with pytest.raises(ValueError, match="immutable"):
+        store.store_evidence(inv_id, {"one": 2})
+    with pytest.raises(ValueError, match="immutable"):
+        store.store_report(inv_id, {"one": 2}, "changed")
+    store.transition_status(inv_id, "completed")
+    with pytest.raises(ValueError, match="Invalid status transition"):
+        store.transition_status(inv_id, "cancelled")
 
 # ---------------------------------------------------------------------------
 # Memory store tests
@@ -245,5 +367,6 @@ class TestReportSurvivesRestart:
             assert rec_before["report_available"] is False
             store.transition_status(inv_id, "running")
             store.store_report(inv_id, {"x": 1}, "text")
+            store.transition_status(inv_id, "completed")
             rec_after = store.get_investigation(inv_id)
             assert rec_after["report_available"] is True

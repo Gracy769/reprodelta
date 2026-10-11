@@ -10,7 +10,7 @@ An investigation that was "running" when the process crashed is marked
 State machine (enforced on write):
   draft → running
   running → completed | failed | interrupted
-  any → cancelled
+  draft/running → cancelled
   Reject: completed/failed/interrupted → running
 
 Events are append-only with monotonic sequence numbers.
@@ -35,9 +35,9 @@ from typing import Any
 _VALID_TRANSITIONS: dict[str, set[str]] = {
     "draft": {"running", "cancelled"},
     "running": {"completed", "failed", "interrupted", "cancelled"},
-    "completed": {"cancelled"},
-    "failed": {"cancelled"},
-    "interrupted": {"cancelled"},
+    "completed": set(),
+    "failed": set(),
+    "interrupted": set(),
     "cancelled": set(),
 }
 
@@ -100,6 +100,26 @@ class InvestigationStore(ABC):
         """Return the stored report JSON or None."""
 
     @abstractmethod
+    def get_report_text(self, investigation_id: str) -> str | None:
+        """Return the stored text report or None."""
+
+    @abstractmethod
+    def store_evidence(self, investigation_id: str, evidence: dict) -> None:
+        """Persist the complete typed evidence payload."""
+
+    @abstractmethod
+    def get_evidence(self, investigation_id: str) -> dict | None:
+        """Return the stored evidence payload or None."""
+
+    @abstractmethod
+    def approve_contract(self, project_id: str, contract_hash: str) -> dict:
+        """Record approval of the exact current contract hash."""
+
+    @abstractmethod
+    def get_approval(self, project_id: str) -> dict | None:
+        """Return the project's approved contract hash, if any."""
+
+    @abstractmethod
     def get_events(self, investigation_id: str) -> list[dict]:
         """Return all events in sequence order."""
 
@@ -118,6 +138,7 @@ class MemoryInvestigationStore(InvestigationStore):
         self._records: dict[str, dict[str, Any]] = {}
         # { id: [event, ...] }
         self._events: dict[str, list[dict]] = {}
+        self._approvals: dict[str, dict] = {}
 
     def create_investigation(
         self,
@@ -136,6 +157,7 @@ class MemoryInvestigationStore(InvestigationStore):
                 "created_at": datetime.now(UTC).isoformat(),
                 "report_json": None,
                 "report_text": None,
+                "evidence": None,
             }
             self._events[inv_id] = []
         return inv_id
@@ -175,6 +197,10 @@ class MemoryInvestigationStore(InvestigationStore):
         with self._lock:
             record = self._records.get(investigation_id)
             if record is None:
+                raise KeyError(investigation_id)
+            if record["report_json"] is not None:
+                if record["report_json"] != report_json or record["report_text"] != report_text:
+                    raise ValueError("Final report is immutable")
                 return
             record["report_json"] = report_json
             record["report_text"] = report_text
@@ -200,6 +226,43 @@ class MemoryInvestigationStore(InvestigationStore):
             if record is None:
                 return None
             return record.get("report_json")
+
+    def get_report_text(self, investigation_id: str) -> str | None:
+        with self._lock:
+            record = self._records.get(investigation_id)
+            return record.get("report_text") if record else None
+
+    def store_evidence(self, investigation_id: str, evidence: dict) -> None:
+        with self._lock:
+            record = self._records[investigation_id]
+            if record["evidence"] is not None and record["evidence"] != evidence:
+                raise ValueError("Final evidence is immutable")
+            record["evidence"] = evidence
+
+    def get_evidence(self, investigation_id: str) -> dict | None:
+        with self._lock:
+            record = self._records.get(investigation_id)
+            return record.get("evidence") if record else None
+
+    def approve_contract(self, project_id: str, contract_hash: str) -> dict:
+        approval = {
+            "approved": True,
+            "contract_hash": contract_hash,
+            "approved_at": datetime.now(UTC).isoformat(),
+            "approved_by": "user",
+        }
+        with self._lock:
+            existing = self._approvals.get(project_id)
+            if existing is not None:
+                if existing["contract_hash"] != contract_hash:
+                    raise ValueError("Approved contract hash is immutable")
+                return existing
+            self._approvals[project_id] = approval
+        return approval
+
+    def get_approval(self, project_id: str) -> dict | None:
+        with self._lock:
+            return self._approvals.get(project_id)
 
     def get_events(self, investigation_id: str) -> list[dict]:
         with self._lock:
@@ -236,7 +299,7 @@ class FileSystemInvestigationStore(InvestigationStore):
         self._known_running: set[str] = set()
 
     def _inv_dir(self, investigation_id: str) -> Path:
-        return self._base / "investigations" / investigation_id
+        return self._base / "investigations" / str(uuid.UUID(investigation_id))
 
     def _state_path(self, investigation_id: str) -> Path:
         return self._inv_dir(investigation_id) / "state.json"
@@ -249,6 +312,13 @@ class FileSystemInvestigationStore(InvestigationStore):
 
     def _report_txt_path(self, investigation_id: str) -> Path:
         return self._inv_dir(investigation_id) / "report.txt"
+
+    def _evidence_path(self, investigation_id: str) -> Path:
+        return self._inv_dir(investigation_id) / "evidence.json"
+
+    def _approval_path(self, project_id: str) -> Path:
+        # Project IDs come from the fixed demo UUID, but validate here too.
+        return self._base / "approvals" / f"{uuid.UUID(project_id)}.json"
 
     def _write_atomic(self, path: Path, data: str) -> None:
         """Write string data atomically using a temp file + os.replace."""
@@ -366,6 +436,14 @@ class FileSystemInvestigationStore(InvestigationStore):
         report_text: str,
     ) -> None:
         with self._lock:
+            existing_json = self._report_path(investigation_id)
+            existing_text = self._report_txt_path(investigation_id)
+            if existing_json.exists() or existing_text.exists():
+                if not existing_json.exists() or not existing_text.exists():
+                    raise RuntimeError("Incomplete stored report")
+                if json.loads(existing_json.read_text(encoding="utf-8")) != report_json or existing_text.read_text(encoding="utf-8") != report_text:
+                    raise ValueError("Final report is immutable")
+                return
             self._write_atomic(
                 self._report_path(investigation_id),
                 json.dumps(report_json, indent=2),
@@ -387,7 +465,7 @@ class FileSystemInvestigationStore(InvestigationStore):
             "project_id": state["project_id"],
             "status": state["status"],
             "budget_json": state.get("budget_json", {}),
-            "report_available": self._report_path(investigation_id).exists(),
+            "report_available": state["status"] == "completed" and self._report_path(investigation_id).exists(),
             "created_at": state.get("created_at"),
         }
 
@@ -396,6 +474,43 @@ class FileSystemInvestigationStore(InvestigationStore):
         if not p.exists():
             return None
         return json.loads(p.read_text(encoding="utf-8"))
+
+    def get_report_text(self, investigation_id: str) -> str | None:
+        p = self._report_txt_path(investigation_id)
+        return p.read_text(encoding="utf-8") if p.exists() else None
+
+    def store_evidence(self, investigation_id: str, evidence: dict) -> None:
+        with self._lock:
+            if self._read_state(investigation_id) is None:
+                raise KeyError(investigation_id)
+            existing = self._evidence_path(investigation_id)
+            if existing.exists() and json.loads(existing.read_text(encoding="utf-8")) != evidence:
+                raise ValueError("Final evidence is immutable")
+            self._write_atomic(self._evidence_path(investigation_id), json.dumps(evidence))
+
+    def get_evidence(self, investigation_id: str) -> dict | None:
+        p = self._evidence_path(investigation_id)
+        return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
+
+    def approve_contract(self, project_id: str, contract_hash: str) -> dict:
+        approval = {
+            "approved": True,
+            "contract_hash": contract_hash,
+            "approved_at": datetime.now(UTC).isoformat(),
+            "approved_by": "user",
+        }
+        with self._lock:
+            existing = self.get_approval(project_id)
+            if existing is not None:
+                if existing["contract_hash"] != contract_hash:
+                    raise ValueError("Approved contract hash is immutable")
+                return existing
+            self._write_atomic(self._approval_path(project_id), json.dumps(approval))
+        return approval
+
+    def get_approval(self, project_id: str) -> dict | None:
+        p = self._approval_path(project_id)
+        return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
 
     def get_events(self, investigation_id: str) -> list[dict]:
         with self._lock:
@@ -413,8 +528,8 @@ class FileSystemInvestigationStore(InvestigationStore):
 
 def make_investigation_store() -> InvestigationStore:
     """
-    Return a FileSystemInvestigationStore when PERSIST_INVESTIGATIONS=true and
-    ARTIFACT_DIR is writable; otherwise return a MemoryInvestigationStore.
+    Return a FileSystemInvestigationStore when persistence is configured.
+    Fail loudly if its storage directory is not writable.
     """
     import os as _os
 
@@ -436,5 +551,5 @@ def make_investigation_store() -> InvestigationStore:
         test_file.write_text("ok")
         test_file.unlink()
         return FileSystemInvestigationStore(artifact_dir)
-    except OSError:
-        return MemoryInvestigationStore()
+    except OSError as exc:
+        raise RuntimeError(f"Persistent investigation storage is unavailable: {artifact_dir}") from exc

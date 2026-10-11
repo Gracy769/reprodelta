@@ -52,6 +52,33 @@ python -m uvicorn app.main:app --reload --port 8000
 # Open http://localhost:8000
 ```
 
+## Antideploy
+
+The curated demo is configured for one Antideploy application at
+<https://reprodelta.antideploy.app>. The root `Dockerfile` starts two local HTTP
+workers in separate Python 3.12 virtual environments, pinned to NumPy 1.26.4
+and 2.0.2, and the FastAPI website on Antideploy's `PORT`. The workers run under
+different unprivileged users with a minimal environment and listen on loopback.
+This is process separation within one container, not the network isolation of
+the Docker Compose setup; only the fixed, reviewed fixture is executed.
+
+Antideploy provisions `DATABASE_URL` and `SECRET_KEY`. The app sets
+`INVESTIGATION_STORE=postgres` in its Dockerfile and stores investigation
+status, stage events, evidence, reports, and approvals in Postgres. It does not
+use container disk for durable investigation data. The platform's database
+variables are in the ignored local `.env` for development against that database;
+do not commit the file or include it in a deployment archive.
+
+To deploy a new version, follow <https://antideploy.com/agent.md> using the
+application ID in `.antideploy.json`, and upload the project archive excluding
+`.env`, `.git`, virtual environments, and caches. The Antideploy dashboard is
+<https://antideploy.com/app/11615d32-135e-4cb5-81e4-cfb0c583ee69>.
+
+`NEBIUS_API_KEY` is deliberately absent from the deploy. Without it, the model
+proposal is labeled mock mode. When a live model is ready, add the key as an
+Antideploy application secret and redeploy. Keep the public demo's request
+limits and model budget in mind before enabling a billable key.
+
 ### Run migrations manually
 
 ```sh
@@ -88,6 +115,7 @@ Copy `.env.example` to `.env` and edit as needed.
 | `WORKER_NEW_CONTAINER` | `worker-new` | Docker container name for the NumPy 2.0 worker. |
 | `SECRET_KEY` | `change-me-in-production` | Application secret key. Change before any public deployment. |
 | `PERSIST_INVESTIGATIONS` | `false` locally | Compose sets this to `true`; choose a writable `ARTIFACT_DIR` for local persistence. Startup fails if persistence is requested but storage is unavailable. |
+| `INVESTIGATION_STORE` | `auto` | `auto` uses memory or filesystem persistence; `postgres` uses the provisioned Postgres database for the hosted demo. |
 | `LOG_LEVEL` | `INFO` | Logging level. |
 
 ## Docker

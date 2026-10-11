@@ -1,0 +1,10 @@
+{
+  "schema_version": "1",
+  "label": "numpy-2.0",
+  "python_version": "3.12",
+  "packages": [
+    {"name": "numpy", "version": "2.0.2"}
+  ],
+  "image_tag": "agent-replay-lab/worker-new:latest",
+  "description": "NumPy 2.0.2 environment — NEP50 scalar promotion (no upcasting)"
+}

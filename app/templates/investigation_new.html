@@ -1,0 +1,422 @@
+{% extends "base.html" %}
+
+{% block title %}New Investigation — Agent Replay Lab{% endblock %}
+
+{% block extra_style %}
+  .section {
+    background: var(--surface-muted);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: var(--sp-6);
+    margin-bottom: var(--sp-6);
+  }
+  .section h2 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: var(--sp-4);
+    color: var(--text);
+  }
+  .kv-grid {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: var(--sp-2) var(--sp-4);
+    font-size: 14px;
+  }
+  .kv-label { color: var(--text-muted); }
+  .kv-value { color: var(--text); font-family: var(--font-mono); font-size: 13px; word-break: break-all; }
+  .assumptions-list {
+    list-style: disc;
+    padding-left: var(--sp-6);
+    font-size: 14px;
+    color: var(--text);
+    margin: 0;
+  }
+  .assumptions-list li { margin-bottom: var(--sp-1); }
+
+  .signal-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: var(--sp-2);
+    margin-bottom: var(--sp-4);
+  }
+  .signal-grid input[type="number"] {
+    width: 100%;
+    padding: var(--sp-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    text-align: center;
+    background: var(--surface);
+    color: var(--text);
+  }
+  .signal-grid input[type="number"]:focus {
+    outline: 3px solid var(--focus);
+    outline-offset: 1px;
+  }
+  .signal-labels {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: var(--sp-2);
+    margin-bottom: var(--sp-2);
+  }
+  .signal-labels span {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+  }
+
+  .btn {
+    display: inline-block;
+    padding: var(--sp-2) var(--sp-6);
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: var(--font-sans);
+    font-weight: 500;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+  }
+  .btn-primary:hover { opacity: 0.88; }
+  .btn-secondary {
+    background: var(--surface-muted);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .btn-secondary:hover { background: var(--border); }
+  .btn:focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  #result-section { display: none; }
+  .result-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: var(--sp-4);
+    margin-top: var(--sp-4);
+    font-size: 14px;
+  }
+  .result-card h3 { font-size: 14px; font-weight: 600; margin-bottom: var(--sp-3); }
+  .verdict-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .verdict-supported  { background: #dcfce7; color: var(--supported); }
+  .verdict-no-change  { background: #eff6ff; color: var(--observed); }
+  .verdict-failure    { background: #fee2e2; color: var(--failure); }
+  .env-row {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    gap: var(--sp-2) var(--sp-4);
+    margin-bottom: var(--sp-2);
+    font-size: 13px;
+  }
+  .env-tag {
+    font-family: var(--font-mono);
+    background: var(--surface-muted);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-size: 12px;
+    display: inline-block;
+  }
+  #error-msg {
+    color: var(--failure);
+    font-size: 14px;
+    margin-top: var(--sp-3);
+    display: none;
+  }
+  .hash-pill {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--surface-muted);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 2px 6px;
+    color: var(--text-muted);
+  }
+{% endblock %}
+
+{% block content %}
+<h1 style="font-size:22px; font-weight:700; margin-bottom:var(--sp-6);">
+  New Investigation
+</h1>
+
+<!-- Project Info -->
+<div class="section">
+  <h2>Project</h2>
+  <div class="kv-grid">
+    <span class="kv-label">Name</span>
+    <span class="kv-value">Signal Classifier (NumPy 1.26 → 2.0 demo)</span>
+    <span class="kv-label">ID</span>
+    <span class="kv-value">{{ project_id }}</span>
+    <span class="kv-label">Description</span>
+    <span class="kv-value" style="font-family:var(--font-sans)">
+      Demonstrates a NumPy NEP-50 scalar promotion change that flips a
+      signal classification near the decision boundary.
+    </span>
+  </div>
+</div>
+
+<!-- Contract -->
+<div class="section">
+  <h2>
+    Approved Contract
+    <span class="hash-pill" title="Contract SHA-256">{{ contract_hash[:16] }}…</span>
+  </h2>
+  <div class="kv-grid">
+    <span class="kv-label">Schema version</span>
+    <span class="kv-value">{{ contract.schema_version }}</span>
+    <span class="kv-label">Input field</span>
+    <span class="kv-value">
+      signal — float32[{{ contract.input_schema.fields[0].shape[0] }}]
+      &nbsp;∈ [{{ contract.input_schema.fields[0].min_value }}, {{ contract.input_schema.fields[0].max_value }}]
+    </span>
+    <span class="kv-label">Output selector</span>
+    <span class="kv-value">{{ contract.output_selector.field_name }}</span>
+    <span class="kv-label">Decision rule</span>
+    <span class="kv-value">
+      ratio {{ contract.conclusion.operator }} {{ contract.conclusion.threshold }}
+      (tie → {{ contract.conclusion.tie_behavior }})
+    </span>
+    <span class="kv-label">Tolerance</span>
+    <span class="kv-value">
+      atol={{ contract.comparison.atol }}, rtol={{ contract.comparison.rtol }}
+    </span>
+    <span class="kv-label">Wall limit</span>
+    <span class="kv-value">{{ contract.resource_limits.max_wall_seconds }}s / {{ contract.resource_limits.max_memory_mb }} MB</span>
+    <span class="kv-label">Provenance</span>
+    <span class="kv-value">{{ contract.review_provenance }}</span>
+  </div>
+
+  <div style="margin-top:var(--sp-4);">
+    <strong style="font-size:13px; color:var(--text-muted);">Assumptions</strong>
+    <ul class="assumptions-list" style="margin-top:var(--sp-2);">
+      {% for a in contract.assumptions %}
+      <li>{{ a }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div style="margin-top:var(--sp-4);">
+    <button type="button" class="btn btn-secondary" id="approve-btn"
+            onclick="approveContract('{{ project_id }}')">
+      ✓ Approve Contract
+    </button>
+    <span id="approve-status" style="margin-left:var(--sp-3); font-size:13px; color:var(--supported); display:none;">
+      Approved ✓
+    </span>
+  </div>
+</div>
+
+<!-- Environment cards -->
+<div class="section">
+  <h2>Environments</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-4);">
+    <div style="border:1px solid var(--border);border-radius:6px;padding:var(--sp-4);background:var(--surface);">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:var(--sp-2);">Old environment</div>
+      <div style="font-family:var(--font-mono);font-size:15px;font-weight:600;">NumPy 1.26.4</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-top:var(--sp-2);">float32 / Python float → float64 (NEP 50 pre-change)</div>
+    </div>
+    <div style="border:1px solid var(--border);border-radius:6px;padding:var(--sp-4);background:var(--surface);">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:var(--sp-2);">New environment</div>
+      <div style="font-family:var(--font-mono);font-size:15px;font-weight:600;">NumPy 2.0.2</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-top:var(--sp-2);">float32 / Python float → float32 (NEP 50 change)</div>
+    </div>
+  </div>
+</div>
+
+<!-- Start investigation -->
+<div class="section">
+  <h2>Approve Contract and Start Investigation</h2>
+  <p style="font-size:14px;color:var(--text-muted);margin-bottom:var(--sp-4);">
+    This will approve the contract above and immediately start the full investigation
+    loop: preflight controls → boundary search → witness reduction → intervention →
+    patch repair. You will be redirected to the live progress page.
+  </p>
+  <button type="button" class="btn btn-primary" id="start-btn"
+          onclick="startInvestigation('{{ project_id }}')">
+    Approve Contract and Start Investigation
+  </button>
+  <span id="start-spinner" style="display:none; margin-left:var(--sp-3); font-size:13px; color:var(--text-muted);">
+    Starting…
+  </span>
+  <p id="start-error" style="color:var(--failure);font-size:14px;margin-top:var(--sp-3);display:none;"></p>
+</div>
+
+<!-- Ad-hoc Run Pair Input (optional exploration) -->
+<div class="section">
+  <h2>Ad-hoc Paired Execution <span style="font-size:13px;font-weight:400;color:var(--text-muted);">(optional — for manual exploration)</span></h2>
+  <p style="font-size:14px; color:var(--text-muted); margin-bottom:var(--sp-4);">
+    Enter 8 float32 signal values (each within [−10, 10]). Values near the
+    classification boundary (ratio ≈ 0.5) are most likely to expose the
+    NumPy 1.26→2.0 precision difference.
+  </p>
+
+  <div class="signal-labels">
+    {% for i in range(8) %}
+    <span>s[{{ i }}]</span>
+    {% endfor %}
+  </div>
+  <div class="signal-grid" id="signal-inputs">
+    <input type="number" step="any" value="1.0" id="s0" aria-label="signal[0]" />
+    <input type="number" step="any" value="1.0" id="s1" aria-label="signal[1]" />
+    <input type="number" step="any" value="1.0" id="s2" aria-label="signal[2]" />
+    <input type="number" step="any" value="1.0" id="s3" aria-label="signal[3]" />
+    <input type="number" step="any" value="0.5" id="s4" aria-label="signal[4]" />
+    <input type="number" step="any" value="0.5" id="s5" aria-label="signal[5]" />
+    <input type="number" step="any" value="0.5" id="s6" aria-label="signal[6]" />
+    <input type="number" step="any" value="0.5" id="s7" aria-label="signal[7]" />
+  </div>
+
+  <button type="button" class="btn btn-primary" id="run-btn">
+    ▶ Run Pair
+  </button>
+  <span id="run-spinner" style="display:none; margin-left:var(--sp-3); font-size:13px; color:var(--text-muted);">
+    Running…
+  </span>
+  <p id="error-msg"></p>
+</div>
+
+<!-- Results -->
+<div class="section" id="result-section">
+  <h2>Results</h2>
+  <div id="verdict-row" style="margin-bottom:var(--sp-4);"></div>
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--sp-4);">
+    <div class="result-card">
+      <h3>Old environment (NumPy 1.26)</h3>
+      <div id="old-result"></div>
+    </div>
+    <div class="result-card">
+      <h3>New environment (NumPy 2.0)</h3>
+      <div id="new-result"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Approve contract
+function approveContract(projectId) {
+  var btn = document.getElementById("approve-btn");
+  btn.disabled = true;
+  fetch("/api/projects/" + projectId + "/contract/approve", {method: "POST"})
+    .then(function(r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(function() {
+      var s = document.getElementById("approve-status");
+      if (s) s.style.display = "";
+    })
+    .catch(function(err) { btn.disabled = false; alert("Approve failed: " + err.message); });
+}
+
+// Start full investigation
+function startInvestigation(projectId) {
+  var btn = document.getElementById("start-btn");
+  var spinner = document.getElementById("start-spinner");
+  var errEl = document.getElementById("start-error");
+  btn.disabled = true;
+  spinner.style.display = "";
+  errEl.style.display = "none";
+
+  // Step 1: approve
+  fetch("/api/projects/" + projectId + "/contract/approve", {method: "POST"})
+    .then(function(r) { if (!r.ok) throw new Error("Approve failed: HTTP " + r.status); return r.json(); })
+    .then(function() {
+      // Step 2: create investigation
+      return fetch("/api/investigations", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({project_id: projectId, max_candidates: 50, max_runs: 200})
+      });
+    })
+    .then(function(r) { if (!r.ok) throw new Error("Create failed: HTTP " + r.status); return r.json(); })
+    .then(function(inv) {
+      // Step 3: start
+      return fetch("/api/investigations/" + inv.id + "/start", {method: "POST"})
+        .then(function(r) { if (!r.ok) throw new Error("Start failed: HTTP " + r.status); return r.json(); })
+        .then(function() { return inv.id; });
+    })
+    .then(function(invId) {
+      window.location.href = "/investigations/" + invId;
+    })
+    .catch(function(err) {
+      btn.disabled = false;
+      spinner.style.display = "none";
+      errEl.textContent = err.message;
+      errEl.style.display = "";
+    });
+}
+</script>
+
+<script>
+// Ad-hoc run pair
+(function() {
+  var runBtn = document.getElementById("run-btn");
+  if (!runBtn) return;
+
+  runBtn.addEventListener("click", function () {
+    var signal = [];
+    for (var i = 0; i < 8; i++) {
+      var val = parseFloat(document.getElementById("s" + i).value);
+      if (isNaN(val)) { alert("Signal value s[" + i + "] is not a number."); return; }
+      signal.push(val);
+    }
+    var errEl = document.getElementById("error-msg");
+    var spinner = document.getElementById("run-spinner");
+    var resultSection = document.getElementById("result-section");
+    errEl.style.display = "none";
+    spinner.style.display = "";
+    runBtn.disabled = true;
+
+    fetch("/api/investigations/demo/run-pair", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({input_json: {signal: signal}})
+    })
+    .then(function(r) {
+      if (!r.ok) return r.json().then(function(d) { throw new Error(d.detail || "HTTP " + r.status); });
+      return r.json();
+    })
+    .then(function(data) {
+      spinner.style.display = "none";
+      runBtn.disabled = false;
+      resultSection.style.display = "";
+
+      var oldR = (data.old_result && data.old_result.outputs && data.old_result.outputs.result) || {};
+      var newR = (data.new_result && data.new_result.outputs && data.new_result.outputs.result) || {};
+
+      function fmtResult(r) {
+        if (!r || !r.conclusion) return "<em>No result</em>";
+        return "<strong>" + r.conclusion + "</strong><br/>"
+          + "ratio: " + (r.ratio !== undefined ? r.ratio.toFixed(11) : "?") + "<br/>"
+          + "dtype: " + (r.intermediate_dtype || "?");
+      }
+      document.getElementById("old-result").innerHTML = fmtResult(oldR);
+      document.getElementById("new-result").innerHTML = fmtResult(newR);
+
+      var verdictRow = document.getElementById("verdict-row");
+      var changed = oldR.conclusion && newR.conclusion && oldR.conclusion !== newR.conclusion;
+      if (changed) {
+        verdictRow.innerHTML = '<span class="verdict-badge verdict-supported">conclusion changed</span>';
+      } else {
+        verdictRow.innerHTML = '<span class="verdict-badge verdict-no-change">no change</span>';
+      }
+    })
+    .catch(function(err) {
+      spinner.style.display = "none";
+      runBtn.disabled = false;
+      errEl.textContent = err.message;
+      errEl.style.display = "";
+    });
+  });
+}());
+</script>
+{% endblock %}

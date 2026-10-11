@@ -1,0 +1,56 @@
+services:
+
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: replay
+      POSTGRES_PASSWORD: replay
+      POSTGRES_DB: replay
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U replay -d replay"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - artifacts:/data/artifacts
+    depends_on:
+      db:
+        condition: service_healthy
+    # Explicitly no Docker socket mount.
+
+  worker-old:
+    build:
+      context: .
+      dockerfile: Dockerfile.runner-old
+    restart: "no"
+    # Workers receive no DB credentials or network access.
+    network_mode: none
+    environment: {}
+    # stdin_open and tty are set so the runner can receive manifest via stdin.
+    stdin_open: true
+
+  worker-new:
+    build:
+      context: .
+      dockerfile: Dockerfile.runner-new
+    restart: "no"
+    network_mode: none
+    environment: {}
+    stdin_open: true
+
+volumes:
+  pgdata:
+  artifacts:

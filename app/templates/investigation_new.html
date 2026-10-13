@@ -178,7 +178,7 @@
 <!-- Contract -->
 <div class="section">
   <h2>
-    Approved Contract
+    Contract for approval
     <span class="hash-pill" title="Contract SHA-256">{{ contract_hash[:16] }}…</span>
   </h2>
   <div class="kv-grid">
@@ -398,25 +398,20 @@ function startInvestigation(projectId) {
       runBtn.disabled = false;
       resultSection.style.display = "";
 
-      var oldR = (data.old_result && data.old_result.outputs && data.old_result.outputs.result) || {};
-      var newR = (data.new_result && data.new_result.outputs && data.new_result.outputs.result) || {};
+      var oldR = (data.old_run && data.old_run.outputs && data.old_run.outputs.result) || {};
+      var newR = (data.new_run && data.new_run.outputs && data.new_run.outputs.result) || {};
 
-      function fmtResult(r) {
-        if (!r || !r.conclusion) return "<em>No result</em>";
-        return "<strong>" + r.conclusion + "</strong><br/>"
-          + "ratio: " + (r.ratio !== undefined ? r.ratio.toFixed(11) : "?") + "<br/>"
-          + "dtype: " + (r.intermediate_dtype || "?");
+      var comparison = data.comparison || {};
+      var usable = comparison.conclusion_changed === true || comparison.conclusion_changed === false;
+      function fmtResult(r, conclusion) {
+        if (!usable || !r || !conclusion) return "Result unavailable";
+        var ratio = typeof r.ratio === "number" && Number.isFinite(r.ratio) ? r.ratio.toFixed(11) : "?";
+        return conclusion + " | ratio: " + ratio + " | dtype: " + (r.intermediate_dtype || "?");
       }
-      document.getElementById("old-result").innerHTML = fmtResult(oldR);
-      document.getElementById("new-result").innerHTML = fmtResult(newR);
+      document.getElementById("old-result").textContent = fmtResult(oldR, comparison.old_conclusion);
+      document.getElementById("new-result").textContent = fmtResult(newR, comparison.new_conclusion);
+      document.getElementById("verdict-row").textContent = (comparison.verdict_hint || "inconclusive").replace(/_/g, " ");
 
-      var verdictRow = document.getElementById("verdict-row");
-      var changed = oldR.conclusion && newR.conclusion && oldR.conclusion !== newR.conclusion;
-      if (changed) {
-        verdictRow.innerHTML = '<span class="verdict-badge verdict-supported">conclusion changed</span>';
-      } else {
-        verdictRow.innerHTML = '<span class="verdict-badge verdict-no-change">no change</span>';
-      }
     })
     .catch(function(err) {
       spinner.style.display = "none";

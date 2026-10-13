@@ -114,6 +114,7 @@ def generate_report(evidence: InvestigationEvidence) -> dict:
             else None
         ),
         # --- patch results ---
+        "stage_failures": evidence.stage_failures,
         "patch_results": [
             r.model_dump(mode="json")  # type: ignore[union-attr]
             for r in evidence.patch_results
@@ -227,6 +228,8 @@ def generate_limitations(evidence: InvestigationEvidence) -> list[str]:
         "An inconclusive result or no finding within the search budget is not evidence of absence."
     )
 
+    for failure in evidence.stage_failures:
+        limitations.append(f"Stage {failure['stage']} failed: {failure['error']}")
     return limitations
 
 

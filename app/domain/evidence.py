@@ -78,4 +78,5 @@ class InvestigationEvidence(BaseModel):
     # Slice 5: model proposals, intervention, and patch verification results
     model_proposals: list[object] = []   # list[ModelProposal]
     intervention: object | None = None   # InterventionRunResult | None
+    stage_failures: list[dict[str, str]] = []
     patch_results: list[object] = []     # list[VerificationResult]

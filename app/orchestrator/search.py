@@ -24,7 +24,7 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict
 
 from app.domain.contract import ContractBody
-from app.domain.types import BudgetConfig
+from app.domain.types import BudgetConfig, VerdictKind
 from app.domain.validator import validate_input
 from app.orchestrator.executor import PairedRunRequest, PairedRunResult, run_pair
 from app.providers.runner import RunnerAdapter
@@ -208,6 +208,19 @@ class SearchController:
                 contract=self.contract,
             )
             pair_result = run_pair(req, self.runner)
+
+            if pair_result.comparison.get("verdict_hint") == VerdictKind.setup_failure:
+                records.append(CandidateRecord(
+                    candidate_id=candidate_id, input_json=input_json,
+                    input_sha256=input_sha256, validity="valid", pair_result=pair_result,
+                ))
+                if self.on_progress:
+                    self.on_progress("search_failed", {
+                        "reason": pair_result.comparison.get("reason", "invalid_worker_result"),
+                        "attempted": attempted,
+                    })
+                status = "failed"
+                break
 
             conclusion_changed = pair_result.comparison.get("conclusion_changed") is True
             if conclusion_changed:

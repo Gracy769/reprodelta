@@ -21,13 +21,13 @@ from app.providers.runner import RunManifest, RunnerAdapter, RunResult
 # Helpers / stubs
 # ---------------------------------------------------------------------------
 
-def _ok_old_out(conclusion: str = "above_threshold", ratio: float = 0.6) -> dict:
+def _ok_old_out(conclusion: str = "above_threshold", ratio: float | None = None) -> dict:
     return {
         "status": "ok",
         "outputs": {
             "result": {
                 "conclusion": conclusion,
-                "ratio": ratio,
+                "ratio": (0.6 if conclusion == "above_threshold" else 0.4) if ratio is None else ratio,
                 "numpy_version": "1.26.4",
                 "intermediate_dtype": "float64",
             }
@@ -35,13 +35,13 @@ def _ok_old_out(conclusion: str = "above_threshold", ratio: float = 0.6) -> dict
     }
 
 
-def _ok_new_out(conclusion: str = "above_threshold", ratio: float = 0.6) -> dict:
+def _ok_new_out(conclusion: str = "above_threshold", ratio: float | None = None) -> dict:
     return {
         "status": "ok",
         "outputs": {
             "result": {
                 "conclusion": conclusion,
-                "ratio": ratio,
+                "ratio": (0.6 if conclusion == "above_threshold" else 0.4) if ratio is None else ratio,
                 "numpy_version": "2.0.0",
                 "intermediate_dtype": "float32",
             }
@@ -68,7 +68,7 @@ def _make_run_result(kind: str, status: str = "ok", conclusion: str = "above_thr
     outputs = {
         "result": {
             "conclusion": conclusion,
-            "ratio": 0.6,
+            "ratio": 0.6 if conclusion == "above_threshold" else 0.4,
             "numpy_version": "1.26.4" if kind == "old" else "2.0.0",
         }
     } if status == "ok" else {}

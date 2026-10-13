@@ -18,6 +18,7 @@ import uuid
 from pydantic import BaseModel, ConfigDict
 
 from app.domain.contract import ContractBody
+from app.domain.types import VerdictKind
 from app.domain.validator import validate_input
 from app.orchestrator.executor import PairedRunRequest, run_pair
 from app.providers.runner import RunnerAdapter
@@ -76,6 +77,8 @@ def _conclusion_changes(
         contract=contract,
     )
     result = run_pair(req, runner)
+    if result.comparison.get("verdict_hint") == VerdictKind.setup_failure:
+        raise RuntimeError("Reduction execution failed: " + result.comparison.get("reason", "invalid worker result"))
     return result.comparison.get("conclusion_changed") is True
 
 

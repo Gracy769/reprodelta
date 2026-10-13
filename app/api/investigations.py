@@ -15,6 +15,7 @@ Routes:
   GET  /api/investigations/{id}/report/text       → return text summary
   GET  /api/investigations/{id}/stream            → Server-Sent Events progress stream
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -28,18 +29,20 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import PlainTextResponse, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
+from app.api.investigation_access import approval_key, investigation_owner, owner_context
 from app.config import get_settings
 from app.domain.contract import FIXTURE_CONTRACT, hash_contract
 from app.domain.types import BudgetConfig
 from app.domain.validator import validate_input
+from app.orchestrator.budget import BudgetExceeded, BudgetLedger, BudgetRunner
 from app.orchestrator.executor import PairedRunRequest, PairedRunResult, run_pair
 from app.orchestrator.investigation import InvestigationRunner
 from app.providers.runner import LocalRunnerAdapter, RunnerAdapter, WorkerHttpRunnerAdapter
 from app.storage.investigation_store import InvestigationStore, make_investigation_store
 
-router = APIRouter(prefix="/api")
+router = APIRouter(prefix="/api", dependencies=[Depends(investigation_owner)])
 
 # ---------------------------------------------------------------------------
 # Fixed demo project
@@ -89,6 +92,7 @@ def set_store(store: InvestigationStore | None) -> None:
 # Dependency injection — runner
 # ---------------------------------------------------------------------------
 
+
 def _default_fixture_dir() -> pathlib.Path:
     # Resolve relative to this file: ../../fixture/project
     here = pathlib.Path(__file__).parent.parent.parent
@@ -108,11 +112,23 @@ def get_runner() -> RunnerAdapter:
 # Request/response schemas
 # ---------------------------------------------------------------------------
 
+
 class CreateInvestigationRequest(BaseModel):
     project_id: uuid.UUID
     description: str = ""
     max_candidates: int = Field(default=50, ge=1, le=1000)
-    max_runs: int = Field(default=200, ge=1, le=4000)
+    max_runs: int = Field(default=400, ge=1, le=4000)
+
+    max_wall_seconds: int = Field(default=600, ge=1, le=1800)
+    max_llm_calls: int = Field(default=2, ge=1, le=4)
+    max_model_tokens: int = Field(default=24000, ge=1, le=48000)
+    max_cost_usd: float = Field(default=0.1, gt=0, le=1)
+
+    @model_validator(mode="after")
+    def consistent_budget(self):
+        if self.max_runs < self.max_candidates:
+            raise ValueError("max_runs must be at least max_candidates")
+        return self
 
 
 class RunPairRequest(BaseModel):
@@ -129,10 +145,9 @@ class VerifyPatchRequest(BaseModel):
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _hash_input(input_json: dict) -> str:
-    return hashlib.sha256(
-        json.dumps(input_json, sort_keys=True).encode()
-    ).hexdigest()
+    return hashlib.sha256(json.dumps(input_json, sort_keys=True).encode()).hexdigest()
 
 
 def _ensure_demo_project(project_id: uuid.UUID) -> None:
@@ -151,6 +166,9 @@ def _get_investigation_or_404(investigation_id: str) -> dict[str, Any]:
             status_code=404,
             detail=f"Investigation {investigation_id} not found",
         )
+    owner = owner_context.get()
+    if owner is not None and stored.get("owner_id") != owner:
+        raise HTTPException(status_code=404, detail="Investigation not found")
     record = _investigations.get(investigation_id)
     if record is None:
         budget = stored.get("budget_json", {})
@@ -168,9 +186,17 @@ def _get_investigation_or_404(investigation_id: str) -> dict[str, Any]:
     return record
 
 
+def _budget_runner(investigation_id: str, runner: RunnerAdapter) -> BudgetRunner:
+    saved = get_store().get_investigation(investigation_id)
+    limits = {key: value for key, value in saved["budget_json"].items() if key != "usage"}
+    ledger = BudgetLedger(BudgetConfig(**limits), get_store(), investigation_id)
+    return BudgetRunner(runner, ledger)
+
+
 # ---------------------------------------------------------------------------
 # Background task helper
 # ---------------------------------------------------------------------------
+
 
 def _run_investigation_sync(
     investigation_id: str,
@@ -186,8 +212,7 @@ def _run_investigation_sync(
         saved = store.get_investigation(investigation_id)
         budget_values = saved.get("budget_json", {}) if saved else {}
         budget = BudgetConfig(
-            max_candidates=budget_values.get("max_candidates", 50),
-            max_runs=budget_values.get("max_runs", 200),
+            **{key: value for key, value in budget_values.items() if key != "usage"}
         )
         inv_runner = InvestigationRunner(
             contract=FIXTURE_CONTRACT,
@@ -214,7 +239,10 @@ def _run_investigation_sync(
         _investigations[investigation_id]["status"] = "failed"
         try:
             store.append_event(
-                investigation_id, "runner", "investigation_failed", {"error": str(exc)}
+                investigation_id,
+                "runner",
+                "budget_exhausted" if isinstance(exc, BudgetExceeded) else "investigation_failed",
+                {"error": str(exc)},
             )
             store.transition_status(investigation_id, "failed")
         except Exception:  # noqa: BLE001
@@ -224,6 +252,7 @@ def _run_investigation_sync(
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+
 
 @router.get("/projects")
 async def list_projects() -> list[dict]:
@@ -237,7 +266,7 @@ async def get_contract(project_id: uuid.UUID) -> dict:
     _ensure_demo_project(project_id)
     body = FIXTURE_CONTRACT.model_dump()
     contract_hash = hash_contract(FIXTURE_CONTRACT)
-    approval = get_store().get_approval(str(project_id)) or {}
+    approval = get_store().get_approval(approval_key(str(project_id))) or {}
     return {
         "project_id": str(project_id),
         "contract": body,
@@ -252,7 +281,9 @@ async def get_contract(project_id: uuid.UUID) -> dict:
 async def approve_contract(project_id: uuid.UUID) -> dict:
     """Record contract approval for a project."""
     _ensure_demo_project(project_id)
-    approval = get_store().approve_contract(str(project_id), hash_contract(FIXTURE_CONTRACT))
+    approval = get_store().approve_contract(
+        approval_key(str(project_id)), hash_contract(FIXTURE_CONTRACT)
+    )
     return {
         "project_id": str(project_id),
         "approved": True,
@@ -265,11 +296,13 @@ async def create_investigation(body: CreateInvestigationRequest) -> dict:
     """Create a new investigation for a project."""
     _ensure_demo_project(body.project_id)
     store = get_store()
-    budget_json = {"max_candidates": body.max_candidates, "max_runs": body.max_runs}
+    budget_json = BudgetConfig(
+        **body.model_dump(exclude={"project_id", "description"})
+    ).model_dump()
     inv_id = store.create_investigation(
         project_id=str(body.project_id),
         budget_json=budget_json,
-        owner_id="user",
+        owner_id=owner_context.get() or "user",
     )
     record: dict[str, Any] = {
         "id": inv_id,
@@ -307,21 +340,24 @@ async def start_investigation(
     Returns 202 Accepted immediately.  Poll GET .../progress for updates.
     """
     record = _get_investigation_or_404(investigation_id)
-    approval = get_store().get_approval(record["project_id"]) or {}
+    approval = get_store().get_approval(approval_key(record["project_id"])) or {}
     if approval.get("contract_hash") != hash_contract(FIXTURE_CONTRACT):
         raise HTTPException(status_code=409, detail="Approve the project contract before starting")
     if record["status"] != "draft":
         raise HTTPException(status_code=409, detail="Investigation has already been started")
 
+    if (owner_context.get() or "").startswith("guest:") and not get_settings().mock_llm:
+        raise HTTPException(403, "Sign in before starting an investigation with live model calls")
     state = _investigation_state.setdefault(investigation_id, {})
     store = get_store()
-    store.transition_status(investigation_id, "running")
+    try:
+        store.transition_status(investigation_id, "running")
+    except ValueError as exc:
+        raise HTTPException(409, "Investigation has already been started") from exc
     state["status"] = "running"
     _investigations[investigation_id]["status"] = "running"
 
-    asyncio.create_task(
-        asyncio.to_thread(_run_investigation_sync, investigation_id, runner, store)
-    )
+    asyncio.create_task(asyncio.to_thread(_run_investigation_sync, investigation_id, runner, store))
 
     return {"investigation_id": investigation_id, "status": "running"}
 
@@ -483,10 +519,12 @@ async def run_pair_endpoint(
     3. Submit paired runs via the runner adapter.
     4. Return the PairedRunResult.
     """
-    # Allow "demo" as a convenience alias
-    if investigation_id != "demo":
-        _get_investigation_or_404(investigation_id)
+    if investigation_id == "demo":
+        raise HTTPException(409, "Create an owned, budgeted investigation before running a pair")
+    _get_investigation_or_404(investigation_id)
 
+    if set(body.input_json) != {"signal"}:
+        raise HTTPException(422, "Only the approved signal input is accepted")
     validation = validate_input(FIXTURE_CONTRACT, body.input_json)
     if not validation.valid:
         raise HTTPException(status_code=422, detail=validation.reason)
@@ -500,7 +538,12 @@ async def run_pair_endpoint(
         candidate_sha256=candidate_sha256,
         contract=FIXTURE_CONTRACT,
     )
-    result: PairedRunResult = run_pair(request, runner)
+    try:
+        result: PairedRunResult = await asyncio.to_thread(
+            run_pair, request, _budget_runner(investigation_id, runner)
+        )
+    except BudgetExceeded as exc:
+        raise HTTPException(429, str(exc)) from exc
 
     result_dict = result.model_dump(mode="json")
 
@@ -541,15 +584,23 @@ async def verify_patch_endpoint(
 
     from app.domain.contract import ContractBody
 
+    if _get_investigation_or_404(investigation_id)["status"] != "completed":
+        raise HTTPException(409, "Complete the investigation before verifying a repair")
     evidence = get_store().get_evidence(investigation_id)
     if not evidence or not evidence.get("witness"):
-        raise HTTPException(status_code=409, detail="A completed investigation with a witness is required")
+        raise HTTPException(
+            status_code=409, detail="A completed investigation with a witness is required"
+        )
     approved_contract = ContractBody.model_validate(evidence["contract_body"])
     if hash_contract(approved_contract) != evidence["contract_hash"]:
         raise HTTPException(status_code=409, detail="Stored contract hash mismatch")
     result = await asyncio.to_thread(
-        apply_and_verify_patch, proposal, evidence.get("frozen_holdouts"),
-        evidence["witness"]["input_json"], approved_contract, runner,
+        apply_and_verify_patch,
+        proposal,
+        evidence.get("frozen_holdouts"),
+        evidence["witness"]["input_json"],
+        approved_contract,
+        _budget_runner(investigation_id, runner),
     )
 
     # Record as an event

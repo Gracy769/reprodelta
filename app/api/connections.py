@@ -78,7 +78,7 @@ def current_user(authorization: Annotated[str | None, Header()] = None) -> str:
     token = authorization[7:]
     if getattr(settings, "secret_key", None) not in {None, "change-me-in-production"}:
         try:
-            claims = jwt.decode(token, settings.secret_key, algorithms=["HS256"], issuer="reprodelta", audience="reprodelta")
+            claims = jwt.decode(token, settings.secret_key, algorithms=["HS256"], issuer="reprodelta", audience="reprodelta", options={"require": ["exp", "sub", "iss", "aud"]})
             subject = claims.get("sub")
             if isinstance(subject, str) and subject.startswith(("github:", "gitlab:", "firebase:")):
                 return subject

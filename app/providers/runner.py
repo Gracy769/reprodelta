@@ -27,6 +27,7 @@ class RunManifest(BaseModel):
     run_id: str
     kind: Literal["old", "new"]
     candidate_sha256: str
+    case: Literal["power_ratio", "sensor_offset"] = "power_ratio"
     entry_point: str
     input_json: dict
     timeout_seconds: int = Field(default=30, ge=1, le=60)
@@ -175,6 +176,13 @@ class LocalRunnerAdapter(RunnerAdapter):
             )
         try:
             result_data = _run_fixture_inprocess(manifest.input_json, manifest.kind)
+            if manifest.case == "sensor_offset":
+                sample = np.float32(manifest.input_json["signal"][0])
+                calibrated = np.float64(sample) + 1e-8 if manifest.kind == "old" else np.float32(sample + np.float32(1e-8))
+                result_data.update(ratio=float(calibrated),
+                                   conclusion="above_threshold" if calibrated > 1 else "below_threshold",
+                                   threshold=1.0, intermediate_dtype=str(calibrated.dtype),
+                                   numpy_version=f"simulated-{manifest.kind}-using-{np.__version__}")
             return RunResult(
                 run_id=manifest.run_id,
                 status="ok",

@@ -110,6 +110,23 @@ class PostgresInvestigationStore(InvestigationStore):
             )
         return str(investigation_id)
 
+    def check_ready(self) -> None:
+        with self._connect() as conn:
+            conn.execute("SELECT 1").fetchone()
+
+    def reserve_budget(self, investigation_id: str, **amounts) -> dict:
+        from app.orchestrator.budget import reserve
+        inv_id = self._uuid(investigation_id)
+        with self._connect() as conn:
+            row = conn.execute("SELECT budget_json FROM demo_investigations WHERE id = %s FOR UPDATE", (inv_id,)).fetchone()
+            if row is None:
+                raise KeyError(investigation_id)
+            budget = row["budget_json"]
+            usage = reserve(budget.get("usage", {}), budget, **amounts)
+            conn.execute("UPDATE demo_investigations SET budget_json = %s WHERE id = %s", (Jsonb({**budget, "usage": usage}), inv_id))
+            self._event(conn, inv_id, "budget", "budget_reserved", usage)
+            return usage
+
     def transition_status(self, investigation_id: str, new_status: str) -> None:
         inv_id = self._uuid(investigation_id)
         with self._lock, self._connect() as conn:
@@ -167,7 +184,7 @@ class PostgresInvestigationStore(InvestigationStore):
         inv_id = self._uuid(investigation_id)
         with self._lock, self._connect() as conn:
             row = conn.execute(
-                "SELECT id, project_id, status, budget_json, report_json, created_at "
+                "SELECT id, project_id, owner_id, status, budget_json, report_json, created_at "
                 "FROM demo_investigations WHERE id = %s FOR UPDATE",
                 (inv_id,),
             ).fetchone()
@@ -189,6 +206,7 @@ class PostgresInvestigationStore(InvestigationStore):
             return {
                 "id": str(row["id"]),
                 "project_id": str(row["project_id"]),
+                "owner_id": row["owner_id"],
                 "status": row["status"],
                 "budget_json": row["budget_json"],
                 "report_available": row["status"] == "completed" and row["report_json"] is not None,

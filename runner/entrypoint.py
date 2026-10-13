@@ -65,6 +65,7 @@ def validate_manifest(manifest: dict) -> None:
         set(manifest)
         - required
         - {
+            "case",
             "timeout_seconds",
             "patch_diff",
             "base_project_sha256",
@@ -75,6 +76,8 @@ def validate_manifest(manifest: dict) -> None:
     )
     if unknown:
         raise ValueError("Unknown manifest fields")
+    if manifest.get("case", "power_ratio") not in ("power_ratio", "sensor_offset"):
+        raise ValueError("Unsupported fixture case")
     timeout = manifest.get("timeout_seconds", DEFAULT_TIMEOUT)
     if type(timeout) is not int or not 1 <= timeout <= 60:
         raise ValueError("Invalid timeout")
@@ -120,7 +123,10 @@ def run_fixture(manifest: dict) -> dict:
     if not FIXTURE_DIR.exists():
         raise RuntimeError(f"Fixture directory not found: {FIXTURE_DIR}")
 
-    input_bytes = json.dumps(input_json).encode()
+    if "_case" in input_json:
+        raise ValueError("Case selection must be in the manifest")
+    execution_input = {**input_json, "_case": manifest.get("case", "power_ratio")}
+    input_bytes = json.dumps(execution_input).encode()
     if len(input_bytes) > MAX_INPUT_SIZE:
         raise ValueError("Input exceeds maximum size")
 
@@ -139,6 +145,8 @@ def run_fixture(manifest: dict) -> dict:
     with ExitStack() as stack:
         execution_dir = FIXTURE_DIR
         if manifest.get("patch_diff") is not None:
+            if manifest.get("case", "power_ratio") != "power_ratio":
+                raise ValueError("Model patches apply only to the power ratio case")
             signal = input_json.get("signal")
             if (
                 not isinstance(signal, list)

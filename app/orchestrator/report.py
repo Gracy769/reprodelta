@@ -22,6 +22,7 @@ The bundle includes:
 
 Also produces a human-readable text summary.
 """
+
 from __future__ import annotations
 
 import json
@@ -114,8 +115,12 @@ def generate_report(evidence: InvestigationEvidence) -> dict:
             else None
         ),
         # --- patch results ---
+        "budget_usage": evidence.budget_usage,
+        "demonstration_comparison": evidence.demonstration_comparison,
         "frozen_holdouts": evidence.frozen_holdouts,
-        "model_patch_result": evidence.model_patch_result.model_dump(mode="json") if evidence.model_patch_result else None,
+        "model_patch_result": evidence.model_patch_result.model_dump(mode="json")
+        if evidence.model_patch_result
+        else None,
         "stage_failures": evidence.stage_failures,
         "patch_results": [
             r.model_dump(mode="json")  # type: ignore[union-attr]
@@ -147,7 +152,11 @@ def generate_replay_commands(evidence: InvestigationEvidence) -> dict:
 
         posix_json = input_json_str.replace("'", "'\"'\"'")
         windows_json = input_json_str.replace("'", "''")
-        note = "# Original investigation used local simulation. These commands run real NumPy.\n" if simulated else ""
+        note = (
+            "# Original investigation used local simulation. These commands run real NumPy.\n"
+            if simulated
+            else ""
+        )
         posix_witness = (
             f"{note}printf '%s' '{posix_json}' | uv run --no-project --python 3.12 --with numpy==1.26.4 python fixture/project/run.py\n"
             f"# Recorded old result: ratio={ratio_str_old}, conclusion={old_conclusion}\n"
@@ -217,7 +226,9 @@ def generate_limitations(evidence: InvestigationEvidence) -> list[str]:
         limitations.append("At least one model proposal was generated in mock mode.")
 
     if evidence.model_patch_result is None:
-        limitations.append("No model diff verification result was recorded; predefined fixture checks are separate.")
+        limitations.append(
+            "No model diff verification result was recorded; predefined fixture checks are separate."
+        )
     else:
         limitations.extend(evidence.model_patch_result.limitations)
 
@@ -231,6 +242,8 @@ def generate_limitations(evidence: InvestigationEvidence) -> list[str]:
         "An inconclusive result or no finding within the search budget is not evidence of absence."
     )
 
+    if evidence.demonstration_comparison:
+        limitations.extend(evidence.demonstration_comparison["limitations"])
     for failure in evidence.stage_failures:
         limitations.append(f"Stage {failure['stage']} failed: {failure['error']}")
     return limitations
@@ -253,7 +266,9 @@ def generate_text_summary(evidence: InvestigationEvidence) -> str:
     lines.append(f"Scope         : {evidence.scope}")
     lines.append(f"Run mode      : {run_mode}")
     if simulated:
-        lines.append("  (!) Simulation mode — no Docker isolation; NumPy behavior emulated in-process")
+        lines.append(
+            "  (!) Simulation mode — no Docker isolation; NumPy behavior emulated in-process"
+        )
     lines.append("")
 
     # Model call status
@@ -347,6 +362,23 @@ def generate_text_summary(evidence: InvestigationEvidence) -> str:
             verdict = getattr(pr, "verdict", "?")
             details = getattr(pr, "details", "")
             lines.append(f"  Patch [{kind}]  verdict={verdict}  {details}")
+        lines.append("")
+
+    if evidence.budget_usage:
+        lines.append("BUDGET USAGE (RESERVATIONS)")
+        lines.append("-" * 40)
+        for key, value in evidence.budget_usage.items():
+            lines.append(f"  {key}: {value}")
+        lines.append("")
+    if evidence.demonstration_comparison:
+        lines.append("EQUAL-BUDGET DEMONSTRATION")
+        lines.append("-" * 40)
+        comparison = evidence.demonstration_comparison
+        lines.append(f"  Status: {comparison['status']}")
+        for row in comparison["rows"]:
+            lines.append(
+                f"  {row['case']} / {row['strategy']}: {row['completed_pairs']}/{row['pair_budget']} pairs; first witness: {row['first_witness_pair']}"
+            )
         lines.append("")
 
     # Limitations

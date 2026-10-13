@@ -16,6 +16,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from app.orchestrator.budget import BudgetExceeded
+
 # ---------------------------------------------------------------------------
 # Mock responses (deterministic, NOT random)
 # ---------------------------------------------------------------------------
@@ -82,6 +84,7 @@ class ModelProposal(BaseModel):
     request_digest: str  # sha256 hex of (system_prompt + user_message)
     response_text: str
     is_mock: bool
+    usage: dict | None = None
     created_at: datetime
 
 
@@ -188,7 +191,7 @@ class NebiusClient:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=60) as resp:
+            with urllib.request.urlopen(req, timeout=getattr(self, "request_timeout", 60)) as resp:
                 body = _json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             raise NebiusError(
@@ -208,6 +211,7 @@ class NebiusClient:
             request_digest=self._request_digest(system_prompt, user_message),
             response_text=f"[LIVE - {self.model_id}]\n{response_text}",
             is_mock=False,
+            usage=body.get("usage"),
             created_at=datetime.now(UTC),
         )
 
@@ -260,6 +264,16 @@ class NebiusClient:
         In mock mode returns a canned ``ModelProposal``.
         In live mode makes an HTTP request to Nebius.
         """
+        ledger = getattr(self, "budget_ledger", None)
+        if ledger is not None:
+            from app.config import get_settings
+            ceiling = get_settings().nebius_call_cost_ceiling_usd
+            if not self.is_mock_mode and ceiling <= 0:
+                raise BudgetExceeded("Live model calls require a configured per-call cost ceiling")
+            ledger.charge(model_calls=1,
+                          tokens=0 if self.is_mock_mode else len((system_prompt + user_message).encode()) + max_tokens,
+                          cost_usd=0 if self.is_mock_mode else ceiling)
+            self.request_timeout = min(60, ledger.remaining_wall())
         if self.is_mock_mode:
             return self._mock_proposal(mock_key, system_prompt, user_message, template_version)
         return self._live_call(system_prompt, user_message, max_tokens, template_version)

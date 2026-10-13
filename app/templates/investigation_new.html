@@ -342,7 +342,7 @@ function startInvestigation(projectId) {
       return fetch("/api/investigations", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({project_id: projectId, max_candidates: 50, max_runs: 200})
+        body: JSON.stringify({project_id: projectId, max_candidates: 50, max_runs: 400})
       });
     })
     .then(function(r) { if (!r.ok) throw new Error("Create failed: HTTP " + r.status); return r.json(); })
@@ -367,6 +367,7 @@ function startInvestigation(projectId) {
 <script>
 // Ad-hoc run pair
 (function() {
+  var probeId = null;
   var runBtn = document.getElementById("run-btn");
   if (!runBtn) return;
 
@@ -384,10 +385,17 @@ function startInvestigation(projectId) {
     spinner.style.display = "";
     runBtn.disabled = true;
 
-    fetch("/api/investigations/demo/run-pair", {
+    var probe = probeId ? Promise.resolve({id: probeId}) : fetch("/api/investigations", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({project_id: "00000000-0000-0000-0000-000000000001", max_candidates: 1, max_runs: 20})
+    }).then(function(r) { if (!r.ok) throw new Error("Cannot create paired exploration"); return r.json(); });
+    probe.then(function(inv) {
+      probeId = inv.id;
+      return fetch("/api/investigations/" + probeId + "/run-pair", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({input_json: {signal: signal}})
+      });
     })
     .then(function(r) {
       if (!r.ok) return r.json().then(function(d) { throw new Error(d.detail || "HTTP " + r.status); });

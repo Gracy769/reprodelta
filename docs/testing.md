@@ -43,3 +43,9 @@ On failure, identify the exact stage. A setup failure, inconclusive scientific a
 ## Executed model diff gate
 
 `test_real_repair.py` covers real good, overfitted and no-op source diffs in both pinned NumPy interpreters, exact-context rejection, prohibited code, unchanged original hashes and unchanged holdouts. Set `REPRODELTA_OLD_PYTHON`/`REPRODELTA_NEW_PYTHON` to run actual execution tests; they skip when environments are absent. Other tests check refusal in local simulation, worker hash/version errors, timeout handling and API use of persisted frozen evidence. New reports use schema version 3; older evidence remains readable and cannot acquire a passing repair without recorded frozen cases.
+
+## Deployment hardening and equal-budget comparison
+
+Owner tests cover signed cookies/bearers, expired sessions, guest separation, private reads/streams/exports, writes, per-owner approval and cross-origin denial. Budget tests cover concurrent reservations, restart persistence, stage-wide run caps, call/token/cost/wall caps, missing live cost configuration and denial of guest live calls. A dedicated CI Postgres database exercises row locking and interrupted recovery. Docker CI uses mock proposals but real worker executions; it verifies readiness, finished-report recovery and interrupted-job recovery. Public Railway, real provider callbacks and live billable inference remain separate operator checks.
+
+`test_demonstration_comparison.py` records equal caps, seeds, complete raw observations and first-witness positions for two constructed expressions and one unchanged control. Pinned interpreter tests establish the sensor's actual changed outcome. `scripts/export_demonstration.py` exports sources/hashes and independently replays every measurement. No superiority claim follows from this small informed comparison.

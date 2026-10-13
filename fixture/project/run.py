@@ -4,12 +4,16 @@ import sys
 
 import numpy as np
 from pipeline import classify_signal
+from sensor import classify_sensor
 
 
 def main() -> None:
     data = json.load(sys.stdin)
     signal = np.array(data["signal"], dtype=np.float32)
     mode = data.get("_mode")
+    if data.get("_case") == "sensor_offset":
+        json.dump({"status": "ok", "result": classify_sensor(signal)}, sys.stdout)
+        return
     if mode == "explicit_float32":
         normalized = np.array([sample / np.float32(2.0) for sample in signal])
         power = normalized ** 2

@@ -79,6 +79,8 @@ class InvestigationEvidence(BaseModel):
     model_proposals: list[object] = []   # list[ModelProposal]
     intervention: object | None = None   # InterventionRunResult | None
     stage_failures: list[dict[str, str]] = []
+    budget_usage: dict = {}
+    demonstration_comparison: dict | None = None
     frozen_holdouts: list[dict] = []
     model_patch_result: object | None = None
     patch_results: list[object] = []     # list[VerificationResult]

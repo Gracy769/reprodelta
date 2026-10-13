@@ -12,6 +12,7 @@ WORKDIR /app
 COPY pyproject.toml ./
 COPY app/ ./app/
 COPY runner/ ./runner/
+COPY fixture/project/ ./fixture/project/
 RUN pip install --no-cache-dir .
 COPY migrations/ ./migrations/
 COPY alembic.ini ./

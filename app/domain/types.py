@@ -43,6 +43,7 @@ class BudgetConfig(BaseModel):
     max_runs: Annotated[int, Field(gt=0, le=50_000)] = 2000
     max_wall_seconds: Annotated[int, Field(gt=0, le=86_400)] = 3600
     max_llm_calls: Annotated[int, Field(gt=0, le=1_000)] = 50
+    max_model_tokens: Annotated[int, Field(gt=0, le=100_000)] = 24000
     max_cost_usd: Annotated[float, Field(gt=0.0, le=1_000.0)] = 10.0
 
     @field_validator("max_runs")

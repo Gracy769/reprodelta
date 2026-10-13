@@ -12,7 +12,19 @@ jobs:
   pinned-repair:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: replay
+          POSTGRES_PASSWORD: replay
+          POSTGRES_DB: replay_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U replay -d replay_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     env:
+      REPRODELTA_TEST_POSTGRES: postgresql://replay:replay@localhost:5432/replay_test
       NEBIUS_API_KEY: ""
       RUNNER_MODE: local
       INVESTIGATION_STORE: auto
@@ -32,4 +44,4 @@ jobs:
           .repair-old/bin/pip install numpy==1.26.4
           .repair-new/bin/pip install numpy==2.0.2
       - name: Verify actual repairs, worker protocol and isolation policy
-        run: python -m pytest tests/integration/test_real_repair.py tests/integration/test_runner.py tests/adversarial/test_security.py -q
+        run: python -m pytest tests/integration/test_real_repair.py tests/integration/test_runner.py tests/adversarial/test_security.py tests/integration/test_deployment_guards.py tests/integration/test_demonstration_comparison.py -q

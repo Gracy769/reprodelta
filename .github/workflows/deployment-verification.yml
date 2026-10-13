@@ -1,0 +1,37 @@
+name: Deployment verification
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  docker-restart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install httpx
+      - name: Configure disposable mock deployment
+        run: |
+          cp .env.example .env
+          echo "SECRET_KEY=$(openssl rand -hex 32)" >> .env
+          echo "INVESTIGATION_STORE=postgres" >> .env
+      - name: Build and exercise pinned workers
+        run: |
+          docker compose up --build -d
+          python scripts/deployment_smoke.py --state /tmp/reprodelta-smoke.json --phase create
+      - name: Completed reports and ownership survive restart
+        run: |
+          docker compose restart api
+          python scripts/deployment_smoke.py --state /tmp/reprodelta-smoke.json --phase restart
+      - name: Interrupted work stays interrupted
+        run: |
+          python scripts/deployment_smoke.py --state /tmp/reprodelta-smoke.json --phase interrupt
+          docker compose restart -t 1 api
+          python scripts/deployment_smoke.py --state /tmp/reprodelta-smoke.json --phase recovery
+      - if: always()
+        run: docker compose down -v

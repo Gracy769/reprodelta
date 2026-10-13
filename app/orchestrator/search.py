@@ -12,6 +12,7 @@ Algorithm (deterministic, seeded):
 The search never assumes a conclusion change — it only records it when both
 old and new runs execute successfully and conclusions differ.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -26,6 +27,7 @@ from pydantic import BaseModel, ConfigDict
 from app.domain.contract import ContractBody
 from app.domain.types import BudgetConfig, VerdictKind
 from app.domain.validator import validate_input
+from app.orchestrator.budget import BudgetExceeded, BudgetLedger, BudgetRunner
 from app.orchestrator.executor import PairedRunRequest, PairedRunResult, run_pair
 from app.providers.runner import RunnerAdapter
 
@@ -58,6 +60,7 @@ class SearchProgress(BaseModel):
 
     investigation_id: str
     status: Literal["searching", "found_witness", "exhausted", "failed"]
+    stop_reason: str | None = None
     attempted: int
     valid: int
     invalid: int
@@ -73,9 +76,7 @@ class SearchProgress(BaseModel):
 
 
 def _hash_input(input_json: dict) -> str:
-    return hashlib.sha256(
-        json.dumps(input_json, sort_keys=True).encode()
-    ).hexdigest()
+    return hashlib.sha256(json.dumps(input_json, sort_keys=True).encode()).hexdigest()
 
 
 def _make_candidate_id() -> str:
@@ -95,12 +96,12 @@ def _sweep_candidates() -> list[dict]:
     candidates: list[dict] = []
 
     # ---- Control candidates (equal signals) ----
-    candidates.append({"signal": [0.0] * 8})           # all zeros
-    candidates.append({"signal": [1.0] * 8})           # equal halves
-    candidates.append({"signal": [-1.0] * 8})          # negative equal
+    candidates.append({"signal": [0.0] * 8})  # all zeros
+    candidates.append({"signal": [1.0] * 8})  # equal halves
+    candidates.append({"signal": [-1.0] * 8})  # negative equal
 
     # ---- Out-of-domain (exceeds max_value=10.0) ----
-    candidates.append({"signal": [15.0] * 8})          # will be rejected
+    candidates.append({"signal": [15.0] * 8})  # will be rejected
 
     # ---- Sweep the 8th element near the ULP boundary of float32(1.0) ----
     base = np.float32(1.0)
@@ -138,7 +139,11 @@ class SearchController:
     ) -> None:
         self.contract = contract
         self.budget = budget
-        self.runner = runner
+        self.runner = (
+            runner
+            if isinstance(runner, BudgetRunner)
+            else BudgetRunner(runner, BudgetLedger(budget))
+        )
         self.on_progress = on_progress
 
     def run_search(
@@ -154,6 +159,7 @@ class SearchController:
         """
         candidates_to_try = _sweep_candidates()
 
+        stop_reason = None
         attempted = 0
         valid_count = 0
         invalid_count = 0
@@ -166,6 +172,7 @@ class SearchController:
         for input_json in candidates_to_try:
             if budget_remaining <= 0:
                 status = "exhausted"
+                stop_reason = "candidate_budget"
                 break
 
             candidate_id = _make_candidate_id()
@@ -187,13 +194,16 @@ class SearchController:
                 )
                 records.append(record)
                 if self.on_progress:
-                    self.on_progress("candidate_rejected", {
-                        "attempted": attempted,
-                        "valid": valid_count,
-                        "invalid": invalid_count,
-                        "budget_remaining": budget_remaining,
-                        "reason": validation.reason,
-                    })
+                    self.on_progress(
+                        "candidate_rejected",
+                        {
+                            "attempted": attempted,
+                            "valid": valid_count,
+                            "invalid": invalid_count,
+                            "budget_remaining": budget_remaining,
+                            "reason": validation.reason,
+                        },
+                    )
                 continue
 
             valid_count += 1
@@ -207,18 +217,33 @@ class SearchController:
                 candidate_sha256=input_sha256,
                 contract=self.contract,
             )
-            pair_result = run_pair(req, self.runner)
+            try:
+                pair_result = run_pair(req, self.runner)
+            except BudgetExceeded as exc:
+                if self.on_progress:
+                    self.on_progress("budget_exhausted", {"stage": "search", "error": str(exc)})
+                stop_reason = str(exc)
+                status = "exhausted"
+                break
 
             if pair_result.comparison.get("verdict_hint") == VerdictKind.setup_failure:
-                records.append(CandidateRecord(
-                    candidate_id=candidate_id, input_json=input_json,
-                    input_sha256=input_sha256, validity="valid", pair_result=pair_result,
-                ))
+                records.append(
+                    CandidateRecord(
+                        candidate_id=candidate_id,
+                        input_json=input_json,
+                        input_sha256=input_sha256,
+                        validity="valid",
+                        pair_result=pair_result,
+                    )
+                )
                 if self.on_progress:
-                    self.on_progress("search_failed", {
-                        "reason": pair_result.comparison.get("reason", "invalid_worker_result"),
-                        "attempted": attempted,
-                    })
+                    self.on_progress(
+                        "search_failed",
+                        {
+                            "reason": pair_result.comparison.get("reason", "invalid_worker_result"),
+                            "attempted": attempted,
+                        },
+                    )
                 status = "failed"
                 break
 
@@ -236,13 +261,16 @@ class SearchController:
             )
             records.append(record)
             if self.on_progress:
-                self.on_progress("candidate_run", {
-                    "attempted": attempted,
-                    "valid": valid_count,
-                    "invalid": invalid_count,
-                    "budget_remaining": budget_remaining,
-                    "conclusion_changed": conclusion_changed,
-                })
+                self.on_progress(
+                    "candidate_run",
+                    {
+                        "attempted": attempted,
+                        "valid": valid_count,
+                        "invalid": invalid_count,
+                        "budget_remaining": budget_remaining,
+                        "conclusion_changed": conclusion_changed,
+                    },
+                )
 
             if conclusion_changed and witness is None:
                 witness = record
@@ -257,6 +285,7 @@ class SearchController:
         return SearchProgress(
             investigation_id=investigation_id,
             status=status,
+            stop_reason=stop_reason,
             attempted=attempted,
             valid=valid_count,
             invalid=invalid_count,

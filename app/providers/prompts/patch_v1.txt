@@ -24,3 +24,5 @@ Rules:
 Format your response as:
 1. Brief explanation of the fix (1-2 sentences)
 2. The unified diff patch
+
+Execution policy: return exactly one fenced unified diff with correct line positions, context and hunk counts for the supplied source. Only bounded numerical edits in existing functions are accepted. Do not change imports, constants, function signatures, tests, holdouts or runner code. Allowed calls: np.array, np.float32, np.float64, np.sum, float, len, abs, str and the existing compute_power_ratio call from classify_signal. No loops except comprehensions over signal; no filesystem, network, introspection or input mutation. Update both arithmetic and dtype-reporting expressions when relevant. Do not include holdouts in your proposal.

@@ -26,17 +26,27 @@ Output shape:
   "stderr": "..."
 }
 """
+
 from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import subprocess
 import sys
+import tempfile
+from contextlib import ExitStack
+from importlib.metadata import version
+
+try:
+    from .patching import apply_diff, project_digest, project_sources
+except ImportError:
+    from patching import apply_diff, project_digest, project_sources
 from pathlib import Path
 
 ALLOWED_ENTRY_POINTS = {"run.py"}
-MAX_INPUT_SIZE = 1_000_000   # 1 MB
+MAX_INPUT_SIZE = 1_000_000  # 1 MB
 MAX_OUTPUT_SIZE = 10_000_000  # 10 MB
 DEFAULT_TIMEOUT = 30
 
@@ -51,6 +61,30 @@ FIXTURE_DIR = Path(
 
 def validate_manifest(manifest: dict) -> None:
     required = {"run_id", "kind", "candidate_sha256", "entry_point", "input_json"}
+    unknown = (
+        set(manifest)
+        - required
+        - {
+            "timeout_seconds",
+            "patch_diff",
+            "base_project_sha256",
+            "patched_project_sha256",
+            "max_memory_mb",
+            "max_cpu_seconds",
+        }
+    )
+    if unknown:
+        raise ValueError("Unknown manifest fields")
+    timeout = manifest.get("timeout_seconds", DEFAULT_TIMEOUT)
+    if type(timeout) is not int or not 1 <= timeout <= 60:
+        raise ValueError("Invalid timeout")
+    for field, default, minimum, maximum in (
+        ("max_memory_mb", 512, 32, 512),
+        ("max_cpu_seconds", 25, 1, 60),
+    ):
+        value = manifest.get(field, default)
+        if type(value) is not int or not minimum <= value <= maximum:
+            raise ValueError(f"Invalid resource limit: {field}")
     missing = required - set(manifest.keys())
     if missing:
         raise ValueError(f"Missing manifest fields: {missing}")
@@ -94,16 +128,93 @@ def run_fixture(manifest: dict) -> dict:
     if not script_path.exists():
         raise RuntimeError(f"Entry point not found: {script_path}")
 
-    proc = subprocess.run(
-        [sys.executable, str(script_path)],
-        input=input_bytes,
-        capture_output=True,
-        timeout=timeout,
-        cwd=str(FIXTURE_DIR),
-    )
+    sources = project_sources(FIXTURE_DIR)
+    base_digest = project_digest(sources)
+    patched_digest = None
+    if (
+        manifest.get("base_project_sha256") is not None
+        and manifest["base_project_sha256"] != base_digest
+    ):
+        raise ValueError("Base project hash mismatch")
+    with ExitStack() as stack:
+        execution_dir = FIXTURE_DIR
+        if manifest.get("patch_diff") is not None:
+            signal = input_json.get("signal")
+            if (
+                not isinstance(signal, list)
+                or len(signal) != 8
+                or any(
+                    type(value) not in (int, float) or not math.isfinite(value) or abs(value) > 10
+                    for value in signal
+                )
+            ):
+                raise ValueError("Patched workers support only the bounded eight-sample fixture")
+            if set(input_json) != {"signal"}:
+                raise ValueError("Patch runs accept only the frozen signal input")
+            if manifest.get("base_project_sha256") != base_digest:
+                raise ValueError("Base project hash mismatch")
+            sources["pipeline.py"] = apply_diff(sources["pipeline.py"], manifest["patch_diff"])
+            patched_digest = project_digest(sources)
+            if manifest.get("patched_project_sha256") != patched_digest:
+                raise ValueError("Patched project hash mismatch")
+            execution_dir = Path(
+                stack.enter_context(tempfile.TemporaryDirectory(prefix="reprodelta-patch-"))
+            )
+            for name, source in sources.items():
+                target = execution_dir / name
+                target.write_text(source, encoding="utf-8")
+                target.chmod(0o444)
+        # No provider/database credentials are inherited by fixture code.
+        child_env = {
+            key: os.environ[key] for key in ("SYSTEMROOT", "WINDIR", "PATH") if key in os.environ
+        }
+        child_env.update(OPENBLAS_NUM_THREADS="1", OMP_NUM_THREADS="1", PYTHONDONTWRITEBYTECODE="1")
+        stdout_file = stack.enter_context(tempfile.TemporaryFile())
+        stderr_file = stack.enter_context(tempfile.TemporaryFile())
+        try:
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-B",
+                    str(Path(__file__).with_name("execute_project.py")),
+                    str(execution_dir / entry_point),
+                    str(manifest.get("max_memory_mb", 512)),
+                    str(manifest.get("max_cpu_seconds", 25)),
+                ],
+                input=input_bytes,
+                stdout=stdout_file,
+                stderr=stderr_file,
+                timeout=timeout,
+                cwd=str(execution_dir),
+                env=child_env,
+            )
+        except subprocess.TimeoutExpired:
+            return {
+                "status": "timeout",
+                "run_id": run_id,
+                "exit_code": None,
+                "outputs": {},
+                "stderr": "Worker timed out",
+            }
+        stdout_file.seek(0)
+        stderr_file.seek(0)
+        stdout_bytes = stdout_file.read(MAX_OUTPUT_SIZE + 1)
+        stderr_bytes = stderr_file.read(10_000)
+        if len(stdout_bytes) > MAX_OUTPUT_SIZE:
+            return {
+                "status": "error",
+                "run_id": run_id,
+                "exit_code": proc.returncode,
+                "outputs": {},
+                "stderr": "Worker output exceeded size limit",
+            }
+        if project_digest(project_sources(FIXTURE_DIR)) != base_digest:
+            raise RuntimeError("Immutable base project changed during execution")
+        if patched_digest and project_digest(project_sources(execution_dir)) != patched_digest:
+            raise RuntimeError("Patched project changed during execution")
 
-    stdout = proc.stdout.decode("utf-8", errors="replace")
-    stderr = proc.stderr.decode("utf-8", errors="replace")
+    stdout = stdout_bytes.decode("utf-8", errors="replace")
+    stderr = stderr_bytes.decode("utf-8", errors="replace")
 
     if len(stdout) > MAX_OUTPUT_SIZE:
         stdout = stdout[:MAX_OUTPUT_SIZE] + "...[truncated]"
@@ -134,6 +245,9 @@ def run_fixture(manifest: dict) -> dict:
         "run_id": run_id,
         "exit_code": 0,
         "outputs": result,
+        "numpy_version": version("numpy"),
+        "base_project_sha256": base_digest,
+        "patched_project_sha256": patched_digest,
         "stderr": stderr,
     }
 

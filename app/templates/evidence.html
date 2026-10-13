@@ -503,6 +503,20 @@
     // Intervention
     renderIntervention(data.intervention);
 
+    if (data.model_patch_result) {
+      var repair = document.createElement("section");
+      repair.className = "section";
+      repair.appendChild(el("h2", null, ["Model diff verification"]));
+      repair.appendChild(el("p", null, [data.model_patch_result.verdict]));
+      var checks = [data.model_patch_result.witness_result].concat(data.model_patch_result.holdout_results || []);
+      checks.forEach(function (check, i) {
+        if (check) repair.appendChild(el("p", null, [(i === 0 ? "Witness" : "Holdout " + i) + ": " + check.check_status]));
+      });
+      (data.model_patch_result.limitations || []).forEach(function (limitation) {
+        repair.appendChild(el("p", null, [limitation]));
+      });
+      document.getElementById("main-content").appendChild(repair);
+    }
     // Patch results
     renderPatchResults(data.patch_results);
 

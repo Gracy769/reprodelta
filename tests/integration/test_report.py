@@ -121,7 +121,7 @@ class TestGenerateReport:
 
         report = generate_report(_make_minimal_evidence())
         assert "schema_version" in report
-        assert report["schema_version"] in ("1", "2")
+        assert report["schema_version"] in ("1", "2", "3")
 
     def test_export_timestamp_present(self):
         from app.orchestrator.report import generate_report

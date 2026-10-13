@@ -101,7 +101,7 @@
   <li id="stage-repair">
     <div class="stage-icon" id="icon-repair">5</div>
     <div>
-      <div class="stage-label">Fixture repair checks</div>
+      <div class="stage-label">Model and fixture repair checks</div>
       <div class="stage-detail" id="detail-repair">Waiting…</div>
     </div>
   </li>
@@ -196,7 +196,7 @@
         var failures = events.filter(function (event) { return event.event_type === "stage_failed"; });
         failures.forEach(function (event) {
           var failure = event.payload || {};
-          var stage = failure.stage === "overfitted_repair" || failure.stage === "good_repair" ? "repair" : failure.stage;
+          var stage = failure.stage === "model_repair" || failure.stage === "overfitted_repair" || failure.stage === "good_repair" ? "repair" : failure.stage;
           setClass("icon-" + stage, "failed");
           setText("detail-" + stage, "Failed: " + (failure.error || "Stage did not finish"));
         });

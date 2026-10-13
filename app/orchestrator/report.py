@@ -29,7 +29,7 @@ from datetime import UTC, datetime
 
 from app.domain.evidence import InvestigationEvidence
 
-_SCHEMA_VERSION = "2"
+_SCHEMA_VERSION = "3"
 
 
 def _detect_run_mode(evidence: InvestigationEvidence) -> str:
@@ -114,6 +114,8 @@ def generate_report(evidence: InvestigationEvidence) -> dict:
             else None
         ),
         # --- patch results ---
+        "frozen_holdouts": evidence.frozen_holdouts,
+        "model_patch_result": evidence.model_patch_result.model_dump(mode="json") if evidence.model_patch_result else None,
         "stage_failures": evidence.stage_failures,
         "patch_results": [
             r.model_dump(mode="json")  # type: ignore[union-attr]
@@ -214,9 +216,10 @@ def generate_limitations(evidence: InvestigationEvidence) -> list[str]:
     elif any(getattr(p, "is_mock", False) for p in evidence.model_proposals):
         limitations.append("At least one model proposal was generated in mock mode.")
 
-    limitations.append(
-        "Repair checks use predefined fixture variants; the model's proposed diff was not applied."
-    )
+    if evidence.model_patch_result is None:
+        limitations.append("No model diff verification result was recorded; predefined fixture checks are separate.")
+    else:
+        limitations.extend(evidence.model_patch_result.limitations)
 
     if evidence.witness is not None:
         limitations.append(
@@ -329,6 +332,10 @@ def generate_text_summary(evidence: InvestigationEvidence) -> str:
         lines.append("-" * 40)
         lines.append(f"  Assessment : {getattr(intv, 'assessment', '?')}")
         lines.append(f"  Prediction supported : {getattr(intv, 'prediction_supported', '?')}")
+        lines.append("")
+
+    if evidence.model_patch_result is not None:
+        lines.append(f"MODEL DIFF VERIFICATION: {evidence.model_patch_result.verdict}")
         lines.append("")
 
     # Patch results

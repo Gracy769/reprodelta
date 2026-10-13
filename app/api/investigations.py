@@ -528,16 +528,7 @@ async def verify_patch_endpoint(
     body: VerifyPatchRequest,
     runner: RunnerAdapter = Depends(get_runner),  # noqa: B008
 ) -> dict:
-    """
-    Check a proposed patch diff's scope without claiming it was executed.
-
-    Steps:
-    1. Confirm the investigation exists.
-    2. Validate the diff against the path allowlist.
-    3. Return inconclusive for an in-scope diff until patched worker runs exist.
-    4. Store the result as an event.
-    5. Return the ConstrainedPatchVerificationResult.
-    """
+    """Execute a constrained diff against the completed investigation's frozen cases."""
     from app.orchestrator.patch_verifier import ProposedPatch, apply_and_verify_patch
 
     _get_investigation_or_404(investigation_id)
@@ -548,9 +539,17 @@ async def verify_patch_endpoint(
         rationale=body.rationale,
     )
 
-    result = apply_and_verify_patch(
-        proposal=proposal,
-        runner=runner,
+    from app.domain.contract import ContractBody
+
+    evidence = get_store().get_evidence(investigation_id)
+    if not evidence or not evidence.get("witness"):
+        raise HTTPException(status_code=409, detail="A completed investigation with a witness is required")
+    approved_contract = ContractBody.model_validate(evidence["contract_body"])
+    if hash_contract(approved_contract) != evidence["contract_hash"]:
+        raise HTTPException(status_code=409, detail="Stored contract hash mismatch")
+    result = await asyncio.to_thread(
+        apply_and_verify_patch, proposal, evidence.get("frozen_holdouts"),
+        evidence["witness"]["input_json"], approved_contract, runner,
     )
 
     # Record as an event
@@ -563,6 +562,7 @@ async def verify_patch_endpoint(
             "verdict": result.verdict,
             "parse_valid": result.parse_result.valid,
             "description": body.description,
+            "verification": result.model_dump(mode="json"),
         },
     )
 

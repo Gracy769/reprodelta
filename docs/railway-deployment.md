@@ -21,6 +21,11 @@ Set these variables on `reprodelta-web`:
 | `NEBIUS_MODEL_ID` | Optional; defaults to `nvidia/Nemotron-3_5-Lightning` |
 | `NEBIUS_CALL_COST_CEILING_USD` | Required for live calls; set a positive per-call reservation after verifying current model pricing. The default `0` blocks billable calls. |
 
+Guest runs of the curated demo always use labeled mock model proposals, even when a
+Nebius key is configured. Authenticated investigations use the live provider only
+after a positive cost reservation has been configured. This keeps the public demo
+usable without allowing anonymous traffic to spend the key.
+
 The GitHub OAuth App callback must be
 `https://reprodelta-web-production.up.railway.app/oauth/github/callback`.
 For GitLab, use

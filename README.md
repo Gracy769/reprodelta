@@ -168,7 +168,7 @@ Copy `.env.example` to `.env` and edit as needed.
 | Variable | Default | Description |
 |---|---|---|
 | `NEBIUS_API_KEY` | *(blank)* | Nebius Token Factory key. Blank = mock LLM mode. |
-| `NEBIUS_MODEL_ID` | `nvidia/Nemotron-3_5-Lightning` | Model to call. Check current availability at `https://api.tokenfactory.nebius.com/v1/models`. |
+| `NEBIUS_MODEL_ID` | `nvidia/Nemotron-3-Ultra-550b-a55b` | Model to call. Check current availability at `https://api.tokenfactory.nebius.com/v1/models`. |
 | `NEBIUS_BASE_URL` | `https://api.tokenfactory.nebius.com/v1` | Nebius API base URL. |
 | `DATABASE_URL` | `postgresql+asyncpg://replay:replay@db:5432/replay` | PostgreSQL connection string. |
 | `ARTIFACT_DIR` | `/data/artifacts` | Content-addressed artifact storage root. |

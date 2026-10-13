@@ -15,6 +15,23 @@ repair against frozen independent cases.
 > - Reports include `run_mode` (`local_simulation`, `pinned_workers`, or `unverified`) and a `simulated_mode` flag.
 > - Docker remains unverified on this host — see **Docker** section.
 
+## Correctness checks
+
+Paired output decisions are evaluated from the measured ratio using the approved
+contract. Exact ties use its tie policy (`inconclusive` for this fixture), while
+raw worker labels remain in paired output evidence. Numeric tolerances classify
+numeric drift only; they do not move the decision threshold. A decisive outcome
+changing to a tie is a changed declared outcome, not proof of a scientific bug.
+Missing/invalid results and failed candidate executions cannot yield a negative
+finding. Failed explanation, intervention and predefined repair stages are
+recorded as events and exported in `stage_failures` and report limitations.
+The curated evaluator supports the `ratio` measurement / `conclusion` selector;
+other selectors and non-finite decision measurements fail explicitly.
+
+Run the Python suite with `python -m pytest tests -q`. The rendering regression
+checks use Node's built-in test runner: `node --test tests/frontend/test_demo_results.cjs`.
+These checks do not verify a live Nebius call or Docker deployment.
+
 ## Accounts and source connections
 
 `/investigations/new` is the signed-in source picker. Without a source session,

@@ -24,6 +24,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from app.domain.comparison import evaluate_output
 from app.domain.contract import ContractBody
 from app.domain.evidence import RunEvidence
 from app.providers.nebius import ModelProposal
@@ -85,17 +86,23 @@ FIXTURE_INTERVENTION = InterventionManifest(
 # ---------------------------------------------------------------------------
 
 
-def _extract_run_evidence(result_outputs: dict, run_id: str, environment: str) -> RunEvidence:
+def _extract_run_evidence(result_outputs: dict, run_id: str, environment: str, contract: ContractBody) -> RunEvidence:
     """Build a RunEvidence from a raw runner output dict."""
     inner = result_outputs.get("result", result_outputs)
     status = result_outputs.get("status", "error")
+    try:
+        evaluated = evaluate_output(result_outputs, contract) if status == "ok" else None
+    except (ValueError, TypeError, OverflowError):
+        evaluated = None
+    if evaluated is None:
+        status = "error"
     if isinstance(inner, dict):
         return RunEvidence(
             run_id=run_id,
             environment=environment,
             numpy_version=inner.get("numpy_version"),
-            conclusion=inner.get("conclusion"),
-            ratio=float(inner["ratio"]) if "ratio" in inner else None,
+            conclusion=evaluated["conclusion"] if evaluated else None,
+            ratio=evaluated["ratio"] if evaluated else None,
             intermediate_dtype=inner.get("intermediate_dtype"),
             status=status,
         )
@@ -186,8 +193,8 @@ def run_intervention(
     old_result = runner.submit(old_manifest)
     new_result = runner.submit(new_manifest)
 
-    old_ev = _extract_run_evidence(old_result.outputs, old_result.run_id, "old")
-    new_ev = _extract_run_evidence(new_result.outputs, new_result.run_id, "new")
+    old_ev = _extract_run_evidence(old_result.outputs, old_result.run_id, "old", contract)
+    new_ev = _extract_run_evidence(new_result.outputs, new_result.run_id, "new", contract)
 
     # The conclusion_changed flag is set based on the PATCHED run outputs.
     # If both runs now agree → the intervention removed the difference.
@@ -199,9 +206,9 @@ def run_intervention(
 
     # The intervention PREDICTED that conclusion_changed disappears.
     # So prediction_supported = True when conclusion_changed is False.
-    prediction_supported = not conclusion_changed
+    prediction_supported = old_ev.status == new_ev.status == "ok" and not conclusion_changed
 
-    if old_result.status != "ok" or new_result.status != "ok":
+    if old_result.status != "ok" or new_result.status != "ok" or old_ev.status != "ok" or new_ev.status != "ok":
         assessment: Literal["supported", "contradicted", "inconclusive"] = "inconclusive"
     elif prediction_supported:
         assessment = "supported"

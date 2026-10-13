@@ -12,6 +12,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
+from app.domain.comparison import evaluate_output, numeric_matches
 from app.domain.contract import ContractBody
 from app.domain.types import VerdictKind
 from app.providers.runner import RunManifest, RunnerAdapter, RunResult, make_run_id
@@ -97,50 +98,40 @@ def _extract_ratio(outputs: dict) -> float | None:
 
 
 def compare_outputs(old_out: dict, new_out: dict, contract: ContractBody) -> dict:
-    """Compare old and new runner outputs according to the contract.
-
-    Handles four cases: both ok, old error, new error, both error.
-
-    Returns a comparison dict with:
-      old_conclusion, new_conclusion, old_ratio, new_ratio,
-      conclusion_changed, verdict_hint
-    """
+    """Validate outputs before comparing contract-derived conclusions."""
     old_status = old_out.get("status", "error")
     new_status = new_out.get("status", "error")
-
+    failure = {
+        "old_conclusion": None, "new_conclusion": None,
+        "old_ratio": None, "new_ratio": None, "conclusion_changed": None,
+        "verdict_hint": VerdictKind.setup_failure,
+        "old_status": old_status, "new_status": new_status,
+    }
     if old_status != "ok" or new_status != "ok":
-        # Any run that didn't succeed → setup failure
-        return {
-            "old_conclusion": None,
-            "new_conclusion": None,
-            "old_ratio": None,
-            "new_ratio": None,
-            "conclusion_changed": None,
-            "verdict_hint": VerdictKind.setup_failure,
-            "old_status": old_status,
-            "new_status": new_status,
-        }
-
-    field = contract.output_selector.field_name
-    old_conclusion = _extract_conclusion(old_out.get("outputs", {}), field)
-    new_conclusion = _extract_conclusion(new_out.get("outputs", {}), field)
-    old_ratio = _extract_ratio(old_out.get("outputs", {}))
-    new_ratio = _extract_ratio(new_out.get("outputs", {}))
-
-    conclusion_changed = old_conclusion != new_conclusion
-
-    if conclusion_changed:
-        verdict_hint: VerdictKind = VerdictKind.supported_conclusion_change
+        return {**failure, "reason": "paired_execution_failed"}
+    try:
+        old = evaluate_output(old_out.get("outputs"), contract)
+        new = evaluate_output(new_out.get("outputs"), contract)
+        numeric_equal = numeric_matches(old["ratio"], new["ratio"], contract)
+    except (ValueError, TypeError, OverflowError) as exc:
+        return {**failure, "reason": str(exc)}
+    changed = old["conclusion"] != new["conclusion"]
+    dtype_equal = old["dtype"] == new["dtype"]
+    if changed:
+        verdict = VerdictKind.supported_conclusion_change
+    elif old["conclusion"] == "inconclusive":
+        verdict = VerdictKind.inconclusive
+    elif not numeric_equal or (contract.comparison.dtype_must_match and not dtype_equal):
+        verdict = VerdictKind.observed_drift
     else:
-        verdict_hint = VerdictKind.no_violation_found
-
+        verdict = VerdictKind.no_violation_found
     return {
-        "old_conclusion": old_conclusion,
-        "new_conclusion": new_conclusion,
-        "old_ratio": old_ratio,
-        "new_ratio": new_ratio,
-        "conclusion_changed": conclusion_changed,
-        "verdict_hint": verdict_hint,
+        "old_conclusion": old["conclusion"], "new_conclusion": new["conclusion"],
+        "old_reported_conclusion": old["reported_conclusion"],
+        "new_reported_conclusion": new["reported_conclusion"],
+        "old_ratio": old["ratio"], "new_ratio": new["ratio"],
+        "conclusion_changed": changed, "numeric_equal": numeric_equal,
+        "dtype_equal": dtype_equal, "verdict_hint": verdict,
     }
 
 

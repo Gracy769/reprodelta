@@ -489,6 +489,15 @@
     }
 
     // Model proposals
+    if ((data.stage_failures || []).length) {
+      var failures = document.createElement("section");
+      failures.className = "section";
+      failures.appendChild(el("h2", null, ["Failed stages"]));
+      data.stage_failures.forEach(function (failure) {
+        failures.appendChild(el("p", null, [failure.stage + ": " + failure.error]));
+      });
+      document.getElementById("main-content").appendChild(failures);
+    }
     renderProposals(data.model_proposals);
 
     // Intervention

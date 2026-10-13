@@ -16,12 +16,12 @@ Steps:
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import hashlib
 import json
 from datetime import UTC, datetime
 
 from app.config import get_settings
+from app.domain.comparison import evaluate_output
 from app.domain.contract import ContractBody, hash_contract
 from app.domain.evidence import (
     ControlEvidence,
@@ -30,7 +30,7 @@ from app.domain.evidence import (
     WitnessEvidence,
 )
 from app.domain.types import BudgetConfig, VerdictKind
-from app.orchestrator.executor import run_control
+from app.orchestrator.executor import compare_outputs, run_control
 from app.orchestrator.intervention import (
     FIXTURE_INTERVENTION,
     InterventionRunResult,
@@ -60,18 +60,22 @@ def _hash_input(input_json: dict) -> str:
     ).hexdigest()
 
 
-def _run_result_to_evidence(result: RunResult, environment: str) -> RunEvidence:
+def _run_result_to_evidence(result: RunResult, environment: str, contract: ContractBody) -> RunEvidence:
     """Convert a RunResult into a RunEvidence summary."""
     outputs = result.outputs
     inner = outputs.get("result", outputs)
+    try:
+        evaluated = evaluate_output(outputs, contract) if result.status == "ok" else None
+    except (ValueError, TypeError, OverflowError):
+        evaluated = None
     return RunEvidence(
         run_id=result.run_id,
         environment=environment,
         numpy_version=inner.get("numpy_version") if isinstance(inner, dict) else None,
-        conclusion=inner.get("conclusion") if isinstance(inner, dict) else None,
-        ratio=float(inner["ratio"]) if isinstance(inner, dict) and inner.get("ratio") is not None else None,
+        conclusion=evaluated["conclusion"] if evaluated else None,
+        ratio=evaluated["ratio"] if evaluated else None,
         intermediate_dtype=inner.get("intermediate_dtype") if isinstance(inner, dict) else None,
-        status=result.status,
+        status=result.status if evaluated else "error",
     )
 
 
@@ -85,13 +89,16 @@ def _build_control_evidence(
     """Run the same input twice in *env* and build a ControlEvidence."""
     results = run_control(input_json, env, contract, runner, input_sha256, n=2)
     r1, r2 = results[0], results[1]
-    ev1 = _run_result_to_evidence(r1, env)
-    ev2 = _run_result_to_evidence(r2, env)
-    # Repeatability: both runs must succeed and agree on conclusion
+    ev1 = _run_result_to_evidence(r1, env, contract)
+    ev2 = _run_result_to_evidence(r2, env, contract)
+    comparison = compare_outputs(
+        {"status": r1.status, "outputs": r1.outputs},
+        {"status": r2.status, "outputs": r2.outputs}, contract,
+    )
     repeatability = (
-        r1.status == "ok"
-        and r2.status == "ok"
-        and ev1.conclusion == ev2.conclusion
+        comparison["conclusion_changed"] is False
+        and comparison.get("numeric_equal") is True
+        and (not contract.comparison.dtype_must_match or comparison.get("dtype_equal") is True)
     )
     return ControlEvidence(
         input_json=input_json,
@@ -166,13 +173,9 @@ class InvestigationRunner:
         """Append an event to the store if one is configured."""
         if self._store is None:
             return
-        with contextlib.suppress(Exception):
-            self._store.append_event(
-                investigation_id,
-                actor="runner",
-                event_type=event_type,
-                payload=payload or {},
-            )
+        self._store.append_event(
+            investigation_id, actor="runner", event_type=event_type, payload=payload or {},
+        )
 
     # ------------------------------------------------------------------
     # Async model calls
@@ -236,6 +239,8 @@ class InvestigationRunner:
                 "reason": "repeatability_not_confirmed",
                 "failed_envs": failed_envs,
             })
+            control_failure = {"stage": "preflight", "error": "Repeatability control failed or returned invalid outputs"}
+            self._emit(investigation_id, "stage_failed", control_failure)
             return InvestigationEvidence(
                 investigation_id=investigation_id,
                 project_name=self.PROJECT_NAME,
@@ -250,6 +255,7 @@ class InvestigationRunner:
                 model_proposals=[],
                 intervention=None,
                 patch_results=[],
+                stage_failures=[control_failure],
             )
 
         self._emit(investigation_id, "control_completed", {
@@ -280,6 +286,13 @@ class InvestigationRunner:
         witness_evidence: WitnessEvidence | None = None
         reduction: ReductionResult | None = None
         verdict: VerdictKind
+        stage_failures: list[dict[str, str]] = []
+
+        def record_failure(stage: str, error: Exception) -> None:
+            failure = {"stage": stage, "error": str(error)}
+            stage_failures.append(failure)
+            self._emit(investigation_id, "stage_failed", failure)
+
         model_proposals: list[ModelProposal] = []
         intervention_result: InterventionRunResult | None = None
         patch_results: list[VerificationResult] = []
@@ -326,9 +339,11 @@ class InvestigationRunner:
             # ------------------------------------------------------------------
             # 3. Reduction
             # ------------------------------------------------------------------
-            reduction = reduce_witness(
-                cand.input_json, self.contract, self.runner
-            )
+            try:
+                reduction = reduce_witness(cand.input_json, self.contract, self.runner)
+            except Exception as exc:  # noqa: BLE001
+                record_failure("reduction", exc)
+                raise
             self._emit(investigation_id, "reduction_completed", {
                 "original_length": len(cand.input_json.get("signal", [])),
             })
@@ -360,18 +375,19 @@ class InvestigationRunner:
                     "model_id": explanation_proposal.model_id,
                 })
             except NebiusError as exc:
+                record_failure("explanation", exc)
                 self._emit(investigation_id, "model_call_failed", {
                     "call_type": "explanation",
                     "error": str(exc),
                 })
-            except Exception:  # noqa: BLE001
-                self._emit(investigation_id, "model_explanation_failed", {})
+            except Exception as exc:  # noqa: BLE001
+                record_failure("explanation", exc)
 
             # ------------------------------------------------------------------
             # 5. Intervention
             # ------------------------------------------------------------------
             explanation_prop = model_proposals[0] if model_proposals else _stub_proposal()
-            with contextlib.suppress(Exception):  # intervention is best-effort
+            try:
                 intervention_result = run_intervention(
                     witness_input=cand.input_json,
                     intervention=FIXTURE_INTERVENTION,
@@ -379,7 +395,11 @@ class InvestigationRunner:
                     runner=self.runner,
                     proposal=explanation_prop,
                 )
+            except Exception as exc:  # noqa: BLE001
+                record_failure("intervention", exc)
             if intervention_result is not None:
+                if intervention_result.assessment == "inconclusive":
+                    record_failure("intervention", ValueError("Intervention output unavailable or invalid"))
                 self._emit(investigation_id, "intervention_completed", {
                     "assessment": getattr(intervention_result, "assessment", None),
                     "prediction_supported": getattr(
@@ -406,12 +426,13 @@ class InvestigationRunner:
                     "model_id": patch_proposal.model_id,
                 })
             except NebiusError as exc:
+                record_failure("patch_proposal", exc)
                 self._emit(investigation_id, "model_call_failed", {
                     "call_type": "patch",
                     "error": str(exc),
                 })
-            except Exception:  # noqa: BLE001
-                self._emit(investigation_id, "model_patch_failed", {})
+            except Exception as exc:  # noqa: BLE001
+                record_failure("patch_proposal", exc)
 
             # ------------------------------------------------------------------
             # 7. Verify overfitted patch → should FAIL
@@ -420,6 +441,8 @@ class InvestigationRunner:
                 overfitted_result = verify_patch(
                     OVERFITTED_PATCH, sealed_holdouts, self.contract, self.runner
                 )
+                if any(r.check_status == "not_run" for r in overfitted_result.holdout_results):
+                    record_failure("overfitted_repair", ValueError("Some holdout runs failed or returned invalid outputs"))
                 patch_results.append(overfitted_result)
                 self._emit(investigation_id, "patch_verified", {
                     "kind": "overfitted",
@@ -427,8 +450,8 @@ class InvestigationRunner:
                     "num_passed": overfitted_result.num_passed,
                     "num_failed": overfitted_result.num_failed,
                 })
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as exc:  # noqa: BLE001
+                record_failure("overfitted_repair", exc)
 
             # ------------------------------------------------------------------
             # 9. Verify good patch → should PASS
@@ -437,6 +460,8 @@ class InvestigationRunner:
                 good_result = verify_patch(
                     GOOD_PATCH, sealed_holdouts, self.contract, self.runner
                 )
+                if any(r.check_status == "not_run" for r in good_result.holdout_results):
+                    record_failure("good_repair", ValueError("Some holdout runs failed or returned invalid outputs"))
                 patch_results.append(good_result)
                 self._emit(investigation_id, "patch_verified", {
                     "kind": "good",
@@ -444,12 +469,18 @@ class InvestigationRunner:
                     "num_passed": good_result.num_passed,
                     "num_failed": good_result.num_failed,
                 })
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as exc:  # noqa: BLE001
+                record_failure("good_repair", exc)
 
             verdict = VerdictKind.supported_conclusion_change
+        elif progress.status == "failed":
+            verdict = VerdictKind.setup_failure
+            record_failure("search", ValueError("A candidate execution or output validation failed"))
         elif progress.status == "exhausted":
-            verdict = VerdictKind.no_violation_found
+            hints = {c.pair_result.comparison["verdict_hint"] for c in progress.candidates if c.pair_result}
+            verdict = (VerdictKind.inconclusive if VerdictKind.inconclusive in hints
+                       else VerdictKind.observed_drift if VerdictKind.observed_drift in hints
+                       else VerdictKind.no_violation_found)
             self._emit(investigation_id, "witness_not_found", {
                 "candidates_tried": progress.attempted,
             })
@@ -477,6 +508,7 @@ class InvestigationRunner:
             model_proposals=model_proposals,
             intervention=intervention_result,
             patch_results=patch_results,
+            stage_failures=stage_failures,
         )
 
         self._emit(investigation_id, "report_assembled", {

@@ -25,14 +25,14 @@ VALID_SHA = "a" * 64
 def _make_run_result(
     kind: str,
     conclusion: str = "above_threshold",
-    ratio: float = 0.6,
+    ratio: float | None = None,
     status: str = "ok",
 ) -> RunResult:
     outputs = (
         {
             "result": {
                 "conclusion": conclusion,
-                "ratio": ratio,
+                "ratio": (0.6 if conclusion == "above_threshold" else 0.4) if ratio is None else ratio,
                 "numpy_version": "1.26.4" if kind == "old" else "2.0.0",
                 "intermediate_dtype": "float64" if kind == "old" else "float32",
             }

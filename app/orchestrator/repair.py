@@ -20,6 +20,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from app.domain.comparison import evaluate_output
 from app.domain.contract import ContractBody
 from app.providers.runner import RunManifest, RunnerAdapter, make_run_id
 
@@ -155,6 +156,7 @@ def _run_one(
     kind: Literal["old", "new"],
     timeout: int,
     runner: RunnerAdapter,
+    contract: ContractBody,
 ) -> tuple[str, str | None]:
     """Submit a single run and return (status, conclusion)."""
     sha256 = _hash_input(input_json)
@@ -168,9 +170,12 @@ def _run_one(
     )
     result = runner.submit(manifest)
     outputs = result.outputs
-    inner = outputs.get("result", outputs)
-    conclusion = inner.get("conclusion") if isinstance(inner, dict) else None
-    return result.status, conclusion
+    if result.status != "ok":
+        return result.status, None
+    try:
+        return "ok", evaluate_output(outputs, contract)["conclusion"]
+    except (ValueError, TypeError, OverflowError):
+        return "error", None
 
 
 # ---------------------------------------------------------------------------
@@ -219,8 +224,8 @@ def verify_patch(
         sha256 = _hash_input(holdout_input)
 
         # Baseline: run without patch
-        old_status, old_conclusion = _run_one(holdout_input, "old", timeout, runner)
-        new_status, new_conclusion = _run_one(holdout_input, "new", timeout, runner)
+        old_status, old_conclusion = _run_one(holdout_input, "old", timeout, runner, contract)
+        new_status, new_conclusion = _run_one(holdout_input, "new", timeout, runner, contract)
         baseline_consistent = (
             old_status == "ok"
             and new_status == "ok"
@@ -229,10 +234,10 @@ def verify_patch(
 
         # Patched run: inject _mode
         patched_input = {**holdout_input, "_mode": mode}
-        p_old_status, p_old_conclusion = _run_one(patched_input, "old", timeout, runner)
-        p_new_status, p_new_conclusion = _run_one(patched_input, "new", timeout, runner)
+        p_old_status, p_old_conclusion = _run_one(patched_input, "old", timeout, runner, contract)
+        p_new_status, p_new_conclusion = _run_one(patched_input, "new", timeout, runner, contract)
 
-        if p_old_status != "ok" or p_new_status != "ok":
+        if old_status != "ok" or new_status != "ok" or p_old_status != "ok" or p_new_status != "ok":
             check_status: Literal["pass", "fail", "not_run"] = "not_run"
         elif p_old_conclusion != p_new_conclusion:
             # After patch, old and new conclusions still differ → fail
@@ -261,7 +266,7 @@ def verify_patch(
     num_not_run = sum(1 for r in holdout_results if r.check_status == "not_run")
     all_passed = num_failed == 0 and num_not_run == 0 and num_passed == len(holdouts)
 
-    if num_not_run > 0 and num_passed == 0:
+    if num_not_run > 0 and num_failed == 0:
         verdict: Literal[
             "repair_passes_stated_checks",
             "repair_fails_stated_checks",

@@ -193,10 +193,17 @@
           setClass("icon-repair", "done");
           setText("detail-repair", "Predefined fixture checks completed");
         }
+        var failures = events.filter(function (event) { return event.event_type === "stage_failed"; });
+        failures.forEach(function (event) {
+          var failure = event.payload || {};
+          var stage = failure.stage === "overfitted_repair" || failure.stage === "good_repair" ? "repair" : failure.stage;
+          setClass("icon-" + stage, "failed");
+          setText("detail-" + stage, "Failed: " + (failure.error || "Stage did not finish"));
+        });
         if (status === "completed") {
           setClass("icon-complete", "done");
           setText("detail-complete", "Verdict: " + (data.verdict || "unknown"));
-          setText("status-msg", "Investigation complete.");
+          setText("status-msg", failures.length ? "Investigation finished with failed stages; review report limitations." : "Investigation complete.");
 
           // Show links
           var links = document.getElementById("complete-links");

@@ -1,4 +1,4 @@
-# ReproDelta contributor instructions
+# ReproDelta contributor instructions.
 
 This repository contains a curated hackathon fixture and planning documents. Describe implemented behavior, simulated behavior, and proposed capabilities separately.
 

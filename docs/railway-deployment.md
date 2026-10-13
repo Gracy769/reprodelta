@@ -37,3 +37,12 @@ been confirmed in this Railway workspace.
 Before considering a deployment complete, check the Railway deployment status,
 `/health`, the home page, `/demo/investigation`, and the GitHub sign-in callback.
 The latter requires the OAuth client variables and updated callback above.
+
+## Operator verification after merging the hardening PR
+
+1. Deploy the reviewed main revision. Use one API process/replica and a persistent Postgres database. Configure stable `SECRET_KEY`, `APP_URL`, and the provider callback/domain settings. Check `/health` and `/ready`; readiness must establish both pinned versions and the source hashes.
+2. Confirm sign-in with your real GitHub/Firebase account. Open a second account or private browser session and confirm it cannot read the first account's investigation, events, exports or repair results. Guest ownership is session-local; it is not a replacement for provider sign-in.
+3. Configure Nebius only when ready for a billable test: verify the available model ID and pricing, set the API key as a secret, and set `NEBIUS_CALL_COST_CEILING_USD` to a conservative verified bound. Sign in and run one budgeted investigation; confirm model proposals are marked live, provider usage is recorded, failures remain explicit and the actual proposed diff passes or fails based on executions. Do not call a mock proposal live evidence.
+4. Download report JSON/text and record the deployed revision. Restart the real service; check that the same owner's completed export is unchanged and a deliberately interrupted job is never reported as completed. Take a database backup before recovery testing. Confirm health after restart and automatic deployment behavior.
+
+The agent has not performed these live checks: no Railway credentials or billable Nebius authorization were supplied, by user request. Disposable CI exercises Docker, pinned workers, Postgres and recovery without those secrets. Legacy shared-owner investigations must be handled administratively; their ownership cannot safely be inferred.

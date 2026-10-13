@@ -331,3 +331,28 @@ Only a restricted numerical subset in existing function bodies is executable: al
 `POST /api/investigations/{id}/verify-patch` requires stored witness evidence and uses that investigation's sealed holdouts and contract. Older evidence without sealed inputs remains inconclusive. The verification result is stored in an event; immutable final evidence is not overwritten. New investigation reports use schema version 3 and include the model diff result, hashes, actual run records, and sealed inputs.
 
 To run the actual interpreter tests without Docker, provision two Python 3.12 environments containing `numpy==1.26.4` and `numpy==2.0.2`, set `REPRODELTA_OLD_PYTHON` and `REPRODELTA_NEW_PYTHON` to their interpreter paths, and run `python -m pytest tests/integration/test_real_repair.py -q`. `PinnedPythonRunnerAdapter` is an explicit development harness and is never selected by the public API. Real hosted execution uses `RUNNER_MODE=worker_http`; local simulation reports model diff verification as inconclusive.
+
+## Ownership, budgets and deployment verification
+
+Investigation APIs enforce the stored owner for state, events, streams, evidence, reports, execution and repair verification. Provider/Firebase sessions and bearer identities use the existing signature/expiry verifier. Guest demos receive a signed, HttpOnly, SameSite session with a separate owner; another guest cannot read their evidence. Contract approval is per owner. Invalid sessions fail closed, and cross-origin writes are rejected. Guest demos cannot start live model calls. Legacy rows with the old shared `user` owner are intentionally inaccessible through the public API; do not guess their owner.
+
+Every runner stage shares an investigation ledger: controls, search, reduction, interventions, both predefined checks, executed model diffs and demonstration comparisons. Run/model-call/token/cost reservations happen before dispatch; failures retain reservations. API limits are immutable after creation, and ad-hoc exploration creates an owned 20-run investigation instead of using the unbudgeted `demo` alias. PostgreSQL reservations use row locks and persist across restarts; filesystem reservations are safe within the supported single API process. Wall deadlines persist from the first dispatch and constrain runner/model timeouts. Low-budget or incomplete comparison evidence is labeled explicitly.
+
+Dollar reservations are operator-configured worst-case ceilings, not measured provider invoices. Live model calls fail closed unless `NEBIUS_CALL_COST_CEILING_USD` is positive; configure it from verified model pricing and request limits before enabling billable calls. The ledger also conservatively reserves UTF-8 prompt bytes plus the maximum output tokens. Reports retain provider-reported usage separately. This does not implement account-wide billing reconciliation or per-owner daily quotas.
+
+`/health` remains liveness. `/ready` checks session-key configuration, storage and both worker runtime versions/source hashes; it explicitly reports that external authentication and live Nebius were not probed. Worker `/health` exposes no secrets. Hosted/worker mode requires a stable secret of at least 32 characters. Deploy one API process/replica: the interruption detector does not yet support distributed leases. Compose API images now contain the fixture source used for hash validation.
+
+GitHub CI provisions pinned interpreters and a dedicated PostgreSQL database, tests ownership/budget/restart behavior, and builds a disposable Docker Compose deployment in mock model mode. The Docker smoke check exercises real HTTP workers, actual model-diff execution, report export, owner isolation, completed-report recovery and interrupted-job recovery after API restart. It does not use live credentials or deploy to Railway.
+
+## Demonstration comparison and replay
+
+The second constructed case (`sensor_offset`) compares a calibrated float32 reading plus a small Python-float offset to 1.0. NumPy 1.26 and 2.0 produce different intermediate precision. The original power-ratio case, the sensor case and a clearly unchanged control are evaluated with fixed replay, seeded random valid search and an informed boundary sweep. Each strategy receives the same paired-execution cap and runs to that cap; first-witness position and every input/result are recorded. The informed sweep deliberately knows the boundary. Two examples of one promotion mechanism and a control do not establish general superiority or scientific correctness.
+
+`docs/evidence/demonstration.json` contains actual observations, source contents and hashes for a four-pair cap per strategy (72 executions total). `docs/evidence/replay.json` records an exact replay of all 72 executions; companion SHA-256 files cover the exports. Reproduce with two Python 3.12 environments containing NumPy 1.26.4/2.0.2:
+
+```sh
+python scripts/export_demonstration.py --old-python OLD --new-python NEW --pairs 4 --output demonstration.json
+python scripts/export_demonstration.py --old-python OLD --new-python NEW --replay demonstration.json --output replay.json
+```
+
+The main investigation includes an eight-pair comparison per strategy when its shared budget permits. Evidence/report exports retain incomplete rows and their limitations. The sensor case currently supplies comparative replay evidence; the constrained model repair allowlist remains limited to the original power pipeline.

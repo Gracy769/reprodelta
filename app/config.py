@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     nebius_api_key: str | None = None
     nebius_model_id: str = "nvidia/Nemotron-3_5-Lightning"
     nebius_base_url: str = "https://api.tokenfactory.nebius.com/v1"
+    nebius_call_cost_ceiling_usd: float = 0.0
     nebius_check_model_on_startup: bool = False
 
     # Application security

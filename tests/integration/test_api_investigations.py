@@ -139,8 +139,9 @@ async def test_run_pair_valid_input_returns_200(app_with_local_runner):
     async with AsyncClient(
         transport=ASGITransport(app=app_with_local_runner), base_url="http://test"
     ) as client:
+        created = await client.post("/api/investigations", json={"project_id": DEMO_PROJECT_ID})
         response = await client.post(
-            "/api/investigations/demo/run-pair",
+            f"/api/investigations/{created.json()['id']}/run-pair",
             json={"input_json": VALID_INPUT},
         )
     assert response.status_code == 200
@@ -154,8 +155,9 @@ async def test_run_pair_result_structure(app_with_local_runner):
     async with AsyncClient(
         transport=ASGITransport(app=app_with_local_runner), base_url="http://test"
     ) as client:
+        created = await client.post("/api/investigations", json={"project_id": DEMO_PROJECT_ID})
         response = await client.post(
-            "/api/investigations/demo/run-pair",
+            f"/api/investigations/{created.json()['id']}/run-pair",
             json={"input_json": VALID_INPUT},
         )
     body = response.json()
@@ -174,8 +176,9 @@ async def test_run_pair_comparison_has_verdict(app_with_local_runner):
     async with AsyncClient(
         transport=ASGITransport(app=app_with_local_runner), base_url="http://test"
     ) as client:
+        created = await client.post("/api/investigations", json={"project_id": DEMO_PROJECT_ID})
         response = await client.post(
-            "/api/investigations/demo/run-pair",
+            f"/api/investigations/{created.json()['id']}/run-pair",
             json={"input_json": VALID_INPUT},
         )
     body = response.json()
@@ -192,8 +195,9 @@ async def test_run_pair_invalid_input_wrong_length_returns_422(app_with_local_ru
     async with AsyncClient(
         transport=ASGITransport(app=app_with_local_runner), base_url="http://test"
     ) as client:
+        created = await client.post("/api/investigations", json={"project_id": DEMO_PROJECT_ID})
         response = await client.post(
-            "/api/investigations/demo/run-pair",
+            f"/api/investigations/{created.json()['id']}/run-pair",
             json={"input_json": {"signal": [1.0, 2.0]}},
         )
     assert response.status_code == 422
@@ -203,8 +207,9 @@ async def test_run_pair_invalid_input_out_of_range_returns_422(app_with_local_ru
     async with AsyncClient(
         transport=ASGITransport(app=app_with_local_runner), base_url="http://test"
     ) as client:
+        created = await client.post("/api/investigations", json={"project_id": DEMO_PROJECT_ID})
         response = await client.post(
-            "/api/investigations/demo/run-pair",
+            f"/api/investigations/{created.json()['id']}/run-pair",
             json={"input_json": {"signal": [100.0] * 8}},
         )
     assert response.status_code == 422
@@ -214,8 +219,9 @@ async def test_run_pair_missing_field_returns_422(app_with_local_runner):
     async with AsyncClient(
         transport=ASGITransport(app=app_with_local_runner), base_url="http://test"
     ) as client:
+        created = await client.post("/api/investigations", json={"project_id": DEMO_PROJECT_ID})
         response = await client.post(
-            "/api/investigations/demo/run-pair",
+            f"/api/investigations/{created.json()['id']}/run-pair",
             json={"input_json": {}},
         )
     assert response.status_code == 422

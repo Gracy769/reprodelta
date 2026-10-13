@@ -361,9 +361,10 @@ class TestReportAPIEndpoints:
 
     def _create_and_complete_investigation(self) -> str:
         """Register a fake completed investigation in global state."""
-        inv_id = self.store.create_investigation(
-            "00000000-0000-0000-0000-000000000001", {"max_candidates": 50, "max_runs": 200}
-        )
+        inv_id = self.client.post("/api/investigations", json={
+            "project_id": "00000000-0000-0000-0000-000000000001",
+            "max_candidates": 50, "max_runs": 200,
+        }).json()["id"]
         self.store.transition_status(inv_id, "running")
         self.store.transition_status(inv_id, "completed")
         self._investigations[inv_id] = {

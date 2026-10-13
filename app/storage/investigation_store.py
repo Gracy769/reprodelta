@@ -23,6 +23,7 @@ import json
 import os
 import tempfile
 import threading
+import time
 import uuid
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
@@ -120,6 +121,16 @@ class InvestigationStore(ABC):
     def get_approval(self, project_id: str) -> dict | None:
         """Return the project's approved contract hash, if any."""
 
+    def check_ready(self) -> None:
+        """Memory is ready; filesystem persistence checks its writable volume."""
+        if hasattr(self, "_base"):
+            self._base.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryFile(dir=self._base) as probe:
+                probe.write(b"ready")
+
+    def reserve_budget(self, investigation_id: str, **amounts) -> dict:
+        raise NotImplementedError("Budget reservations are unavailable in this store")
+
     @abstractmethod
     def get_events(self, investigation_id: str) -> list[dict]:
         """Return all events in sequence order."""
@@ -162,6 +173,15 @@ class MemoryInvestigationStore(InvestigationStore):
             }
             self._events[inv_id] = []
         return inv_id
+
+    def reserve_budget(self, investigation_id: str, **amounts) -> dict:
+        from app.orchestrator.budget import reserve
+        with self._lock:
+            record = self._records[investigation_id]
+            budget = record["budget_json"]
+            usage = reserve(budget.get("usage", {}), budget, **amounts)
+            record["budget_json"] = {**budget, "usage": usage}
+            return usage
 
     def transition_status(self, investigation_id: str, new_status: str) -> None:
         with self._lock:
@@ -217,6 +237,7 @@ class MemoryInvestigationStore(InvestigationStore):
             return {
                 "id": record["id"],
                 "project_id": record["project_id"],
+                "owner_id": record["owner_id"],
                 "status": record["status"],
                 "budget_json": record["budget_json"],
                 "report_available": record["report_json"] is not None,
@@ -330,7 +351,14 @@ class FileSystemInvestigationStore(InvestigationStore):
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as fh:
                 fh.write(data)
-            os.replace(tmp, path)
+            for attempt in range(10):
+                try:
+                    os.replace(tmp, path)
+                    break
+                except PermissionError:
+                    if attempt == 9 or os.name != "nt":
+                        raise
+                    time.sleep(0.02 * (attempt + 1))
         except Exception:
             with contextlib.suppress(OSError):
                 os.unlink(tmp)
@@ -404,6 +432,18 @@ class FileSystemInvestigationStore(InvestigationStore):
             self._write_state(inv_id, state)
         return inv_id
 
+    def reserve_budget(self, investigation_id: str, **amounts) -> dict:
+        from app.orchestrator.budget import reserve
+        with self._lock:
+            state = self._read_state(investigation_id)
+            if state is None:
+                raise KeyError(investigation_id)
+            budget = state["budget_json"]
+            usage = reserve(budget.get("usage", {}), budget, **amounts)
+            state["budget_json"] = {**budget, "usage": usage}
+            self._write_state(investigation_id, state)
+            return usage
+
     def transition_status(self, investigation_id: str, new_status: str) -> None:
         with self._lock:
             state = self._read_state(investigation_id)
@@ -472,6 +512,7 @@ class FileSystemInvestigationStore(InvestigationStore):
         return {
             "id": state["id"],
             "project_id": state["project_id"],
+            "owner_id": state.get("owner_id"),
             "status": state["status"],
             "budget_json": state.get("budget_json", {}),
             "report_available": state["status"] == "completed"

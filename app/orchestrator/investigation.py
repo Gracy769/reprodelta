@@ -31,6 +31,7 @@ from app.domain.evidence import (
     WitnessEvidence,
 )
 from app.domain.types import BudgetConfig, VerdictKind
+from app.orchestrator.budget import BudgetLedger, BudgetRunner
 from app.orchestrator.executor import compare_outputs, run_control
 from app.orchestrator.intervention import (
     FIXTURE_INTERVENTION,
@@ -215,6 +216,9 @@ class InvestigationRunner:
         designed to be executed in a thread or wrapped with asyncio.to_thread()
         at the API layer.
         """
+        ledger = BudgetLedger(self.budget, self._store, investigation_id)
+        self.runner = BudgetRunner(self.runner, ledger)
+        self._nebius.budget_ledger = ledger
         contract_hash = hash_contract(self.contract)
         control_sha256 = _hash_input(self._CONTROL_INPUT)
 
@@ -492,7 +496,7 @@ class InvestigationRunner:
             record_failure("search", ValueError("A candidate execution or output validation failed"))
         elif progress.status == "exhausted":
             hints = {c.pair_result.comparison["verdict_hint"] for c in progress.candidates if c.pair_result}
-            verdict = (VerdictKind.inconclusive if VerdictKind.inconclusive in hints
+            verdict = (VerdictKind.inconclusive if not hints or VerdictKind.inconclusive in hints
                        else VerdictKind.observed_drift if VerdictKind.observed_drift in hints
                        else VerdictKind.no_violation_found)
             self._emit(investigation_id, "witness_not_found", {
@@ -508,6 +512,11 @@ class InvestigationRunner:
         # ------------------------------------------------------------------
         # 10. Assemble final InvestigationEvidence
         # ------------------------------------------------------------------
+        from app.orchestrator.benchmark import compare_searches
+        demonstration_comparison = compare_searches(self.runner)
+        self._emit(investigation_id, "demonstration_compared", {"status": demonstration_comparison["status"]})
+        if demonstration_comparison["status"] != "completed":
+            record_failure("demonstration", ValueError("Comparison stopped at the shared execution budget"))
         evidence = InvestigationEvidence(
             investigation_id=investigation_id,
             project_name=self.PROJECT_NAME,
@@ -524,6 +533,8 @@ class InvestigationRunner:
             patch_results=patch_results,
             model_patch_result=model_patch_result,
             frozen_holdouts=sealed_holdouts,
+            budget_usage=ledger.usage,
+            demonstration_comparison=demonstration_comparison,
             stage_failures=stage_failures,
         )
 

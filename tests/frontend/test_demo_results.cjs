@@ -14,7 +14,7 @@ async function render(payload) {
       addEventListener(event, handler) { this.handler = handler; } });
     return elements.get(id);
   }};
-  vm.runInNewContext(script, { document, alert() {}, fetch: async () => ({ ok: true, json: async () => payload }) });
+  vm.runInNewContext(script, { document, alert() {}, fetch: async (url) => ({ ok: true, json: async () => url === "/api/investigations" ? {id: "probe"} : payload }) });
   document.getElementById('run-btn').handler();
   await new Promise(resolve => setImmediate(resolve));
   return elements;

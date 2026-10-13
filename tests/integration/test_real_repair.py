@@ -178,19 +178,21 @@ async def test_api_uses_persisted_cases_and_keeps_final_evidence_immutable(monke
     from app.storage.investigation_store import MemoryInvestigationStore
 
     store = MemoryInvestigationStore()
-    inv_id = store.create_investigation(str(api.DEMO_PROJECT_ID), {}, "user")
     sealed = {
         "witness": {"input_json": WITNESS},
         "contract_body": FIXTURE_CONTRACT.model_dump(),
         "contract_hash": hash_contract(FIXTURE_CONTRACT),
         "frozen_holdouts": copy.deepcopy(FIXTURE_HOLDOUTS[:1]),
     }
-    store.store_evidence(inv_id, sealed)
     monkeypatch.setattr(api, "_store", store)
     monkeypatch.setattr(api, "_investigations", {})
     app.dependency_overrides[api.get_runner] = lambda: LocalRunnerAdapter()
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            inv_id = (await client.post("/api/investigations", json={"project_id": str(api.DEMO_PROJECT_ID)})).json()["id"]
+            store.store_evidence(inv_id, sealed)
+            store.transition_status(inv_id, "running")
+            store.transition_status(inv_id, "completed")
             response = await client.post(
                 f"/api/investigations/{inv_id}/verify-patch",
                 json={"diff_text": extract_diff(MOCK_RESPONSES["patch_proposal"])},

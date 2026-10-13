@@ -520,6 +520,17 @@
     // Patch results
     renderPatchResults(data.patch_results);
 
+    if (data.demonstration_comparison) {
+      var comparison = document.createElement("section");
+      comparison.className = "section";
+      comparison.appendChild(el("h2", null, ["Equal-budget demonstration comparisons"]));
+      comparison.appendChild(el("p", null, [data.demonstration_comparison.status]));
+      data.demonstration_comparison.rows.forEach(function(row) {
+        comparison.appendChild(el("p", null, [row.case + " / " + row.strategy + ": " + row.completed_pairs + "/" + row.pair_budget + " pairs; first witness: " + (row.first_witness_pair || "none")]));
+      });
+      data.demonstration_comparison.limitations.forEach(function(item) { comparison.appendChild(el("p", null, [item])); });
+      document.getElementById("main-content").appendChild(comparison);
+    }
     // Trace
     document.getElementById("ev-trace").textContent = JSON.stringify(data, null, 2);
 

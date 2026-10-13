@@ -12,7 +12,7 @@ import json
 import re
 from pathlib import Path
 
-PROJECT_FILES = ("pipeline.py", "run.py")
+PROJECT_FILES = ("pipeline.py", "run.py", "sensor.py")
 PATCH_PATH = "fixture/project/pipeline.py"
 
 

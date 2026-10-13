@@ -119,7 +119,7 @@ class NebiusClient:
     def __init__(
         self,
         api_key: str | None,
-        model_id: str = "nvidia/Nemotron-3_5-Lightning",
+        model_id: str = "nvidia/Nemotron-3-Ultra-550b-a55b",
         api_base: str = _API_BASE,
     ) -> None:
         self._api_key = api_key

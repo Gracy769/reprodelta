@@ -18,8 +18,20 @@ Set these variables on `reprodelta-web`:
 | `GITLAB_OAUTH_CLIENT_ID` and `GITLAB_OAUTH_CLIENT_SECRET` | Optional GitLab application credentials |
 | `NEON_AUTH_BASE_URL` and `NEON_AUTH_JWKS_URL` | Optional managed email/Google auth service, only after this public domain is trusted there |
 | `NEBIUS_API_KEY` | Optional; without it model suggestions are labeled mock mode |
-| `NEBIUS_MODEL_ID` | Optional; defaults to `nvidia/Nemotron-3_5-Lightning` |
+| `NEBIUS_MODEL_ID` | `nvidia/Nemotron-3-Ultra-550b-a55b`, the exact ID returned by the Nebius models endpoint |
 | `NEBIUS_CALL_COST_CEILING_USD` | Required for live calls; set a positive per-call reservation after verifying current model pricing. The default `0` blocks billable calls. |
+
+Guest runs of the curated demo always use labeled mock model proposals, even when a
+Nebius key is configured. Authenticated investigations use the live provider only
+after a positive cost reservation has been configured. This keeps the public demo
+usable without allowing anonymous traffic to spend the key.
+
+For the current Ultra model, Railway reserves `$0.05` per live call, against the
+default `$0.10` investigation budget. Nebius [lists Ultra at $1 per million input
+tokens and $3 per million output tokens](https://nebius.com/services/token-factory/models/nvidia-nemotron-models-inference);
+recheck pricing before changing the bounded prompts or the 1024-token output cap.
+This reservation is an application budget, not a provider-side spending limit or
+an account-wide quota.
 
 The GitHub OAuth App callback must be
 `https://reprodelta-web-production.up.railway.app/oauth/github/callback`.

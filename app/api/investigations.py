@@ -39,6 +39,7 @@ from app.domain.validator import validate_input
 from app.orchestrator.budget import BudgetExceeded, BudgetLedger, BudgetRunner
 from app.orchestrator.executor import PairedRunRequest, PairedRunResult, run_pair
 from app.orchestrator.investigation import InvestigationRunner
+from app.providers.nebius import NebiusClient
 from app.providers.runner import LocalRunnerAdapter, RunnerAdapter, WorkerHttpRunnerAdapter
 from app.storage.investigation_store import InvestigationStore, make_investigation_store
 
@@ -214,10 +215,19 @@ def _run_investigation_sync(
         budget = BudgetConfig(
             **{key: value for key, value in budget_values.items() if key != "usage"}
         )
+        guest_client = None
+        if saved and str(saved.get("owner_id", "")).startswith("guest:"):
+            settings = get_settings()
+            guest_client = NebiusClient(
+                api_key=None,
+                model_id=settings.nebius_model_id,
+                api_base=settings.nebius_base_url,
+            )
         inv_runner = InvestigationRunner(
             contract=FIXTURE_CONTRACT,
             budget=budget,
             runner=runner,
+            nebius_client=guest_client,
             store=store,
         )
         evidence = inv_runner.run_full_investigation(investigation_id)
@@ -346,8 +356,6 @@ async def start_investigation(
     if record["status"] != "draft":
         raise HTTPException(status_code=409, detail="Investigation has already been started")
 
-    if (owner_context.get() or "").startswith("guest:") and not get_settings().mock_llm:
-        raise HTTPException(403, "Sign in before starting an investigation with live model calls")
     state = _investigation_state.setdefault(investigation_id, {})
     store = get_store()
     try:

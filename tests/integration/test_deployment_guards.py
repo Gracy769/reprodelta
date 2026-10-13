@@ -245,16 +245,26 @@ def test_live_model_fails_closed_without_cost_configuration(monkeypatch):
     assert not client.budget_ledger.usage
 
 
-async def test_guest_cannot_trigger_live_billable_model(guarded_app, monkeypatch):
+async def test_guest_demo_uses_mock_even_when_server_has_live_key(guarded_app, monkeypatch):
     from app.config import get_settings
 
     monkeypatch.setattr(get_settings(), "nebius_api_key", "test-only-never-sent")
+    monkeypatch.setattr(get_settings(), "nebius_call_cost_ceiling_usd", 0)
     async with AsyncClient(
         transport=ASGITransport(app=guarded_app), base_url="http://test"
     ) as client:
         assert (await client.post(f"/api/projects/{PROJECT}/contract/approve")).status_code == 200
         inv = (await client.post("/api/investigations", json={"project_id": PROJECT})).json()["id"]
-        assert (await client.post(f"/api/investigations/{inv}/start")).status_code == 403
+        assert (await client.post(f"/api/investigations/{inv}/start")).status_code == 202
+        for _ in range(100):
+            progress = (await client.get(f"/api/investigations/{inv}/progress")).json()
+            if progress["status"] in {"completed", "failed"}:
+                break
+            await asyncio.sleep(0.05)
+        assert progress["status"] == "completed", progress
+        report = (await client.get(f"/api/investigations/{inv}/report")).json()
+        assert report["model_proposals"]
+        assert all(proposal["is_mock"] for proposal in report["model_proposals"])
 
 
 async def test_unreviewed_fixture_mode_cannot_enter_public_pair(guarded_app):

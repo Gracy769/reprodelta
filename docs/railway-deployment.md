@@ -26,6 +26,13 @@ Nebius key is configured. Authenticated investigations use the live provider onl
 after a positive cost reservation has been configured. This keeps the public demo
 usable without allowing anonymous traffic to spend the key.
 
+For the current Ultra model, Railway reserves `$0.05` per live call, against the
+default `$0.10` investigation budget. Nebius [lists Ultra at $1 per million input
+tokens and $3 per million output tokens](https://nebius.com/services/token-factory/models/nvidia-nemotron-models-inference);
+recheck pricing before changing the bounded prompts or the 1024-token output cap.
+This reservation is an application budget, not a provider-side spending limit or
+an account-wide quota.
+
 The GitHub OAuth App callback must be
 `https://reprodelta-web-production.up.railway.app/oauth/github/callback`.
 For GitLab, use

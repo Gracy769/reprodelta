@@ -10,7 +10,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from app.orchestrator.benchmark import compare_searches  # noqa: E402
-from app.providers.runner import LocalRunnerAdapter, PinnedPythonRunnerAdapter, RunManifest  # noqa: E402
+from app.providers.runner import (  # noqa: E402
+    LocalRunnerAdapter,
+    PinnedPythonRunnerAdapter,
+    RunManifest,
+)
 from runner.patching import project_digest, project_sources  # noqa: E402
 
 

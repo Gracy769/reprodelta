@@ -1,0 +1,35 @@
+name: Real repair execution
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  pinned-repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NEBIUS_API_KEY: ""
+      RUNNER_MODE: local
+      INVESTIGATION_STORE: auto
+      PERSIST_INVESTIGATIONS: "false"
+      REPRODELTA_OLD_PYTHON: ${{ github.workspace }}/.repair-old/bin/python
+      REPRODELTA_NEW_PYTHON: ${{ github.workspace }}/.repair-new/bin/python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Provision controller and pinned NumPy environments
+        run: |
+          python -m pip install -e '.[dev]'
+          python -m venv .repair-old
+          python -m venv .repair-new
+          .repair-old/bin/pip install numpy==1.26.4
+          .repair-new/bin/pip install numpy==2.0.2
+      - name: Verify actual repairs, worker protocol and isolation policy
+        run: python -m pytest tests/integration/test_real_repair.py tests/integration/test_runner.py tests/adversarial/test_security.py -q

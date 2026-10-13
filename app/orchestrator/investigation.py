@@ -16,6 +16,7 @@ Steps:
 from __future__ import annotations
 
 import asyncio
+import copy
 import hashlib
 import json
 from datetime import UTC, datetime
@@ -264,7 +265,7 @@ class InvestigationRunner:
         })
 
         # The fixture holdouts are fixed before any model proposal is requested.
-        sealed_holdouts = list(FIXTURE_HOLDOUTS)
+        sealed_holdouts = copy.deepcopy(FIXTURE_HOLDOUTS)
         self._emit(investigation_id, "holdouts_sealed", {
             "count": len(sealed_holdouts),
             "sha256": _hash_input({"holdouts": sealed_holdouts}),
@@ -296,6 +297,7 @@ class InvestigationRunner:
         model_proposals: list[ModelProposal] = []
         intervention_result: InterventionRunResult | None = None
         patch_results: list[VerificationResult] = []
+        model_patch_result = None
 
         if progress.witness is not None:
             cand = progress.witness
@@ -425,6 +427,18 @@ class InvestigationRunner:
                     "is_mock": patch_proposal.is_mock,
                     "model_id": patch_proposal.model_id,
                 })
+                from app.orchestrator.patch_verifier import (
+                    ProposedPatch,
+                    apply_and_verify_patch,
+                    extract_diff,
+                )
+                model_patch_result = apply_and_verify_patch(
+                    ProposedPatch(diff_text=extract_diff(patch_proposal.response_text)),
+                    sealed_holdouts, cand.input_json, self.contract, self.runner,
+                )
+                self._emit(investigation_id, "model_patch_verified", model_patch_result.model_dump(mode="json"))
+                if model_patch_result.verdict in ("inconclusive", "invalid_patch"):
+                    record_failure("model_repair", ValueError(model_patch_result.verdict))
             except NebiusError as exc:
                 record_failure("patch_proposal", exc)
                 self._emit(investigation_id, "model_call_failed", {
@@ -508,6 +522,8 @@ class InvestigationRunner:
             model_proposals=model_proposals,
             intervention=intervention_result,
             patch_results=patch_results,
+            model_patch_result=model_patch_result,
+            frozen_holdouts=sealed_holdouts,
             stage_failures=stage_failures,
         )
 

@@ -7,6 +7,8 @@ WORKDIR /runner
 
 COPY runner/entrypoint.py ./entrypoint.py
 COPY runner/server.py ./server.py
+COPY runner/patching.py ./patching.py
+COPY runner/execute_project.py ./execute_project.py
 COPY fixture/project/ /fixture/project/
 ENV FIXTURE_DIR=/fixture/project EXPECTED_RUNNER_KIND=new
 

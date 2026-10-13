@@ -61,3 +61,9 @@ notes that cross-site cookies can be affected by browser policy. A narrow
 same-origin bridge covers email/password and session/JWT endpoints; social
 OAuth redirects remain managed by the Auth provider and need browser testing
 with real provider accounts before broad compatibility can be claimed.
+
+## Curated model repair execution (implemented)
+
+Only exact diffs to `fixture/project/pipeline.py` are executable. Both controller and worker validate a restricted numerical AST; module code/imports/constants/signatures are immutable, and dynamic calls, attribute/input mutation, I/O, introspection and unbounded loops are rejected. This restriction is not a general Python sandbox. The worker validates the input hash, base project hash, patched project hash and bounded eight-sample domain independently, then uses a fresh read-only source copy. A trusted launcher enforces POSIX address-space and CPU limits before importing project code. No provider/database secrets are inherited. Compose retains internal networking, unprivileged users, dropped capabilities and read-only images, with bounded ephemeral `/tmp`.
+
+Worker metadata records its installed NumPy version outside proposed code, so a patched function cannot establish the runtime version by returning a fabricated field. The verifier requires matching trusted hashes/versions and complete outputs for the witness and every sealed holdout; neither absent evidence nor predefined repair modes can verify a model diff. Originals, contracts and holdouts are not modified. Windows interpreter tests establish execution behavior, not container/POSIX isolation; Docker deployment must still be verified before claiming that boundary end to end.

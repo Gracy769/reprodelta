@@ -39,3 +39,7 @@ Prior work includes differential numerical tests, floating-point localization, a
 **Gate 1, credible demo:** complete the six live steps in the [PRD](product-requirements.md); repeat them from a clean environment; confirm each artifact digest and final report. **Gate 2, safety:** adversarial runner tests pass before accepting any non-curated code. **Gate 3, submission:** public demo stays available and free for judges; repository includes source, license and setup instructions; video is under three minutes and shows a live NVIDIA/Nebius call as part of the workflow. [Hackathon rules](https://nebiusglobalaihackathon.devpost.com/rules)
 
 On failure, identify the exact stage. A setup failure, inconclusive scientific assessment, and confirmed changed conclusion are different outcomes and must remain separate in both API and UI.
+
+## Executed model diff gate
+
+`test_real_repair.py` covers real good, overfitted and no-op source diffs in both pinned NumPy interpreters, exact-context rejection, prohibited code, unchanged original hashes and unchanged holdouts. Set `REPRODELTA_OLD_PYTHON`/`REPRODELTA_NEW_PYTHON` to run actual execution tests; they skip when environments are absent. Other tests check refusal in local simulation, worker hash/version errors, timeout handling and API use of persisted frozen evidence. New reports use schema version 3; older evidence remains readable and cannot acquire a passing repair without recorded frozen cases.

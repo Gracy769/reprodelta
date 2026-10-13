@@ -60,7 +60,7 @@ def test_failed_repair_checks_are_not_silently_discarded(monkeypatch):
     monkeypatch.setattr(investigation, "verify_patch", fail)
     evidence = InvestigationRunner(FIXTURE_CONTRACT, BudgetConfig(max_candidates=10, max_runs=100), LocalRunnerAdapter()).run_full_investigation("audit")
     assert evidence.patch_results == []
-    assert {f["stage"] for f in evidence.stage_failures} == {"overfitted_repair", "good_repair"}
+    assert {f["stage"] for f in evidence.stage_failures} == {"overfitted_repair", "good_repair", "model_repair"}
 
 
 def test_missing_intervention_outputs_cannot_support_a_prediction():

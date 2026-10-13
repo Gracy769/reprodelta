@@ -10,7 +10,7 @@ repair against frozen independent cases.
 > - Docker Compose enables filesystem persistence in `ARTIFACT_DIR`; completed investigations, approvals, evidence, and reports survive an API restart. Local mode defaults to memory storage.
 > - Interrupted investigations are never silently shown as completed.
 > - Stage events are emitted at each step (preflight, controls, search, reduction, explanation, intervention, repair, report).
-> - Proposed diffs are checked against a source-path allowlist. They are **not applied or executed yet**, so their verdict is inconclusive. The separate predefined repair fixtures exercise the holdout checks.
+> - Model diffs targeting the curated pipeline are applied with exact hunks to ephemeral, hashed project copies inside pinned workers. The witness and sealed holdouts run before/after the patch in both environments. Unsupported syntax, execution errors or missing evidence cannot pass. Local simulation cannot execute model diffs. Predefined fixture checks remain separately labeled.
 > - Mock LLM mode is explicit; `NebiusError` from live calls surfaces in investigation events.
 > - Reports include `run_mode` (`local_simulation`, `pinned_workers`, or `unverified`) and a `simulated_mode` flag.
 > - Docker remains unverified on this host — see **Docker** section.
@@ -222,7 +222,7 @@ Test coverage by layer:
 | Evaluation | `test_evaluation_fixtures` | Unchanged controls, invalid rejection, overfitted patch, good patch, report fields |
 | Report | `test_report` | Report JSON fields, text summary, replay instructions, run_mode flag |
 | Persistence | `test_persistence` | Restart recovery, interrupt detection, event ordering, report survives restart |
-| Proposed patch scope | `test_patch_verifier` | Rejects disallowed paths and never reports an unexecuted diff as a passing repair |
+| Proposed patch scope | `test_patch_verifier` | Rejects disallowed paths/syntax, applies exact hunks, rejects witness-only and no-op repairs, and never passes incomplete execution evidence |
 | Worker failure | `test_worker_failure` | Timeout → setup_failure, budget exhausted stops search |
 | Integration | `test_api_investigations`, `test_investigation_flow` | Full end-to-end API and investigation run |
 
@@ -319,3 +319,15 @@ The system uses exactly these bounded verdict classes (never a global
 - The repository is private until submission. Add an open-source license and
   make it public per the [hackathon rules](https://nebiusglobalaihackathon.devpost.com/rules)
   before submitting.
+
+## Real model diff verification
+
+The investigation seals a deep copy of the holdouts before model calls. The model receives the curated pipeline source, witness and intervention summary, but no holdouts. The controller validates the exact unified diff and computes base/patched project hashes. Each pinned worker repeats application and syntax validation, creates a fresh copy of `pipeline.py` and unchanged `run.py`, makes the files read-only, executes a child process and removes the copy. The original source is never patched.
+
+The gate records 28 runs: original and patched witness plus six holdouts, each in NumPy 1.26.4 and 2.0.2. The original witness must reproduce a changed declared outcome; patched outcomes must agree. Holdouts with an already consistent conclusion must preserve it. Required dtype agreement is enforced. Failed execution, malformed output, version/hash mismatch or absent frozen cases yields incomplete evidence and cannot pass. A finite passing result means only `repair_passes_stated_checks`. Numerical tolerances still measure drift separately from the declared conclusion.
+
+Only a restricted numerical subset in existing function bodies is executable: allowlisted NumPy/builtin calls, arithmetic, conditions and comprehensions over the bounded signal. Imports, module constants, signatures, attribute/input mutation, filesystem/network access, introspection and unbounded loops are rejected. This is a curated language restriction, not a general Python sandbox. Compose keeps its internal worker network and adds bounded writable `/tmp`; POSIX child processes enforce memory/CPU limits and inherit no provider/database secrets. Windows development subprocesses do not establish POSIX/container isolation.
+
+`POST /api/investigations/{id}/verify-patch` requires stored witness evidence and uses that investigation's sealed holdouts and contract. Older evidence without sealed inputs remains inconclusive. The verification result is stored in an event; immutable final evidence is not overwritten. New investigation reports use schema version 3 and include the model diff result, hashes, actual run records, and sealed inputs.
+
+To run the actual interpreter tests without Docker, provision two Python 3.12 environments containing `numpy==1.26.4` and `numpy==2.0.2`, set `REPRODELTA_OLD_PYTHON` and `REPRODELTA_NEW_PYTHON` to their interpreter paths, and run `python -m pytest tests/integration/test_real_repair.py -q`. `PinnedPythonRunnerAdapter` is an explicit development harness and is never selected by the public API. Real hosted execution uses `RUNNER_MODE=worker_http`; local simulation reports model diff verification as inconclusive.

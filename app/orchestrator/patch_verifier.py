@@ -1,18 +1,21 @@
-"""Validate the scope of an untrusted patch proposal.
+"""Apply a constrained model diff and verify worker evidence against frozen cases."""
 
-This module does not apply proposed source code. The curated repair fixtures in
-``repair.py`` are separate demonstrations and cannot establish that an arbitrary
-model or user supplied diff passes verification.
-"""
 from __future__ import annotations
 
+import copy
+import hashlib
+import json
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.domain.contract import ContractBody
+from app.domain.comparison import evaluate_output
+from app.domain.contract import ContractBody, hash_contract
+from app.domain.validator import validate_input
 from app.orchestrator.repair import HoldoutResult
-from app.providers.runner import RunnerAdapter
+from app.providers.runner import RunManifest, RunnerAdapter, make_run_id
+from runner.patching import apply_diff, project_digest, project_sources
 
 _ALLOWED_PATH = "fixture/project/pipeline.py"
 
@@ -56,6 +59,12 @@ class ConstrainedPatchVerificationResult(BaseModel):
         "invalid_patch",
     ]
     limitations: list[str]
+    witness_result: HoldoutResult | None = None
+    execution_runs: list[dict] = []
+    base_project_sha256: str | None = None
+    patched_project_sha256: str | None = None
+    contract_sha256: str | None = None
+    holdouts_sha256: str | None = None
 
 
 def validate_patch_proposal(diff_text: str) -> PatchParseResult:
@@ -65,23 +74,33 @@ def validate_patch_proposal(diff_text: str) -> PatchParseResult:
     """
     lines = diff_text.splitlines()
     unsupported = [
-        line for line in lines
-        if line.startswith(("rename from ", "rename to ", "copy from ", "copy to ", "GIT binary patch", "Binary files "))
+        line
+        for line in lines
+        if line.startswith(
+            (
+                "rename from ",
+                "rename to ",
+                "copy from ",
+                "copy to ",
+                "GIT binary patch",
+                "Binary files ",
+            )
+        )
     ]
     old_paths = [line[4:].strip() for line in lines if line.startswith("--- ")]
     new_paths = [line[4:].strip() for line in lines if line.startswith("+++ ")]
     git_headers = [line for line in lines if line.startswith("diff --git ")]
     paths = old_paths + new_paths
-    rejected = [path for path in paths if path not in (
-        f"a/{_ALLOWED_PATH}", f"b/{_ALLOWED_PATH}"
-    )]
+    rejected = [path for path in paths if path not in (f"a/{_ALLOWED_PATH}", f"b/{_ALLOWED_PATH}")]
     allowed = [_ALLOWED_PATH] if paths and not rejected else []
     headers_valid = (
         len(old_paths) == len(new_paths) == 1
         and old_paths[0] == f"a/{_ALLOWED_PATH}"
         and new_paths[0] == f"b/{_ALLOWED_PATH}"
         and any(line.startswith("@@ ") for line in lines)
-        and any(line.startswith("+") and not line.startswith("+++") for line in lines)
+        and any(
+            line.startswith(("+", "-")) and not line.startswith(("+++", "---")) for line in lines
+        )
     )
     if unsupported:
         reason = "unsupported_diff_metadata"
@@ -90,7 +109,7 @@ def validate_patch_proposal(diff_text: str) -> PatchParseResult:
     elif rejected:
         reason = f"rejected_paths: {', '.join(rejected)}"
     elif not headers_valid:
-        reason = "not_a_diff: expected one allowlisted file with a hunk and added lines"
+        reason = "not_a_diff: expected one allowlisted file with a hunk and changed lines"
     else:
         reason = None
     return PatchParseResult(
@@ -101,6 +120,31 @@ def validate_patch_proposal(diff_text: str) -> PatchParseResult:
     )
 
 
+def extract_diff(response: str) -> str:
+    """Extract one fenced or plain unified diff without interpreting model prose."""
+    if "```" in response:
+        blocks = response.split("```")
+        candidates = [
+            block.partition("\n")[2]
+            for block in blocks[1::2]
+            if block.partition("\n")[0].strip() in ("", "diff", "patch")
+        ]
+        if len(candidates) != 1:
+            raise ValueError("Expected exactly one diff block")
+        return candidates[0].strip() + "\n"
+    lines = response.splitlines()
+    starts = [
+        i
+        for i, line in enumerate(lines)
+        if line.startswith("diff --git ") or line.startswith("--- ")
+    ]
+    if not starts:
+        raise ValueError("No unified diff in model response")
+    diff = "\n".join(lines[starts[0] :])
+    diff = diff.removesuffix("[MOCK_LLM_MODE - NEBIUS_API_KEY not set]").rstrip()
+    return diff + "\n"
+
+
 def apply_and_verify_patch(
     proposal: ProposedPatch,
     holdouts: list[dict] | None = None,
@@ -108,11 +152,7 @@ def apply_and_verify_patch(
     contract: ContractBody | None = None,
     runner: RunnerAdapter | None = None,
 ) -> ConstrainedPatchVerificationResult:
-    """Return a bounded assessment without claiming an unexecuted diff passed.
-
-    The existing runner protocol accepts inputs, not patched project snapshots.
-    Until that protocol is extended, every in-scope proposal remains inconclusive.
-    """
+    """Execute exact allowed hunks in pinned workers; missing evidence never passes."""
     parsed = validate_patch_proposal(proposal.diff_text)
     path_check = PatchCheckResult(
         check_type="path_allowlist",
@@ -129,21 +169,160 @@ def apply_and_verify_patch(
             limitations=["No patch was applied or executed."],
         )
 
+    checks = [path_check]
+    runs: list[dict] = []
+    base_digest = patched_digest = None
+    frozen_holdouts = copy.deepcopy(holdouts)
+    frozen_witness = copy.deepcopy(witness_input)
+    contract_digest = hash_contract(contract) if contract else None
+    holdouts_digest = hashlib.sha256(
+        json.dumps(frozen_holdouts, sort_keys=True).encode()
+    ).hexdigest()
+    witness_result = None
+    results: list[HoldoutResult] = []
+    verdict = "inconclusive"
+    limitations = [
+        "Bounded curated numerical edits only; no arbitrary Python execution.",
+        "Passing these checks is not proof of scientific correctness.",
+    ]
+    try:
+        if runner is None or contract is None or not frozen_holdouts or frozen_witness is None:
+            raise ValueError(
+                "Runner, approved contract, witness and nonempty frozen holdouts are required"
+            )
+        sources = project_sources(Path(__file__).resolve().parents[2] / "fixture" / "project")
+        base_digest = project_digest(sources)
+        sources["pipeline.py"] = apply_diff(sources["pipeline.py"], proposal.diff_text)
+        patched_digest = project_digest(sources)
+        checks.append(
+            PatchCheckResult(
+                check_type="patch_application",
+                status="pass",
+                details="Exact hunks applied to a hashed project copy",
+            )
+        )
+        for item in [frozen_witness, *frozen_holdouts]:
+            if set(item) != {"signal"} or not validate_input(contract, item).valid:
+                raise ValueError("Verification input violates the approved contract")
+
+        def run_case(item: dict, case: str) -> HoldoutResult:
+            sha = hashlib.sha256(json.dumps(item, sort_keys=True).encode()).hexdigest()
+            outcomes: list[dict | None] = []
+            for patched in (False, True):
+                for kind in ("old", "new"):
+                    manifest = RunManifest(
+                        run_id=make_run_id(),
+                        kind=kind,
+                        candidate_sha256=sha,
+                        entry_point="run.py",
+                        input_json=copy.deepcopy(item),
+                        timeout_seconds=min(contract.resource_limits.max_wall_seconds, 60),
+                        max_memory_mb=min(contract.resource_limits.max_memory_mb, 512),
+                        max_cpu_seconds=max(
+                            1, min(int(contract.resource_limits.max_cpu_seconds), 60)
+                        ),
+                        patch_diff=proposal.diff_text if patched else None,
+                        base_project_sha256=base_digest,
+                        patched_project_sha256=patched_digest if patched else None,
+                    )
+                    record = {
+                        "case": case,
+                        "kind": kind,
+                        "patched": patched,
+                        "manifest": manifest.model_dump(mode="json"),
+                    }
+                    runs.append(record)
+                    try:
+                        result = runner.submit(manifest)
+                        record["result"] = result.model_dump(mode="json")
+                        measured = (
+                            evaluate_output(result.outputs, contract)
+                            if result.status == "ok"
+                            else None
+                        )
+                        if measured and (
+                            result.numpy_version != {"old": "1.26.4", "new": "2.0.2"}[kind]
+                            or result.base_project_sha256 != base_digest
+                            or result.patched_project_sha256
+                            != (patched_digest if patched else None)
+                        ):
+                            measured = None
+                        outcomes.append(measured)
+                    except Exception as exc:  # noqa: BLE001
+                        record["error"] = str(exc)
+                        outcomes.append(None)
+            conclusions = [value["conclusion"] if value else None for value in outcomes]
+            old, new, pold, pnew = conclusions
+            consistent = old is not None and new is not None and old == new
+            if any(value is None for value in outcomes):
+                status = "not_run"
+            elif (
+                pold != pnew
+                or (consistent and old != pold)
+                or contract.comparison.dtype_must_match
+                and outcomes[2]["dtype"] != outcomes[3]["dtype"]
+                or case == "witness"
+                and old == new
+            ):
+                status = "fail"
+            else:
+                status = "pass"
+            return HoldoutResult(
+                input_json=item,
+                input_sha256=sha,
+                old_conclusion=old,
+                new_conclusion=new,
+                conclusion_consistent=consistent,
+                patched_old_conclusion=pold,
+                patched_new_conclusion=pnew,
+                check_status=status,
+            )
+
+        witness_result = run_case(frozen_witness, "witness")
+        results = [run_case(item, f"holdout_{i}") for i, item in enumerate(frozen_holdouts)]
+        statuses = [witness_result.check_status, *(item.check_status for item in results)]
+        verdict = (
+            "repair_fails_stated_checks"
+            if "fail" in statuses
+            else "inconclusive"
+            if "not_run" in statuses
+            else "repair_passes_stated_checks"
+        )
+        checks.append(
+            PatchCheckResult(
+                check_type="patch_execution",
+                status="not_run" if "not_run" in statuses else "pass",
+                details=f"{len(runs)} recorded runs across the witness and frozen holdouts",
+            )
+        )
+        if "not_run" in statuses:
+            limitations.append(
+                "Some outputs were unavailable, invalid or did not establish the pinned NumPy versions."
+            )
+    except (ValueError, SyntaxError, OSError) as exc:
+        checks.append(
+            PatchCheckResult(check_type="patch_execution", status="not_run", details=str(exc))
+        )
+        limitations.append(str(exc))
+        if (
+            runner is not None
+            and contract is not None
+            and frozen_holdouts
+            and frozen_witness is not None
+            and patched_digest is None
+        ):
+            verdict = "invalid_patch"
     return ConstrainedPatchVerificationResult(
         proposal=proposal,
         parse_result=parsed,
-        holdout_results=[],
-        patch_checks=[
-            path_check,
-            PatchCheckResult(
-                check_type="patch_execution",
-                status="not_run",
-                details="The runner cannot execute a proposed source diff yet.",
-            ),
-        ],
-        verdict="inconclusive",
-        limitations=[
-            "The diff was not applied to project source in either environment.",
-            "The predefined fixture repair checks do not verify this proposal.",
-        ],
+        holdout_results=results,
+        witness_result=witness_result,
+        execution_runs=runs,
+        patch_checks=checks,
+        verdict=verdict,
+        limitations=limitations,
+        base_project_sha256=base_digest,
+        patched_project_sha256=patched_digest,
+        contract_sha256=contract_digest,
+        holdouts_sha256=holdouts_digest,
     )

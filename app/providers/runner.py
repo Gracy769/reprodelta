@@ -5,8 +5,12 @@ Two implementations:
 - LocalRunnerAdapter: runs the fixture directly in-process (RUNNER_MODE=local)
 - WorkerHttpRunnerAdapter: submits manifests to pinned Compose workers
 """
+
 from __future__ import annotations
 
+import json
+import os
+import subprocess
 import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -14,7 +18,7 @@ from typing import Literal
 
 import httpx
 import numpy as np
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class RunManifest(BaseModel):
@@ -25,7 +29,12 @@ class RunManifest(BaseModel):
     candidate_sha256: str
     entry_point: str
     input_json: dict
-    timeout_seconds: int = 30
+    timeout_seconds: int = Field(default=30, ge=1, le=60)
+    max_memory_mb: int = Field(default=512, ge=32, le=512)
+    max_cpu_seconds: int = Field(default=25, ge=1, le=60)
+    patch_diff: str | None = Field(default=None, max_length=100_000)
+    base_project_sha256: str | None = None
+    patched_project_sha256: str | None = None
 
 
 class RunResult(BaseModel):
@@ -36,6 +45,9 @@ class RunResult(BaseModel):
     exit_code: int | None
     outputs: dict
     stderr: str = ""
+    base_project_sha256: str | None = None
+    patched_project_sha256: str | None = None
+    numpy_version: str | None = None
 
 
 class RunnerAdapter(ABC):
@@ -69,7 +81,7 @@ def _run_fixture_inprocess(input_json: dict, kind: Literal["old", "new"]) -> dic
 
     if mode == "explicit_float32":
         normalized = signal / np.float32(2.0)
-        power = normalized ** 2
+        power = normalized**2
         mid = len(power) // 2
         high = np.sum(power[mid:])
         total = np.sum(power)
@@ -93,7 +105,7 @@ def _run_fixture_inprocess(input_json: dict, kind: Literal["old", "new"]) -> dic
             }
         # fall through to normal
         normalized = np.array([sample / 2.0 for sample in signal])
-        power = normalized ** 2
+        power = normalized**2
         mid = len(power) // 2
         high = np.sum(power[mid:])
         total = np.sum(power)
@@ -110,7 +122,7 @@ def _run_fixture_inprocess(input_json: dict, kind: Literal["old", "new"]) -> dic
         # Simulate NumPy 1.26: float32 / Python-float → float64
         signal_f64 = signal.astype(np.float64)
         normalized = signal_f64 / 2.0
-        power = normalized ** 2
+        power = normalized**2
         mid = len(power) // 2
         high = np.sum(power[mid:])
         total = np.sum(power)
@@ -126,7 +138,7 @@ def _run_fixture_inprocess(input_json: dict, kind: Literal["old", "new"]) -> dic
     else:
         # kind="new": standard pipeline (float32 stays float32)
         normalized = np.array([sample / 2.0 for sample in signal])
-        power = normalized ** 2
+        power = normalized**2
         mid = len(power) // 2
         high = np.sum(power[mid:])
         total = np.sum(power)
@@ -153,6 +165,14 @@ class LocalRunnerAdapter(RunnerAdapter):
         self.fixture_dir = fixture_dir
 
     def submit(self, manifest: RunManifest) -> RunResult:
+        if manifest.patch_diff is not None:
+            return RunResult(
+                run_id=manifest.run_id,
+                status="error",
+                exit_code=None,
+                outputs={},
+                stderr="Local simulation cannot execute model patches; use pinned workers",
+            )
         try:
             result_data = _run_fixture_inprocess(manifest.input_json, manifest.kind)
             return RunResult(
@@ -187,17 +207,106 @@ class WorkerHttpRunnerAdapter(RunnerAdapter):
             )
             payload = response.json()
             status = "ok" if response.is_success and payload.get("status") == "ok" else "error"
+            if payload.get("status") == "timeout":
+                status = "timeout"
+            if (
+                manifest.base_project_sha256 is not None
+                and status == "ok"
+                and (
+                    payload.get("base_project_sha256") != manifest.base_project_sha256
+                    or payload.get("patched_project_sha256") != manifest.patched_project_sha256
+                )
+            ):
+                raise ValueError("Worker project hash mismatch")
             return RunResult(
                 run_id=manifest.run_id,
                 status=status,
                 exit_code=payload.get("exit_code", 0 if status == "ok" else 1),
                 outputs=payload.get("outputs", {}),
+                base_project_sha256=payload.get("base_project_sha256"),
+                patched_project_sha256=payload.get("patched_project_sha256"),
+                numpy_version=payload.get("numpy_version"),
                 stderr=payload.get("stderr", payload.get("error", "")),
             )
         except httpx.TimeoutException:
-            return RunResult(run_id=manifest.run_id, status="timeout", exit_code=None, outputs={}, stderr="Worker timed out")
+            return RunResult(
+                run_id=manifest.run_id,
+                status="timeout",
+                exit_code=None,
+                outputs={},
+                stderr="Worker timed out",
+            )
         except (httpx.HTTPError, ValueError) as exc:
-            return RunResult(run_id=manifest.run_id, status="error", exit_code=None, outputs={}, stderr=str(exc))
+            return RunResult(
+                run_id=manifest.run_id, status="error", exit_code=None, outputs={}, stderr=str(exc)
+            )
+
+
+class PinnedPythonRunnerAdapter(RunnerAdapter):
+    """Development harness using two explicitly provisioned pinned interpreters.
+
+    Never selected by the public API. Worker validation and child execution are
+    identical to the HTTP deployment; OS/container isolation is not implied.
+    """
+
+    def __init__(self, old_python: Path, new_python: Path, fixture_dir: Path | None = None) -> None:
+        self.interpreters = {"old": old_python, "new": new_python}
+        self.root = Path(__file__).resolve().parents[2]
+        self.fixture_dir = fixture_dir or self.root / "fixture" / "project"
+
+    def submit(self, manifest: RunManifest) -> RunResult:
+        env = {
+            key: os.environ[key]
+            for key in ("SYSTEMROOT", "WINDIR", "PATH", "TEMP", "TMP")
+            if key in os.environ
+        }
+        env.update(FIXTURE_DIR=str(self.fixture_dir), EXPECTED_RUNNER_KIND=manifest.kind)
+        try:
+            proc = subprocess.run(
+                [
+                    str(self.interpreters[manifest.kind]),
+                    "-B",
+                    str(self.root / "runner" / "entrypoint.py"),
+                ],
+                input=manifest.model_dump_json(),
+                capture_output=True,
+                text=True,
+                timeout=manifest.timeout_seconds + 5,
+                env=env,
+            )
+            payload = json.loads(proc.stdout)
+            status = payload.get("status", "error")
+            if (
+                status == "ok"
+                and manifest.base_project_sha256 is not None
+                and (
+                    payload.get("base_project_sha256") != manifest.base_project_sha256
+                    or payload.get("patched_project_sha256") != manifest.patched_project_sha256
+                )
+            ):
+                raise ValueError("Worker project hash mismatch")
+            return RunResult(
+                run_id=manifest.run_id,
+                status=status,
+                exit_code=payload.get("exit_code"),
+                outputs=payload.get("outputs", {}),
+                base_project_sha256=payload.get("base_project_sha256"),
+                patched_project_sha256=payload.get("patched_project_sha256"),
+                numpy_version=payload.get("numpy_version"),
+                stderr=payload.get("stderr", payload.get("error", proc.stderr)),
+            )
+        except subprocess.TimeoutExpired:
+            return RunResult(
+                run_id=manifest.run_id,
+                status="timeout",
+                exit_code=None,
+                outputs={},
+                stderr="Worker timed out",
+            )
+        except (OSError, ValueError) as exc:
+            return RunResult(
+                run_id=manifest.run_id, status="error", exit_code=None, outputs={}, stderr=str(exc)
+            )
 
 
 def make_run_id() -> str:

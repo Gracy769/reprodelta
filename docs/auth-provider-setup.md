@@ -24,6 +24,9 @@ repositories, the app requests `repo`, which gives broader read/write consent
 on GitHub even though ReproDelta only uses read endpoints. Users who prefer
 limited access can sign in by another method and connect a fine-grained GitHub
 read token for selected repositories in the workspace.
+The app also requests `user:email` to show a masked account email. Existing
+GitHub sessions may need a fresh OAuth sign-in for GitHub to grant that scope;
+when no email is available, the header says so rather than showing a guess.
 
 ## GitLab
 

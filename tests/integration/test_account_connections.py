@@ -29,7 +29,7 @@ async def test_account_pages_expose_real_forms_and_assets():
     assert 'autocomplete="new-password"' in signup.text
     assert 'autocomplete="current-password"' in signin.text
     assert "Connect GitHub" in workspace.text
-    assert "never sent to the runner" in workspace.text
+    assert "Your selected repository is reviewed from its diff only" in workspace.text
     assert css.status_code == js.status_code == 200
     assert '/assets/github.svg' in signup.text
     assert '/assets/google.svg' in signup.text
@@ -321,3 +321,5 @@ async def test_advice_is_explicitly_metadata_only(monkeypatch):
     assert result["executed_repository_code"] is False
     assert result["numpy_mentioned"] is True
     assert result["dependency_files"] == ["requirements.txt"]
+    assert result["findings"][0]["evidence"] == "requirements.txt: +numpy==2.0.2"
+    assert any(finding["title"] == "NumPy appears in the diff" for finding in result["findings"])

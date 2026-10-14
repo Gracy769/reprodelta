@@ -262,6 +262,7 @@ async def repositories(provider: str, owner_id: Annotated[str, Depends(current_u
                 "private": item["private"],
                 "fork": item.get("fork", False),
                 "starred": False,
+                "connected_access": True,
                 "url": item["html_url"],
                 "description": item.get("description"),
                 "updated_at": item.get("updated_at"),
@@ -277,6 +278,7 @@ async def repositories(provider: str, owner_id: Annotated[str, Depends(current_u
             {
                 "id": item["id"], "name": item["full_name"], "private": item["private"],
                 "fork": item.get("fork", False), "starred": True, "url": item["html_url"],
+                "connected_access": False,
                 "description": item.get("description"), "updated_at": item.get("updated_at"),
             }
             for item in stars if item["id"] not in seen
@@ -295,6 +297,7 @@ async def repositories(provider: str, owner_id: Annotated[str, Depends(current_u
                 "private": item.get("visibility") == "private",
                 "fork": bool(item.get("forked_from_project")),
                 "starred": item.get("starred", False),
+                "connected_access": True,
                 "url": item["web_url"],
                 "description": item.get("description"),
                 "updated_at": item.get("last_activity_at"),
@@ -366,6 +369,43 @@ async def issues(provider: str, repository: str, owner_id: Annotated[str, Depend
     }
 
 
+@router.get("/review-queue")
+async def review_queue(owner_id: Annotated[str, Depends(current_user)]):
+    """Find recent open changes in a bounded set of recently updated projects."""
+    with psycopg.connect(_database_dsn(), row_factory=dict_row) as conn:
+        _ensure_table(conn)
+        providers = [row["provider"] for row in conn.execute(
+            "SELECT provider FROM connected_source_accounts WHERE owner_id=%s", (owner_id,)
+        ).fetchall()]
+    candidates = []
+    for provider in providers:
+        try:
+            result = await repositories(provider, owner_id)
+        except HTTPException:
+            continue
+        candidates.extend({**repo, "provider": provider, "key": repo["name"] if provider == "github" else str(repo["id"])}
+                          for repo in result["repositories"] if repo["connected_access"])
+    candidates.sort(key=lambda repo: repo.get("updated_at") or "", reverse=True)
+    sampled = candidates[:8]
+    semaphore = asyncio.Semaphore(4)
+
+    async def fetch(repo):
+        async with semaphore:
+            try:
+                result = await changes(repo["provider"], repo["key"], owner_id)
+                return [{**change, "repository": repo["name"], "repository_key": repo["key"],
+                         "provider": repo["provider"], "repository_url": repo["url"]}
+                        for change in result["changes"][:5]]
+            except HTTPException:
+                return []
+
+    groups = await asyncio.gather(*(fetch(repo) for repo in sampled))
+    found = sorted((item for group in groups for item in group),
+                   key=lambda item: item.get("updated_at") or "", reverse=True)[:12]
+    return {"changes": found, "projects_checked": len(sampled), "projects_available": len(candidates),
+            "scope": "Recent open changes from up to 8 recently updated connected projects; no code was executed."}
+
+
 @router.get("/{provider}/advice")
 async def change_advice(
     provider: str,
@@ -404,27 +444,53 @@ async def change_advice(
             re.I,
         )
     ]
+    dependency_lines = []
+    for changed in files:
+        if changed["path"] not in dependency_files:
+            continue
+        for line in changed["patch"].splitlines():
+            if re.match(r"^[+-](?![+-]).*(?:numpy|scipy|pandas|torch|jax)(?:\b|\[)", line, re.I):
+                dependency_lines.append(f"{changed['path']}: {line[:120]}")
+                if len(dependency_lines) == 6:
+                    break
+        if len(dependency_lines) == 6:
+            break
     numpy_mentioned = any("numpy" in x["patch"].lower() for x in files)
     advice = []
+    findings = []
     if dependency_files:
         advice.append(
             "A dependency manifest changed. Compare resolved versions and rerun scientific assertions in both environments."
         )
+        findings.append({"title": "Dependency inputs changed", "evidence": " · ".join(dependency_lines) if dependency_lines else ", ".join(dependency_files[:5]),
+                         "action": "Compare the resolved package versions before and after this change, then rerun the assertions that depend on them."})
     if numpy_mentioned:
         advice.append(
             "NumPy appears in the change. Review dtype promotion and threshold-sensitive conclusions, then run a paired reproduction."
         )
+        numpy_paths = [x["path"] for x in files if "numpy" in x["patch"].lower()]
+        findings.append({"title": "NumPy appears in the diff", "evidence": ", ".join(numpy_paths[:5]),
+                         "action": "Check dtype assumptions and threshold comparisons in these files against both dependency environments."})
+    test_paths = [x["path"] for x in files if re.search(r"(^|/)(tests?|specs?)/|(^|/)(test_|.*_test\.)", x["path"], re.I)]
+    if test_paths:
+        findings.append({"title": "Tests changed alongside the code", "evidence": ", ".join(test_paths[:5]),
+                         "action": "Read the changed assertions to see which behavior the author intended to preserve."})
     if not advice:
         advice.append(
             "No supported dependency-upgrade pattern was detected in the available diff. Review the change manually before drawing a conclusion."
         )
+    if not findings:
+        findings.append({"title": "No supported dependency signal found", "evidence": f"{len(files)} changed files inspected",
+                         "action": "Inspect the source diff and test results in the host. This review cannot infer a scientific regression from the available file metadata."})
     return {
         "mode": "metadata_review_only",
         "executed_repository_code": False,
         "scope": "First 100 changed files; patches may be truncated by the source host.",
         "changed_file_count_checked": len(files),
         "dependency_files": dependency_files,
+        "dependency_changes": dependency_lines,
         "numpy_mentioned": numpy_mentioned,
         "advice": advice,
+        "findings": findings,
         "next_step": "Use the curated NumPy replay to inspect a reproducible example; this does not test the selected repository.",
     }

@@ -64,13 +64,50 @@
     const failed = lists.find((entry) => entry.status === "rejected");
     if (failed) show(failed.reason.message);
     renderRepos();
+    await loadQueue(result.connections.length);
+  }
+  async function loadQueue(connectionCount) {
+    const list = $("queue-list");
+    if (!connectionCount) {
+      empty(list, "Connect GitHub or GitLab below to review a change.");
+      $("queue-scope").textContent = "No source connected yet.";
+      $("queue-count").textContent = "0 CHANGES";
+      return;
+    }
+    empty(list, "Checking recently updated projects for open changes…");
+    try {
+      const result = await api("/review-queue");
+      $("queue-scope").textContent = `Checked ${result.projects_checked} of ${result.projects_available} connected projects. Search below for any other project.`;
+      $("queue-count").textContent = `${result.changes.length} CHANGES`;
+      clear(list);
+      if (!result.changes.length) {
+        empty(list, "No open changes found in the recent projects checked. Search a repository below to inspect another one.");
+        return;
+      }
+      for (const change of result.changes) {
+        const button = document.createElement("button"); button.type = "button"; button.className = "queue-item";
+        const title = document.createElement("strong"); title.textContent = change.title;
+        const detail = document.createElement("small"); detail.textContent = `${change.repository} · ${change.provider === "github" ? "PR" : "MR"} #${change.number}${change.draft ? " · draft" : ""}`;
+        const arrow = document.createElement("span"); arrow.className = "queue-arrow"; arrow.textContent = "Review ↗";
+        button.append(title, detail, arrow);
+        button.addEventListener("click", () => {
+          const repo = state.repositories.find((item) => item.provider === change.provider && item.key === change.repository_key);
+          if (repo) selectRepo(repo, change.number);
+        });
+        list.append(button);
+      }
+    } catch (error) {
+      empty(list, "Recent changes could not be loaded. Search a repository below to continue.");
+      $("queue-scope").textContent = error.message;
+      $("queue-count").textContent = "UNAVAILABLE";
+    }
   }
   function renderRepos() {
     const list = $("repo-list"); clear(list);
     const query = $("repo-search").value.toLowerCase().trim();
     const filtered = state.repositories.filter((repo) => repo.name.toLowerCase().includes(query) && (state.filter === "all" || Boolean(repo[state.filter])));
     $("repo-count").textContent = `${filtered.length} shown${state.repositories.length >= 100 ? " · first 100 owned and starred per source" : ""}`;
-    if (!filtered.length) { empty(list, state.repositories.length ? "No repositories match your filter." : "Connect GitHub or GitLab to see your repositories."); return; }
+    if (!filtered.length) { empty(list, state.repositories.length ? "No repositories match your search." : "Connect GitHub or GitLab below to search repositories."); return; }
     for (const repo of filtered) {
       const button = document.createElement("button"); button.type = "button"; button.className = "repo-item";
       button.setAttribute("aria-selected", String(state.currentRepo?.provider === repo.provider && state.currentRepo?.key === repo.key));
@@ -82,7 +119,7 @@
       button.append(body, pill); button.addEventListener("click", () => selectRepo(repo)); list.append(button);
     }
   }
-  async function selectRepo(repo) {
+  async function selectRepo(repo, preselectNumber = null) {
     state.currentRepo = repo; state.currentChange = null; $("review-change").disabled = true; $("advice-card").hidden = true;
     $("selected-repository").hidden = false;
     $("selected-repository-name").textContent = repo.name;
@@ -91,29 +128,11 @@
     repositoryLink.hidden = !/^https:\/\/(github\.com|gitlab\.com)\//.test(repo.url || "");
     if (!repositoryLink.hidden) repositoryLink.href = repo.url;
     renderRepos(); empty($("change-list"), "Loading open changes…");
-    empty($("issue-list"), "Loading open issues…");
     $("selected-repository").scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "center" });
-    const loaded = { changes: null, issues: null };
-    const updateStatus = () => {
-      if (state.currentRepo !== repo) return;
-      const label = (count, noun) => count === null ? `${noun} loading` : count === -1 ? `${noun} unavailable` : `${count} open ${noun}`;
-      $("selected-repository-status").textContent = `${label(loaded.changes, "PRs")} · ${label(loaded.issues, "issues")}`;
-    };
-    api(`/${repo.provider}/issues?repository=${encodeURIComponent(repo.key)}`).then((result) => {
-      if (state.currentRepo !== repo) return;
-      loaded.issues = result.issues.length; updateStatus();
-      const list = $("issue-list"); clear(list);
-      if (!result.issues.length) { empty(list, "No open issues in this repository."); return; }
-      for (const issue of result.issues) {
-        const link = document.createElement("a"); link.className = "change-item"; link.href = issue.url;
-        link.target = "_blank"; link.rel = "noopener noreferrer";
-        link.textContent = `#${issue.number} ${issue.title} ↗`; list.append(link);
-      }
-    }).catch((error) => { if (state.currentRepo === repo) { loaded.issues = -1; updateStatus(); empty($("issue-list"), error.message); } });
     try {
       const result = await api(`/${repo.provider}/changes?repository=${encodeURIComponent(repo.key)}`);
       if (state.currentRepo !== repo) return;
-      loaded.changes = result.changes.length; updateStatus();
+      $("selected-repository-status").textContent = `${result.changes.length} open changes`;
       const list = $("change-list"); clear(list);
       if (!result.changes.length) { empty(list, "No open PRs or merge requests in this repository."); return; }
       for (const change of result.changes) {
@@ -125,9 +144,10 @@
           state.currentChange = change; $("review-change").disabled = false; $("advice-card").hidden = true;
           list.querySelectorAll("button").forEach((item) => item.setAttribute("aria-selected", String(item === button)));
         }); list.append(button);
+        if (change.number === preselectNumber) button.click();
       }
       if (result.has_more) show("Showing the first 50 open changes. Narrow your choice in the source host if it is missing.");
-    } catch (error) { if (state.currentRepo === repo) { loaded.changes = -1; updateStatus(); empty($("change-list"), error.message); } }
+    } catch (error) { if (state.currentRepo === repo) { $("selected-repository-status").textContent = "Changes unavailable"; empty($("change-list"), error.message); } }
   }
   $("review-change").addEventListener("click", async () => {
     const repo = state.currentRepo, change = state.currentChange;
@@ -136,7 +156,13 @@
     try {
       const result = await api(`/${repo.provider}/advice?repository=${encodeURIComponent(repo.key)}&number=${change.number}`);
       const list = $("advice-list"); clear(list);
-      for (const line of result.advice) { const item = document.createElement("li"); item.textContent = line; list.append(item); }
+      for (const finding of result.findings || []) {
+        const item = document.createElement("article"); item.className = "finding";
+        const title = document.createElement("strong"); title.textContent = finding.title;
+        const evidence = document.createElement("code"); evidence.textContent = finding.evidence;
+        const action = document.createElement("p"); action.textContent = finding.action;
+        item.append(title, evidence, action); list.append(item);
+      }
       $("advice-scope").textContent = `${result.scope} No repository code was executed. ${result.next_step}`;
       $("advice-card").hidden = false;
       show("Scoped advice is ready. Open the source change for full context.", true);
@@ -165,20 +191,10 @@
       } catch (error) { show(error.message); }
     });
   });
-  $("signout").addEventListener("click", async () => {
-    if (state.jwt) {
-      await fetch("/oauth/signout", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" } }).catch(() => {});
-    }
-    try { await account("/sign-out", { method: "POST" }); } catch { /* Always leave the workspace. */ }
-    if (base) try { await fetch(base + "/sign-out", { method: "POST", credentials: "include" }); } catch { /* Social cookies may be unavailable. */ }
-    window.location.assign("/signin");
-  });
   async function start() {
     try {
       const oauth = await fetch("/oauth/session", { credentials: "include" }).then((response) => response.ok ? response.json() : null).catch(() => null);
       if (oauth?.user && oauth?.token) {
-        $("workspace-user").textContent = `${oauth.user.name} · ${oauth.user.provider}`;
-        $("signout").hidden = false;
         $("workspace-loading").hidden = true; $("workspace-content").hidden = false;
         state.jwt = oauth.token;
         await loadConnections();
@@ -186,8 +202,6 @@
       }
       const session = await account("/get-session");
       if (!session?.user) { $("workspace-loading").hidden = true; $("workspace-signin").hidden = false; return; }
-      $("workspace-user").textContent = session.user.name || session.user.email || "Signed in";
-      $("signout").hidden = false;
       $("workspace-loading").hidden = true; $("workspace-content").hidden = false;
       try {
         const token = await account("/token");

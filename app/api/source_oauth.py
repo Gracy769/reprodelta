@@ -18,6 +18,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.api.connections import _cipher, _database_dsn, _ensure_table
+from app.api.profiles import avatar_svg, mask_email, upsert_profile
 from app.config import get_settings
 
 router = APIRouter(prefix="/oauth", include_in_schema=False)
@@ -29,7 +30,7 @@ PROVIDERS = {
         "user": "https://api.github.com/user",
         # OAuth Apps cannot request private-repo read-only access. ReproDelta only
         # performs GET requests; the broad GitHub repo grant is disclosed in UI.
-        "scope": "read:user repo",
+        "scope": "read:user user:email repo",
     },
     "gitlab": {
         "authorize": "https://gitlab.com/oauth/authorize",
@@ -128,6 +129,20 @@ async def oauth_callback(provider: str, request: Request, code: str = "", state:
             user_response = await client.get(PROVIDERS[provider]["user"], headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"})
             user_response.raise_for_status()
             user = user_response.json()
+            if provider == "github" and not user.get("email"):
+                try:
+                    emails_response = await client.get(
+                        "https://api.github.com/user/emails",
+                        headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"},
+                    )
+                    if emails_response.is_success:
+                        addresses = emails_response.json()
+                        if isinstance(addresses, list):
+                            primary = next((item for item in addresses if item.get("primary") and item.get("verified")), None)
+                            if primary:
+                                user["email"] = primary.get("email")
+                except (httpx.HTTPError, ValueError):
+                    pass  # Email is optional; source sign-in must still work.
     except (httpx.HTTPError, ValueError) as exc:
         raise HTTPException(502, f"{provider.title()} sign-in failed") from exc
     user_id = user.get("id")
@@ -141,6 +156,7 @@ async def oauth_callback(provider: str, request: Request, code: str = "", state:
         if prior["sub"] != link_owner:
             raise HTTPException(401, "Account changed during connection")
         owner_id, account = prior["sub"], prior["name"]
+    email = user.get("email") if isinstance(user.get("email"), str) else None
     with psycopg.connect(_database_dsn()) as conn:
         _ensure_table(conn)
         conn.execute(
@@ -158,6 +174,7 @@ async def oauth_callback(provider: str, request: Request, code: str = "", state:
              datetime.now(UTC) + timedelta(seconds=expires_in) if provider == "gitlab" else None,
              datetime.now(UTC)),
         )
+    upsert_profile(owner_id, account, email)
     now = datetime.now(UTC)
     session = jwt.encode(
         {"sub": owner_id, "name": account, "iss": "reprodelta", "aud": "reprodelta", "iat": now, "exp": now + timedelta(days=7)},
@@ -175,8 +192,22 @@ async def oauth_callback(provider: str, request: Request, code: str = "", state:
 async def oauth_session(request: Request):
     token = request.cookies.get("rd_session")
     claims = _session_claims(token)
-    response = JSONResponse({"user": {"name": claims["name"], "provider": claims["sub"].split(":", 1)[0]}, "token": token})
+    profile = upsert_profile(claims["sub"], claims["name"], None)
+    response = JSONResponse({"user": {"name": profile["display_name"], "provider": claims["sub"].split(":", 1)[0],
+                                   "masked_email": mask_email(profile["email"]), "avatar_url": "/oauth/avatar"}, "token": token})
     response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@router.get("/avatar")
+async def oauth_avatar(request: Request):
+    from fastapi.responses import Response
+
+    claims = _session_claims(request.cookies.get("rd_session"))
+    profile = upsert_profile(claims["sub"], claims["name"], None)
+    response = Response(avatar_svg(profile["avatar_seed"]), media_type="image/svg+xml")
+    response.headers["Cache-Control"] = "private, max-age=300"
+    response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 
 

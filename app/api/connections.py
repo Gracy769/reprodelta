@@ -10,6 +10,7 @@ import asyncio
 import base64
 import hashlib
 import re
+import uuid
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from typing import Annotated
@@ -19,12 +20,13 @@ import httpx
 import jwt
 import psycopg
 from cryptography.fernet import Fernet
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Response
 from jwt import PyJWKClient
 from psycopg.rows import dict_row
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.config import get_settings
+from app.storage import source_reviews
 
 router = APIRouter(prefix="/api/connections", tags=["connections"])
 
@@ -118,17 +120,41 @@ async def _host_get(provider: str, token: str, path: str, params: dict | None = 
     if provider == "github":
         headers["X-GitHub-Api-Version"] = "2022-11-28"
     try:
-        async with httpx.AsyncClient(timeout=12, follow_redirects=False) as client:
+        async with httpx.AsyncClient(timeout=8, follow_redirects=False) as client:
             response = await client.get(base + path, headers=headers, params=params)
     except httpx.HTTPError as exc:
         raise HTTPException(502, f"{provider.title()} is unavailable") from exc
-    if response.status_code in (401, 403):
-        raise HTTPException(401, f"{provider.title()} connection expired or lacks read access")
+    if response.status_code == 429 or (response.status_code == 403 and (
+            response.headers.get("x-ratelimit-remaining") == "0" or response.headers.get("retry-after"))):
+        retry = response.headers.get("retry-after", "60")
+        raise HTTPException(429, f"{provider.title()} rate limit reached; retry later", headers={"Retry-After": retry})
+    if response.status_code == 401:
+        raise HTTPException(401, f"{provider.title()} connection expired; reconnect your source account")
+    if response.status_code == 403:
+        raise HTTPException(403, f"{provider.title()} denied access; check repository permissions and organization authorization")
     if response.status_code == 404:
         raise HTTPException(404, "Repository or change not found")
     if response.status_code >= 400:
         raise HTTPException(502, f"{provider.title()} returned an error")
-    return response.json()
+    if len(response.content) > 2_000_000:
+        raise HTTPException(502, "Source response exceeded the bounded review size")
+    try:
+        return response.json()
+    except ValueError as exc:
+        raise HTTPException(502, "Source host returned an invalid response") from exc
+
+
+async def _host_pages(provider, token, path, params=None, max_pages=10):
+    """Bounded pagination on a validated, fixed-host path; never follow Link URLs."""
+    items = []
+    for page in range(1, max_pages + 1):
+        batch = await _host_get(provider, token, path, {**(params or {}), "per_page": 100, "page": page})
+        if not isinstance(batch, list):
+            raise HTTPException(502, "Source host returned an invalid list")
+        items.extend(batch)
+        if len(batch) < 100:
+            return items, True
+    return items, False
 
 
 def _saved_token(owner_id: str, provider: str) -> str:
@@ -257,7 +283,7 @@ def disconnect_source(provider: str, owner_id: Annotated[str, Depends(current_us
 async def repositories(provider: str, owner_id: Annotated[str, Depends(current_user)]):
     token = await asyncio.to_thread(_saved_token, owner_id, provider)
     if provider == "github":
-        data = await _host_get(
+        data, complete = await _host_pages(
             provider,
             token,
             "/user/repos",
@@ -281,7 +307,8 @@ async def repositories(provider: str, owner_id: Annotated[str, Depends(current_u
             }
             for item in data
         ]
-        stars = await _host_get(provider, token, "/user/starred", {"per_page": 100})
+        stars, stars_complete = await _host_pages(provider, token, "/user/starred")
+        complete = complete and stars_complete
         seen = {item["id"] for item in items}
         star_ids = {item["id"] for item in stars}
         for item in items:
@@ -296,7 +323,7 @@ async def repositories(provider: str, owner_id: Annotated[str, Depends(current_u
             for item in stars if item["id"] not in seen
         )
     else:
-        data = await _host_get(
+        data, complete = await _host_pages(
             provider,
             token,
             "/projects",
@@ -316,7 +343,8 @@ async def repositories(provider: str, owner_id: Annotated[str, Depends(current_u
             }
             for item in data
         ]
-    return {"repositories": items, "has_more": len(data) == 100}
+    return {"repositories": items, "has_more": not complete,
+            "scope": "Up to 1,000 connected repositories and 1,000 starred repositories; paste a direct change URL beyond this cap."}
 
 
 @router.get("/{provider}/changes")
@@ -324,7 +352,7 @@ async def changes(provider: str, repository: str, owner_id: Annotated[str, Depen
     token = await asyncio.to_thread(_saved_token, owner_id, provider)
     if provider == "github":
         repository = _github_repository(repository)
-        data = await _host_get(
+        data, complete = await _host_pages(
             provider, token, f"/repos/{repository}/pulls", {"state": "open", "per_page": 50}
         )
         items = [
@@ -339,7 +367,7 @@ async def changes(provider: str, repository: str, owner_id: Annotated[str, Depen
         ]
     else:
         repository = _gitlab_project(repository)
-        data = await _host_get(
+        data, complete = await _host_pages(
             provider,
             token,
             f"/projects/{repository}/merge_requests",
@@ -355,7 +383,7 @@ async def changes(provider: str, repository: str, owner_id: Annotated[str, Depen
             }
             for item in data
         ]
-    return {"changes": items, "has_more": len(data) == 50}
+    return {"changes": items, "has_more": not complete}
 
 
 @router.get("/{provider}/issues")
@@ -389,10 +417,12 @@ async def review_queue(owner_id: Annotated[str, Depends(current_user)]):
             "SELECT provider FROM connected_source_accounts WHERE owner_id=%s", (owner_id,)
         ).fetchall()]
     candidates = []
+    errors = []
     for provider in providers:
         try:
             result = await repositories(provider, owner_id)
-        except HTTPException:
+        except HTTPException as exc:
+            errors.append({"provider": provider, "error": exc.detail})
             continue
         candidates.extend({**repo, "provider": provider, "key": repo["name"] if provider == "github" else str(repo["id"])}
                           for repo in result["repositories"] if repo["connected_access"])
@@ -407,100 +437,96 @@ async def review_queue(owner_id: Annotated[str, Depends(current_user)]):
                 return [{**change, "repository": repo["name"], "repository_key": repo["key"],
                          "provider": repo["provider"], "repository_url": repo["url"]}
                         for change in result["changes"][:5]]
-            except HTTPException:
+            except HTTPException as exc:
+                errors.append({"provider": repo["provider"], "repository": repo["name"], "error": exc.detail})
                 return []
 
     groups = await asyncio.gather(*(fetch(repo) for repo in sampled))
     found = sorted((item for group in groups for item in group),
                    key=lambda item: item.get("updated_at") or "", reverse=True)[:12]
-    return {"changes": found, "projects_checked": len(sampled), "projects_available": len(candidates),
+    return {"changes": found, "projects_checked": len(sampled), "projects_available": len(candidates), "errors": errors,
             "scope": "Recent open changes from up to 8 recently updated connected projects; no code was executed."}
 
 
+@router.get("/reviews")
+async def recent_reviews(owner_id: Annotated[str, Depends(current_user)]):
+    return {"reviews": await asyncio.to_thread(source_reviews.recent, _database_dsn(), owner_id)}
+
+
+@router.post("/session/investigation")
+async def investigation_session(response: Response, owner_id: Annotated[str, Depends(current_user)]):
+    from app.api.investigation_access import set_workbench_cookie
+    set_workbench_cookie(response, owner_id)
+    return {"ok": True}
+
+
+@router.get("/reviews/{review_id}")
+async def saved_review(review_id: uuid.UUID, owner_id: Annotated[str, Depends(current_user)]):
+    result = await asyncio.to_thread(source_reviews.get, _database_dsn(), owner_id, review_id)
+    if result is None:
+        raise HTTPException(404, "Review not found")
+    return result
+
+
 @router.get("/{provider}/advice")
-async def change_advice(
-    provider: str,
-    repository: str,
-    number: int,
-    owner_id: Annotated[str, Depends(current_user)],
-):
+async def change_advice(provider: str, repository: str, number: int,
+                        owner_id: Annotated[str, Depends(current_user)]):
+    from app.api.source_analysis import analyze
     if number < 1:
         raise HTTPException(422, "Invalid change number")
+    _provider(provider)
+    display_repository = repository
+    repository = _github_repository(repository) if provider == "github" else _gitlab_project(repository)
     token = await asyncio.to_thread(_saved_token, owner_id, provider)
-    if provider == "github":
-        repository = _github_repository(repository)
-        data = await _host_get(
-            provider, token, f"/repos/{repository}/pulls/{number}/files", {"per_page": 100}
-        )
-        files = [
-            {"path": x["filename"], "status": x["status"], "patch": x.get("patch", "")[:8000]}
-            for x in data
-        ]
-    else:
-        repository = _gitlab_project(repository)
-        result = await _host_get(
-            provider, token, f"/projects/{repository}/merge_requests/{number}/changes"
-        )
-        files = [
-            {"path": x["new_path"], "status": "changed", "patch": x.get("diff", "")[:8000]}
-            for x in result.get("changes", [])[:100]
-        ]
-    dependency_files = [
-        x["path"]
-        for x in files
-        if re.search(
-            r"(^|/)(requirements[^/]*\.txt|pyproject\.toml|poetry\.lock|uv\.lock|Pipfile\.lock)$",
-            x["path"],
-            re.I,
-        )
-    ]
-    dependency_lines = []
-    for changed in files:
-        if changed["path"] not in dependency_files:
-            continue
-        for line in changed["patch"].splitlines():
-            if re.match(r"^[+-](?![+-]).*(?:numpy|scipy|pandas|torch|jax)(?:\b|\[)", line, re.I):
-                dependency_lines.append(f"{changed['path']}: {line[:120]}")
-                if len(dependency_lines) == 6:
-                    break
-        if len(dependency_lines) == 6:
-            break
-    numpy_mentioned = any("numpy" in x["patch"].lower() for x in files)
-    advice = []
-    findings = []
-    if dependency_files:
-        advice.append(
-            "A dependency manifest changed. Compare resolved versions and rerun scientific assertions in both environments."
-        )
-        findings.append({"title": "Dependency inputs changed", "evidence": " · ".join(dependency_lines) if dependency_lines else ", ".join(dependency_files[:5]),
-                         "action": "Compare the resolved package versions before and after this change, then rerun the assertions that depend on them."})
-    if numpy_mentioned:
-        advice.append(
-            "NumPy appears in the change. Review dtype promotion and threshold-sensitive conclusions, then run a paired reproduction."
-        )
-        numpy_paths = [x["path"] for x in files if "numpy" in x["patch"].lower()]
-        findings.append({"title": "NumPy appears in the diff", "evidence": ", ".join(numpy_paths[:5]),
-                         "action": "Check dtype assumptions and threshold comparisons in these files against both dependency environments."})
-    test_paths = [x["path"] for x in files if re.search(r"(^|/)(tests?|specs?)/|(^|/)(test_|.*_test\.)", x["path"], re.I)]
-    if test_paths:
-        findings.append({"title": "Tests changed alongside the code", "evidence": ", ".join(test_paths[:5]),
-                         "action": "Read the changed assertions to see which behavior the author intended to preserve."})
-    if not advice:
-        advice.append(
-            "No supported dependency-upgrade pattern was detected in the available diff. Review the change manually before drawing a conclusion."
-        )
-    if not findings:
-        findings.append({"title": "No supported dependency signal found", "evidence": f"{len(files)} changed files inspected",
-                         "action": "Inspect the source diff and test results in the host. This review cannot infer a scientific regression from the available file metadata."})
-    return {
-        "mode": "metadata_review_only",
-        "executed_repository_code": False,
-        "scope": "First 100 changed files; patches may be truncated by the source host.",
-        "changed_file_count_checked": len(files),
-        "dependency_files": dependency_files,
-        "dependency_changes": dependency_lines,
-        "numpy_mentioned": numpy_mentioned,
-        "advice": advice,
-        "findings": findings,
-        "next_step": "Use the curated NumPy replay to inspect a reproducible example; this does not test the selected repository.",
-    }
+    try:
+        async with asyncio.timeout(90):
+            result = await analyze(_host_get, _host_pages, provider, token, repository, display_repository, number)
+    except TimeoutError as exc:
+        raise HTTPException(504, "Source analysis timed out; no complete review was produced") from exc
+    result["review_id"] = await asyncio.to_thread(source_reviews.save, _database_dsn(), owner_id, result)
+    return result
+
+
+class PairedReplayRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    repository: str = Field(max_length=255)
+    number: int = Field(ge=1)
+    expected_head_sha: str = Field(pattern=r"^[0-9a-f]{40,64}$")
+    dependency_path: str = Field(max_length=512)
+    contract_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+@router.post("/{provider}/paired-replay", status_code=202)
+async def paired_replay(provider: str, body: PairedReplayRequest, response: Response,
+                        owner_id: Annotated[str, Depends(current_user)]):
+    from app.api import investigations
+    from app.api.investigation_access import owner_context, set_workbench_cookie
+    from app.api.source_analysis import prepare_replay
+    from app.domain.contract import FIXTURE_CONTRACT, hash_contract
+    _provider(provider)
+    if body.contract_hash != hash_contract(FIXTURE_CONTRACT):
+        raise HTTPException(409, "Approve the current supported contract before replay")
+    if get_settings().runner_mode != "worker_http":
+        raise HTTPException(503, "Connected paired replay requires pinned workers; simulation cannot verify repository execution")
+    repository = _github_repository(body.repository) if provider == "github" else _gitlab_project(body.repository)
+    token = await asyncio.to_thread(_saved_token, owner_id, provider)
+    try:
+        async with asyncio.timeout(60):
+            binding = await prepare_replay(_host_get, provider, token, repository, body.number,
+                                           body.expected_head_sha, body.dependency_path)
+    except TimeoutError as exc:
+        raise HTTPException(504, "Replay preparation timed out; no execution was started") from exc
+    binding.update(provider=provider, repository=body.repository, number=body.number)
+    set_workbench_cookie(response, owner_id)
+    context = owner_context.set(owner_id)
+    try:
+        await investigations.approve_contract(investigations.DEMO_PROJECT_ID)
+        record = await investigations.create_investigation(investigations.CreateInvestigationRequest(
+            project_id=investigations.DEMO_PROJECT_ID,
+            description="Approved supported-kernel replay of connected change",
+        ))
+        investigations.get_store().append_event(record["id"], "source", "source_binding", binding)
+        await investigations.start_investigation(record["id"], investigations.get_runner())
+        return {"investigation_id": record["id"], "scope": binding["scope"]}
+    finally:
+        owner_context.reset(context)

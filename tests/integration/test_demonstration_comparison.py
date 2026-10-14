@@ -11,12 +11,12 @@ from app.providers.runner import LocalRunnerAdapter, PinnedPythonRunnerAdapter
 
 def assert_equal_caps(result):
     assert result["status"] == "completed"
-    assert len(result["rows"]) == 9
+    assert len(result["rows"]) == 12
     assert {row["pair_budget"] for row in result["rows"]} == {4}
     assert {row["completed_pairs"] for row in result["rows"]} == {4}
     controls = [row for row in result["rows"] if row["case"] == "unchanged_control"]
     assert all(row["first_witness_pair"] is None for row in controls)
-    for case in ("power_ratio", "sensor_offset"):
+    for case in ("power_ratio", "sensor_offset", "lstsq_rank"):
         informed = next(
             row
             for row in result["rows"]

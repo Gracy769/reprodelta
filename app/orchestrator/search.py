@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import random
 import uuid
 from collections.abc import Callable
 from typing import Literal
@@ -68,6 +69,8 @@ class SearchProgress(BaseModel):
     budget_remaining: int
     witness: CandidateRecord | None = None
     candidates: list[CandidateRecord] = []
+    seed: int = 42
+    search_strategy: str = "sweep"
 
 
 # ---------------------------------------------------------------------------
@@ -150,6 +153,7 @@ class SearchController:
         self,
         investigation_id: str,
         seed: int = 42,
+        search_strategy: Literal["sweep", "random"] = "sweep",
     ) -> SearchProgress:
         """
         Run the sweep search and return a SearchProgress describing the outcome.
@@ -157,7 +161,22 @@ class SearchController:
         Stops as soon as a witness is found, the candidate list is exhausted,
         or the budget (max_candidates) is reached.
         """
-        candidates_to_try = _sweep_candidates()
+        if search_strategy == "sweep":
+            candidates_to_try = _sweep_candidates()
+        elif search_strategy == "random":
+            rng = random.Random(seed)
+            candidates_to_try = []
+            for _ in range(self.budget.max_candidates):
+                candidate = {}
+                for field in self.contract.input_schema.fields:
+                    if len(field.shape) != 1 or not isinstance(field.shape[0], int) or not 1 <= field.shape[0] <= 1000:
+                        raise ValueError("Random search supports bounded one-dimensional input fields")
+                    if field.min_value is None or field.max_value is None:
+                        raise ValueError("Random search requires finite input bounds")
+                    candidate[field.name] = [rng.uniform(field.min_value, field.max_value) for _ in range(field.shape[0])]
+                candidates_to_try.append(candidate)
+        else:
+            raise ValueError("Unsupported search strategy")
 
         stop_reason = None
         attempted = 0
@@ -293,6 +312,8 @@ class SearchController:
             budget_remaining=budget_remaining,
             witness=witness,
             candidates=records,
+            seed=seed,
+            search_strategy=search_strategy,
         )
 
 

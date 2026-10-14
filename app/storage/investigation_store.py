@@ -131,6 +131,10 @@ class InvestigationStore(ABC):
     def reserve_budget(self, investigation_id: str, **amounts) -> dict:
         raise NotImplementedError("Budget reservations are unavailable in this store")
 
+    def admission_records(self) -> list[dict]:
+        """Internal quota metadata; never exposed as a cross-owner API listing."""
+        raise NotImplementedError("Admission metadata is unavailable in this store")
+
     @abstractmethod
     def get_events(self, investigation_id: str) -> list[dict]:
         """Return all events in sequence order."""
@@ -151,6 +155,11 @@ class MemoryInvestigationStore(InvestigationStore):
         # { id: [event, ...] }
         self._events: dict[str, list[dict]] = {}
         self._approvals: dict[str, dict] = {}
+
+    def admission_records(self) -> list[dict]:
+        with self._lock:
+            return [{key: record[key] for key in ("id", "owner_id", "status", "created_at")}
+                    for record in self._records.values()]
 
     def create_investigation(
         self,
@@ -412,6 +421,15 @@ class FileSystemInvestigationStore(InvestigationStore):
     # ------------------------------------------------------------------
     # Interface
     # ------------------------------------------------------------------
+
+    def admission_records(self) -> list[dict]:
+        root = self._base / "investigations"
+        records = []
+        for path in root.glob("*/state.json"):
+            record = self.get_investigation(path.parent.name)
+            if record:
+                records.append(record)
+        return records
 
     def create_investigation(
         self,

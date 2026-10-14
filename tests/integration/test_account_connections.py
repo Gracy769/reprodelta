@@ -319,14 +319,19 @@ async def test_gitlab_direct_link_uses_encoded_project_path(monkeypatch):
 
     async def fake_get(provider, token, path, params=None):
         paths.append(path)
-        return {"changes": []} if path.endswith("/changes") else []
+        if path.endswith("/7"):
+            return {"diff_refs": {"base_sha": "a" * 40, "head_sha": "b" * 40}}
+        return []
 
     monkeypatch.setattr(connections, "_host_get", fake_get)
+    monkeypatch.setattr(connections.source_reviews, "save", lambda *args: "review-id")
     await connections.changes("gitlab", "group/nested/project", "user-42")
     await connections.change_advice("gitlab", "group/nested/project", 7, "user-42")
     assert paths == [
         "/projects/group%2Fnested%2Fproject/merge_requests",
-        "/projects/group%2Fnested%2Fproject/merge_requests/7/changes",
+        "/projects/group%2Fnested%2Fproject/merge_requests/7",
+        "/projects/group%2Fnested%2Fproject/merge_requests/7/diffs",
+        "/projects/group%2Fnested%2Fproject/merge_requests/7",
     ]
     with pytest.raises(HTTPException) as exc:
         await connections.change_advice("gitlab", "group/../project", 7, "user-42")
@@ -337,14 +342,24 @@ async def test_gitlab_direct_link_uses_encoded_project_path(monkeypatch):
 async def test_advice_is_explicitly_metadata_only(monkeypatch):
     monkeypatch.setattr(connections, "_saved_token", lambda owner, provider: "test-token")
 
+    import base64
+
     async def fake_get(provider, token, path, params=None):
-        return [{"filename": "requirements.txt", "status": "modified", "patch": "+numpy==2.0.2"}]
+        if path.endswith("/7"):
+            return {"base": {"sha": "a" * 40}, "head": {"sha": "b" * 40}}
+        if "/contents/" in path:
+            value = "numpy==1.26.4" if params["ref"] == "a" * 40 else "numpy==2.0.2"
+            return {"type": "file", "encoding": "base64", "content": base64.b64encode(value.encode()).decode()}
+        return [{"filename": "requirements.txt", "status": "modified", "patch": "-numpy==1.26.4\n+numpy==2.0.2"}]
 
     monkeypatch.setattr(connections, "_host_get", fake_get)
+    monkeypatch.setattr(connections.source_reviews, "save", lambda *args: "review-id")
     result = await connections.change_advice("github", "lab/project", 7, "user-42")
     assert result["mode"] == "metadata_review_only"
     assert result["executed_repository_code"] is False
     assert result["numpy_mentioned"] is True
     assert result["dependency_files"] == ["requirements.txt"]
-    assert result["findings"][0]["evidence"] == "requirements.txt: +numpy==2.0.2"
-    assert any(finding["title"] == "NumPy appears in the diff" for finding in result["findings"])
+    assert result["dependency_changes"][0]["before"] == "==1.26.4"
+    assert result["dependency_changes"][0]["after"] == "==2.0.2"
+    assert result["head_sha"] == "b" * 40
+    assert result["review_id"] == "review-id"

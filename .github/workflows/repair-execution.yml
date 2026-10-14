@@ -43,5 +43,8 @@ jobs:
           python -m venv .repair-new
           .repair-old/bin/pip install numpy==1.26.4
           .repair-new/bin/pip install numpy==2.0.2
-      - name: Verify actual repairs, worker protocol and isolation policy
-        run: python -m pytest tests/integration/test_real_repair.py tests/integration/test_runner.py tests/adversarial/test_security.py tests/integration/test_deployment_guards.py tests/integration/test_demonstration_comparison.py -q
+      - name: Verify all regressions, source review, actual repairs and isolation policy
+        run: |
+          python -m ruff check app runner fixture scripts tests
+          python -m pytest tests -q
+          node --test tests/frontend/*.cjs

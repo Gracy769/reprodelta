@@ -123,5 +123,7 @@ async def bridge_auth(request: Request, path: str) -> Response:
         media_type=upstream.headers.get("content-type", "application/json").split(";", 1)[0],
     )
     _copy_auth_cookies(upstream, response)
+    if path == "sign-out":
+        response.delete_cookie("rd_workbench", path="/")
     response.headers["Cache-Control"] = "no-store"
     return response

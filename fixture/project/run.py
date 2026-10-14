@@ -3,12 +3,16 @@ import json
 import sys
 
 import numpy as np
+from least_squares import classify_rank
 from pipeline import classify_signal
 from sensor import classify_sensor
 
 
 def main() -> None:
     data = json.load(sys.stdin)
+    if data.get("_case") == "lstsq_rank":
+        json.dump({"status": "ok", "result": classify_rank(data["matrix"])}, sys.stdout)
+        return
     signal = np.array(data["signal"], dtype=np.float32)
     mode = data.get("_mode")
     if data.get("_case") == "sensor_offset":

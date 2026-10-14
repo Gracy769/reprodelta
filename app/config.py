@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     # Persistence — set to True to persist investigations to ARTIFACT_DIR
     persist_investigations: bool = False
     investigation_store: str = "auto"
+    max_active_investigations: int = Field(default=2, ge=1, le=8)
+    guest_daily_investigations: int = Field(default=10, ge=1, le=100)
+    owner_daily_investigations: int = Field(default=20, ge=1, le=1000)
+    global_daily_investigations: int = Field(default=200, ge=1, le=10000)
 
     @field_validator("log_level")
     @classmethod

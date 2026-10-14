@@ -218,5 +218,6 @@ async def oauth_signout(request: Request):
         raise HTTPException(403, "Origin is not allowed")
     response = JSONResponse({"ok": True})
     response.delete_cookie("rd_session", path="/")
+    response.delete_cookie("rd_workbench", path="/")
     response.headers["Cache-Control"] = "no-store"
     return response

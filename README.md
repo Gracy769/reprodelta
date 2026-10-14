@@ -37,11 +37,18 @@ These checks do not verify a live Nebius call or Docker deployment.
 `/workspace` (also served at `/investigations/new` for existing links) accepts
 a GitHub pull request or GitLab merge request URL, offers recent open changes
 from up to eight recently updated connected projects, and provides repository
-search as a fallback. Selecting a change reveals an explicit **Start investigation**
-button. Starting it reviews up to 100 changed files, showing dependency and test
-evidence plus concrete follow-up checks.
-This is a read-only diff review: it never executes that repository or claims a
-replay verdict. The fixed, executable NumPy contract is at `/demo/investigation`.
+search as a fallback. **Analyze changed files** reads paginated file metadata and
+supported manifests at immutable base/head commits. It shows observed package
+constraint changes, source evidence, missing information and three next actions.
+Reviews persist privately by owner and commit in Postgres; stale revisions fail
+explicitly. Rate limits and permission failures are distinct.
+
+**Configure supported paired replay** separately approves the contract and budget.
+It starts the existing engine only when both commits match the trusted numerical
+kernel and the selected manifest pins NumPy 1.26.4 to 2.0.2. Other repositories
+receive a setup explanation; no general user-code execution is exposed. See
+[connected review and replay](docs/connected-review.md). The curated demo remains
+at `/demo/investigation`.
 
 First-party GitHub and GitLab OAuth use a short-lived state challenge, an
 HttpOnly session cookie, and server-side encrypted token storage in Postgres.
@@ -250,7 +257,7 @@ conclusion.
 ```python
 signal = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0000001192092896]
 # Old env (float64): ratio = 0.50000001490…  → above_threshold
-# New env (float32): ratio = 0.50000000000   → below_threshold
+# New env (float32): ratio = 0.50000000000   → inconclusive (exact tie)
 ```
 
 > **Label:** constructed demonstration case — not an independently observed
@@ -320,7 +327,7 @@ The system uses exactly these bounded verdict classes (never a global
   the system runs in mock LLM mode and labels all proposals accordingly.
 - The investigation uses a local in-process runner by default (`RUNNER_MODE=local`).
   Docker Compose sets `RUNNER_MODE=worker_http` to dispatch to the pinned workers.
-- The repository is private until submission. Add an open-source license and
+- The repository is private until submission. The MIT license is included; make the repository public and
   make it public per the [hackathon rules](https://nebiusglobalaihackathon.devpost.com/rules)
   before submitting.
 
@@ -342,7 +349,7 @@ Investigation APIs enforce the stored owner for state, events, streams, evidence
 
 Every runner stage shares an investigation ledger: controls, search, reduction, interventions, both predefined checks, executed model diffs and demonstration comparisons. Run/model-call/token/cost reservations happen before dispatch; failures retain reservations. API limits are immutable after creation, and ad-hoc exploration creates an owned 20-run investigation instead of using the unbudgeted `demo` alias. PostgreSQL reservations use row locks and persist across restarts; filesystem reservations are safe within the supported single API process. Wall deadlines persist from the first dispatch and constrain runner/model timeouts. Low-budget or incomplete comparison evidence is labeled explicitly.
 
-Dollar reservations are operator-configured worst-case ceilings, not measured provider invoices. Live model calls fail closed unless `NEBIUS_CALL_COST_CEILING_USD` is positive; configure it from verified model pricing and request limits before enabling billable calls. The ledger also conservatively reserves UTF-8 prompt bytes plus the maximum output tokens. Reports retain provider-reported usage separately. This does not implement account-wide billing reconciliation or per-owner daily quotas.
+Dollar reservations are operator-configured worst-case ceilings, not measured provider invoices. Live model calls fail closed unless `NEBIUS_CALL_COST_CEILING_USD` is positive; configure it from verified model pricing and request limits before enabling billable calls. The ledger also conservatively reserves UTF-8 prompt bytes plus the maximum output tokens. Reports retain provider-reported usage separately. Daily creation quotas and active-job caps now apply across investigations; provider billing reconciliation remains an operator responsibility. See [admission limits](docs/connected-review.md).
 
 `/health` remains liveness. `/ready` checks session-key configuration, storage and both worker runtime versions/source hashes; it explicitly reports that external authentication and live Nebius were not probed. Worker `/health` exposes no secrets. Hosted/worker mode requires a stable secret of at least 32 characters. Deploy one API process/replica: the interruption detector does not yet support distributed leases. Compose API images now contain the fixture source used for hash validation.
 
@@ -350,7 +357,7 @@ GitHub CI provisions pinned interpreters and a dedicated PostgreSQL database, te
 
 ## Demonstration comparison and replay
 
-The second constructed case (`sensor_offset`) compares a calibrated float32 reading plus a small Python-float offset to 1.0. NumPy 1.26 and 2.0 produce different intermediate precision. The original power-ratio case, the sensor case and a clearly unchanged control are evaluated with fixed replay, seeded random valid search and an informed boundary sweep. Each strategy receives the same paired-execution cap and runs to that cap; first-witness position and every input/result are recorded. The informed sweep deliberately knows the boundary. Two examples of one promotion mechanism and a control do not establish general superiority or scientific correctness.
+The second constructed case (`sensor_offset`) compares a calibrated float32 reading plus a small Python-float offset to 1.0. NumPy 1.26 and 2.0 produce different intermediate precision. The original power-ratio case, the sensor case and a clearly unchanged control are evaluated with fixed replay, seeded random valid search and an informed boundary sweep. Each strategy receives the same paired-execution cap and runs to that cap; first-witness position and every input/result are recorded. The informed sweep deliberately knows the boundary. A fourth case independently replays NumPy’s documented least-squares default change with a 4x2 matrix contract. These cases do not establish general superiority or scientific correctness; see [historical replay scope](docs/historical-replay.md).
 
 `docs/evidence/demonstration.json` contains actual observations, source contents and hashes for a four-pair cap per strategy (72 executions total). `docs/evidence/replay.json` records an exact replay of all 72 executions; companion SHA-256 files cover the exports. Reproduce with two Python 3.12 environments containing NumPy 1.26.4/2.0.2:
 

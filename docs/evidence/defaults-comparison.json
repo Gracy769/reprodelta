@@ -1,0 +1,4326 @@
+{
+  "comparison": {
+    "historical_sources": [
+      {
+        "case": "lstsq_rank",
+        "classification": "documented compatibility change; independently sourced mechanism, constructed input",
+        "commit": "80acab201eb5445af925552468983073616284dc",
+        "url": "https://github.com/numpy/numpy/pull/25721"
+      }
+    ],
+    "limitations": [
+      "Power and sensor inputs share the promotion mechanism; least-squares replays an independent documented default change. No case establishes a downstream scientific defect.",
+      "Informed sweep uses the known boundary; fixed replay and seeded random search do not.",
+      "Equal caps apply per strategy; incomplete rows cannot support a comparative claim.",
+      "Witnesses are changed declared outcomes, not proof that either environment is wrong."
+    ],
+    "rows": [
+      {
+        "case": "power_ratio",
+        "completed_pairs": 4,
+        "contract_body": {
+          "assumptions": [
+            "Input signal is a 1D float32 array with exactly 8 elements.",
+            "All values are finite and within [-10, 10].",
+            "This is a constructed demonstration case. See fixture/project/pipeline.py."
+          ],
+          "comparison": {
+            "atol": 1e-07,
+            "dtype_must_match": false,
+            "inf_equal": true,
+            "nan_equal": false,
+            "rtol": 1e-05
+          },
+          "conclusion": {
+            "operator": "gt",
+            "threshold": 0.5,
+            "tie_behavior": "inconclusive",
+            "units": null
+          },
+          "input_schema": {
+            "cross_constraints": null,
+            "fields": [
+              {
+                "allow_inf": false,
+                "allow_nan": false,
+                "dtype": "float32",
+                "max_value": 10.0,
+                "min_value": -10.0,
+                "name": "signal",
+                "shape": [
+                  8
+                ]
+              }
+            ]
+          },
+          "output_selector": {
+            "dtype": null,
+            "field_name": "conclusion",
+            "units": null
+          },
+          "resource_limits": {
+            "max_cpu_seconds": 25.0,
+            "max_memory_mb": 256,
+            "max_wall_seconds": 10
+          },
+          "review_provenance": "fixture_default_v1",
+          "schema_version": "1"
+        },
+        "contract_hash": "e1d68eeb3ecb1a729e34f8bad85fe65824945e565a23d20f1e953e3ee0d4affd",
+        "first_witness_pair": null,
+        "pair_budget": 4,
+        "records": [
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 0.8999999761581421,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 0.9,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                0.5,
+                0.5,
+                0.5,
+                0.5,
+                1.5,
+                1.5,
+                1.5,
+                1.5
+              ]
+            },
+            "input_sha256": "d0c240ac9a331f3340ef196f5859b6b440d3235c15bd980a9eb6f66f74d1a540",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 0.9,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 0.8999999761581421,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "below_threshold",
+              "new_ratio": 0.10000000149011612,
+              "new_reported_conclusion": "below_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "below_threshold",
+              "old_ratio": 0.1,
+              "old_reported_conclusion": "below_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                1.5,
+                1.5,
+                1.5,
+                1.5,
+                0.5,
+                0.5,
+                0.5,
+                0.5
+              ]
+            },
+            "input_sha256": "1158606694a4247dde6553a77f7e706d463622c69806ba5e3ffa9aa643b481d6",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "below_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 0.1,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "below_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 0.10000000149011612,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 0.8999999761581421,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 0.9,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                0.5,
+                0.5,
+                0.5,
+                0.5,
+                1.5,
+                1.5,
+                1.5,
+                1.5
+              ]
+            },
+            "input_sha256": "d0c240ac9a331f3340ef196f5859b6b440d3235c15bd980a9eb6f66f74d1a540",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 0.9,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 0.8999999761581421,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "below_threshold",
+              "new_ratio": 0.10000000149011612,
+              "new_reported_conclusion": "below_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "below_threshold",
+              "old_ratio": 0.1,
+              "old_reported_conclusion": "below_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                1.5,
+                1.5,
+                1.5,
+                1.5,
+                0.5,
+                0.5,
+                0.5,
+                0.5
+              ]
+            },
+            "input_sha256": "1158606694a4247dde6553a77f7e706d463622c69806ba5e3ffa9aa643b481d6",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "below_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 0.1,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "below_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 0.10000000149011612,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          }
+        ],
+        "seed": 42,
+        "strategy": "fixed_replay"
+      },
+      {
+        "case": "power_ratio",
+        "completed_pairs": 4,
+        "contract_body": {
+          "assumptions": [
+            "Input signal is a 1D float32 array with exactly 8 elements.",
+            "All values are finite and within [-10, 10].",
+            "This is a constructed demonstration case. See fixture/project/pipeline.py."
+          ],
+          "comparison": {
+            "atol": 1e-07,
+            "dtype_must_match": false,
+            "inf_equal": true,
+            "nan_equal": false,
+            "rtol": 1e-05
+          },
+          "conclusion": {
+            "operator": "gt",
+            "threshold": 0.5,
+            "tie_behavior": "inconclusive",
+            "units": null
+          },
+          "input_schema": {
+            "cross_constraints": null,
+            "fields": [
+              {
+                "allow_inf": false,
+                "allow_nan": false,
+                "dtype": "float32",
+                "max_value": 10.0,
+                "min_value": -10.0,
+                "name": "signal",
+                "shape": [
+                  8
+                ]
+              }
+            ]
+          },
+          "output_selector": {
+            "dtype": null,
+            "field_name": "conclusion",
+            "units": null
+          },
+          "resource_limits": {
+            "max_cpu_seconds": 25.0,
+            "max_memory_mb": 256,
+            "max_wall_seconds": 10
+          },
+          "review_provenance": "fixture_default_v1",
+          "schema_version": "1"
+        },
+        "contract_hash": "e1d68eeb3ecb1a729e34f8bad85fe65824945e565a23d20f1e953e3ee0d4affd",
+        "first_witness_pair": null,
+        "pair_budget": 4,
+        "records": [
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 0.5250604748725891,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 0.525060462733034,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                2.7885359691576745,
+                -9.49978489554666,
+                -4.499413632617615,
+                -5.5357852370235445,
+                4.729424283280249,
+                3.533989748458225,
+                7.843591354096908,
+                -8.261223347411677
+              ]
+            },
+            "input_sha256": "78c0b11af2d524b6efaf2271c486c54fd970e10cf845767d7cbc7ddf8baa4bba",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 0.525060462733034,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 0.5250604748725891,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 0.5255306363105774,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 0.5255306152749398,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                -1.561563606294591,
+                -9.404055611238594,
+                -5.627240503927933,
+                0.10710576206724731,
+                -9.469280606322727,
+                -6.02324698626703,
+                2.997688755590463,
+                0.8988296120643327
+              ]
+            },
+            "input_sha256": "75d245cbdb5a4d17c7a75571d8f0c7f0d2a1520661d50181469c2f003d10ee0e",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 0.5255306152749398,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 0.5255306363105774,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "below_threshold",
+              "new_ratio": 0.3943542242050171,
+              "new_reported_conclusion": "below_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "below_threshold",
+              "old_ratio": 0.394354233387421,
+              "old_reported_conclusion": "below_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                -5.591187559186066,
+                1.7853136775181753,
+                6.1886091335565325,
+                -9.87002480643878,
+                6.116385036656158,
+                3.962787899764537,
+                -3.1949896696401625,
+                -6.890410003764369
+              ]
+            },
+            "input_sha256": "33874aae87983be17ab4d1c2a4495c6a6ea5b2e9d978c88d766ae9101c76dc8e",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "below_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 0.394354233387421,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "below_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 0.3943542242050171,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "below_threshold",
+              "new_ratio": 0.33056220412254333,
+              "new_reported_conclusion": "below_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "below_threshold",
+              "old_ratio": 0.3305621921815406,
+              "old_reported_conclusion": "below_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                9.144261444135623,
+                -3.2681090977474643,
+                -8.145083132397042,
+                -8.06567246333072,
+                6.949887326949195,
+                2.0745206273378223,
+                6.142565465487603,
+                4.594635733876357
+              ]
+            },
+            "input_sha256": "b6486b1b58f2c4307a70dd002a8266e89d7689728b59757467278a694c2345de",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "below_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 0.3305621921815406,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "below_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 0.33056220412254333,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          }
+        ],
+        "seed": 42,
+        "strategy": "random_valid"
+      },
+      {
+        "case": "power_ratio",
+        "completed_pairs": 4,
+        "contract_body": {
+          "assumptions": [
+            "Input signal is a 1D float32 array with exactly 8 elements.",
+            "All values are finite and within [-10, 10].",
+            "This is a constructed demonstration case. See fixture/project/pipeline.py."
+          ],
+          "comparison": {
+            "atol": 1e-07,
+            "dtype_must_match": false,
+            "inf_equal": true,
+            "nan_equal": false,
+            "rtol": 1e-05
+          },
+          "conclusion": {
+            "operator": "gt",
+            "threshold": 0.5,
+            "tie_behavior": "inconclusive",
+            "units": null
+          },
+          "input_schema": {
+            "cross_constraints": null,
+            "fields": [
+              {
+                "allow_inf": false,
+                "allow_nan": false,
+                "dtype": "float32",
+                "max_value": 10.0,
+                "min_value": -10.0,
+                "name": "signal",
+                "shape": [
+                  8
+                ]
+              }
+            ]
+          },
+          "output_selector": {
+            "dtype": null,
+            "field_name": "conclusion",
+            "units": null
+          },
+          "resource_limits": {
+            "max_cpu_seconds": 25.0,
+            "max_memory_mb": 256,
+            "max_wall_seconds": 10
+          },
+          "review_provenance": "fixture_default_v1",
+          "schema_version": "1"
+        },
+        "contract_hash": "e1d68eeb3ecb1a729e34f8bad85fe65824945e565a23d20f1e953e3ee0d4affd",
+        "first_witness_pair": 1,
+        "pair_budget": 4,
+        "records": [
+          {
+            "comparison": {
+              "conclusion_changed": true,
+              "dtype_equal": false,
+              "new_conclusion": "inconclusive",
+              "new_ratio": 0.5,
+              "new_reported_conclusion": "below_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 0.5000000149011616,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "supported_conclusion_change"
+            },
+            "input": {
+              "signal": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0000001192092896
+              ]
+            },
+            "input_sha256": "10d065c9d6b6ef539370c32c5b981853119a4ccec37391e0fd11057c7561e577",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 0.5000000149011616,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "below_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 0.5,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 0.5000000596046448,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 0.5000000298023242,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.000000238418579
+              ]
+            },
+            "input_sha256": "3f0cd8eaddb5bbfdb0703347b6f3ff10a9d7ebb4789d21c686e43eebd5c49ecf",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 0.5000000298023242,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 0.5000000596046448,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 0.5000000596046448,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 0.5000000447034876,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0000003576278687
+              ]
+            },
+            "input_sha256": "e7e4c8f59de05922758534e3e76625835b557fbaf95f522c566c243045f3fa4c",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 0.5000000447034876,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 0.5000000596046448,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 0.5000000596046448,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 0.5000000596046519,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0000004768371582
+              ]
+            },
+            "input_sha256": "05f57a97f83fd34fa3dd70cc4f64cba590d49e5a5271137addcf1689c07d60ce",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 0.5000000596046519,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 0.5000000596046448,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          }
+        ],
+        "seed": 42,
+        "strategy": "informed_sweep"
+      },
+      {
+        "case": "sensor_offset",
+        "completed_pairs": 4,
+        "contract_body": {
+          "assumptions": [
+            "Constructed scalar-addition calibration case; not an observed research defect"
+          ],
+          "comparison": {
+            "atol": 1e-07,
+            "dtype_must_match": false,
+            "inf_equal": true,
+            "nan_equal": false,
+            "rtol": 1e-05
+          },
+          "conclusion": {
+            "operator": "gt",
+            "threshold": 1.0,
+            "tie_behavior": "inconclusive",
+            "units": null
+          },
+          "input_schema": {
+            "cross_constraints": null,
+            "fields": [
+              {
+                "allow_inf": false,
+                "allow_nan": false,
+                "dtype": "float32",
+                "max_value": 10.0,
+                "min_value": -10.0,
+                "name": "signal",
+                "shape": [
+                  8
+                ]
+              }
+            ]
+          },
+          "output_selector": {
+            "dtype": null,
+            "field_name": "conclusion",
+            "units": null
+          },
+          "resource_limits": {
+            "max_cpu_seconds": 25.0,
+            "max_memory_mb": 256,
+            "max_wall_seconds": 10
+          },
+          "review_provenance": "fixture_default_v1",
+          "schema_version": "1"
+        },
+        "contract_hash": "3dbc335f7fc2a67b2f4cb66f786f51e13e1adf1e17e6b782acbec7d7471aa06b",
+        "first_witness_pair": null,
+        "pair_budget": 4,
+        "records": [
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "below_threshold",
+              "new_ratio": 0.5,
+              "new_reported_conclusion": "below_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "below_threshold",
+              "old_ratio": 0.50000001,
+              "old_reported_conclusion": "below_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                0.5,
+                0.5,
+                0.5,
+                0.5,
+                1.5,
+                1.5,
+                1.5,
+                1.5
+              ]
+            },
+            "input_sha256": "d0c240ac9a331f3340ef196f5859b6b440d3235c15bd980a9eb6f66f74d1a540",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "below_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 0.50000001,
+                    "threshold": 1.0
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "below_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 0.5,
+                    "threshold": 1.0
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 1.5,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 1.50000001,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                1.5,
+                1.5,
+                1.5,
+                1.5,
+                0.5,
+                0.5,
+                0.5,
+                0.5
+              ]
+            },
+            "input_sha256": "1158606694a4247dde6553a77f7e706d463622c69806ba5e3ffa9aa643b481d6",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 1.50000001,
+                    "threshold": 1.0
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 1.5,
+                    "threshold": 1.0
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "below_threshold",
+              "new_ratio": 0.5,
+              "new_reported_conclusion": "below_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "below_threshold",
+              "old_ratio": 0.50000001,
+              "old_reported_conclusion": "below_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                0.5,
+                0.5,
+                0.5,
+                0.5,
+                1.5,
+                1.5,
+                1.5,
+                1.5
+              ]
+            },
+            "input_sha256": "d0c240ac9a331f3340ef196f5859b6b440d3235c15bd980a9eb6f66f74d1a540",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "below_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 0.50000001,
+                    "threshold": 1.0
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "below_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 0.5,
+                    "threshold": 1.0
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 1.5,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 1.50000001,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                1.5,
+                1.5,
+                1.5,
+                1.5,
+                0.5,
+                0.5,
+                0.5,
+                0.5
+              ]
+            },
+            "input_sha256": "1158606694a4247dde6553a77f7e706d463622c69806ba5e3ffa9aa643b481d6",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 1.50000001,
+                    "threshold": 1.0
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 1.5,
+                    "threshold": 1.0
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          }
+        ],
+        "seed": 42,
+        "strategy": "fixed_replay"
+      },
+      {
+        "case": "sensor_offset",
+        "completed_pairs": 4,
+        "contract_body": {
+          "assumptions": [
+            "Constructed scalar-addition calibration case; not an observed research defect"
+          ],
+          "comparison": {
+            "atol": 1e-07,
+            "dtype_must_match": false,
+            "inf_equal": true,
+            "nan_equal": false,
+            "rtol": 1e-05
+          },
+          "conclusion": {
+            "operator": "gt",
+            "threshold": 1.0,
+            "tie_behavior": "inconclusive",
+            "units": null
+          },
+          "input_schema": {
+            "cross_constraints": null,
+            "fields": [
+              {
+                "allow_inf": false,
+                "allow_nan": false,
+                "dtype": "float32",
+                "max_value": 10.0,
+                "min_value": -10.0,
+                "name": "signal",
+                "shape": [
+                  8
+                ]
+              }
+            ]
+          },
+          "output_selector": {
+            "dtype": null,
+            "field_name": "conclusion",
+            "units": null
+          },
+          "resource_limits": {
+            "max_cpu_seconds": 25.0,
+            "max_memory_mb": 256,
+            "max_wall_seconds": 10
+          },
+          "review_provenance": "fixture_default_v1",
+          "schema_version": "1"
+        },
+        "contract_hash": "3dbc335f7fc2a67b2f4cb66f786f51e13e1adf1e17e6b782acbec7d7471aa06b",
+        "first_witness_pair": null,
+        "pair_budget": 4,
+        "records": [
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 2.7885360717773438,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 2.7885360817773437,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                2.7885359691576745,
+                -9.49978489554666,
+                -4.499413632617615,
+                -5.5357852370235445,
+                4.729424283280249,
+                3.533989748458225,
+                7.843591354096908,
+                -8.261223347411677
+              ]
+            },
+            "input_sha256": "78c0b11af2d524b6efaf2271c486c54fd970e10cf845767d7cbc7ddf8baa4bba",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 2.7885360817773437,
+                    "threshold": 1.0
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 2.7885360717773438,
+                    "threshold": 1.0
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "below_threshold",
+              "new_ratio": -1.5615636110305786,
+              "new_reported_conclusion": "below_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "below_threshold",
+              "old_ratio": -1.5615636010305787,
+              "old_reported_conclusion": "below_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                -1.561563606294591,
+                -9.404055611238594,
+                -5.627240503927933,
+                0.10710576206724731,
+                -9.469280606322727,
+                -6.02324698626703,
+                2.997688755590463,
+                0.8988296120643327
+              ]
+            },
+            "input_sha256": "75d245cbdb5a4d17c7a75571d8f0c7f0d2a1520661d50181469c2f003d10ee0e",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "below_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": -1.5615636010305787,
+                    "threshold": 1.0
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "below_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": -1.5615636110305786,
+                    "threshold": 1.0
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "below_threshold",
+              "new_ratio": -5.591187477111816,
+              "new_reported_conclusion": "below_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "below_threshold",
+              "old_ratio": -5.5911874671118165,
+              "old_reported_conclusion": "below_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                -5.591187559186066,
+                1.7853136775181753,
+                6.1886091335565325,
+                -9.87002480643878,
+                6.116385036656158,
+                3.962787899764537,
+                -3.1949896696401625,
+                -6.890410003764369
+              ]
+            },
+            "input_sha256": "33874aae87983be17ab4d1c2a4495c6a6ea5b2e9d978c88d766ae9101c76dc8e",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "below_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": -5.5911874671118165,
+                    "threshold": 1.0
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "below_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": -5.591187477111816,
+                    "threshold": 1.0
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 9.144261360168457,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 9.144261370168458,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                9.144261444135623,
+                -3.2681090977474643,
+                -8.145083132397042,
+                -8.06567246333072,
+                6.949887326949195,
+                2.0745206273378223,
+                6.142565465487603,
+                4.594635733876357
+              ]
+            },
+            "input_sha256": "b6486b1b58f2c4307a70dd002a8266e89d7689728b59757467278a694c2345de",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 9.144261370168458,
+                    "threshold": 1.0
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 9.144261360168457,
+                    "threshold": 1.0
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          }
+        ],
+        "seed": 42,
+        "strategy": "random_valid"
+      },
+      {
+        "case": "sensor_offset",
+        "completed_pairs": 4,
+        "contract_body": {
+          "assumptions": [
+            "Constructed scalar-addition calibration case; not an observed research defect"
+          ],
+          "comparison": {
+            "atol": 1e-07,
+            "dtype_must_match": false,
+            "inf_equal": true,
+            "nan_equal": false,
+            "rtol": 1e-05
+          },
+          "conclusion": {
+            "operator": "gt",
+            "threshold": 1.0,
+            "tie_behavior": "inconclusive",
+            "units": null
+          },
+          "input_schema": {
+            "cross_constraints": null,
+            "fields": [
+              {
+                "allow_inf": false,
+                "allow_nan": false,
+                "dtype": "float32",
+                "max_value": 10.0,
+                "min_value": -10.0,
+                "name": "signal",
+                "shape": [
+                  8
+                ]
+              }
+            ]
+          },
+          "output_selector": {
+            "dtype": null,
+            "field_name": "conclusion",
+            "units": null
+          },
+          "resource_limits": {
+            "max_cpu_seconds": 25.0,
+            "max_memory_mb": 256,
+            "max_wall_seconds": 10
+          },
+          "review_provenance": "fixture_default_v1",
+          "schema_version": "1"
+        },
+        "contract_hash": "3dbc335f7fc2a67b2f4cb66f786f51e13e1adf1e17e6b782acbec7d7471aa06b",
+        "first_witness_pair": 1,
+        "pair_budget": 4,
+        "records": [
+          {
+            "comparison": {
+              "conclusion_changed": true,
+              "dtype_equal": false,
+              "new_conclusion": "inconclusive",
+              "new_ratio": 1.0,
+              "new_reported_conclusion": "below_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 1.00000001,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "supported_conclusion_change"
+            },
+            "input": {
+              "signal": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            },
+            "input_sha256": "07059ab024b02d2c9727c20439aa60c6fcfeee65fe960e47dc7eb0d7717f5fe0",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 1.00000001,
+                    "threshold": 1.0
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "below_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 1.0,
+                    "threshold": 1.0
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": true,
+              "dtype_equal": false,
+              "new_conclusion": "inconclusive",
+              "new_ratio": 1.0,
+              "new_reported_conclusion": "below_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 1.00000001,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "supported_conclusion_change"
+            },
+            "input": {
+              "signal": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            },
+            "input_sha256": "07059ab024b02d2c9727c20439aa60c6fcfeee65fe960e47dc7eb0d7717f5fe0",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 1.00000001,
+                    "threshold": 1.0
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "below_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 1.0,
+                    "threshold": 1.0
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": true,
+              "dtype_equal": false,
+              "new_conclusion": "inconclusive",
+              "new_ratio": 1.0,
+              "new_reported_conclusion": "below_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 1.00000001,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "supported_conclusion_change"
+            },
+            "input": {
+              "signal": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            },
+            "input_sha256": "07059ab024b02d2c9727c20439aa60c6fcfeee65fe960e47dc7eb0d7717f5fe0",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 1.00000001,
+                    "threshold": 1.0
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "below_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 1.0,
+                    "threshold": 1.0
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": true,
+              "dtype_equal": false,
+              "new_conclusion": "inconclusive",
+              "new_ratio": 1.0,
+              "new_reported_conclusion": "below_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 1.00000001,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "supported_conclusion_change"
+            },
+            "input": {
+              "signal": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            },
+            "input_sha256": "07059ab024b02d2c9727c20439aa60c6fcfeee65fe960e47dc7eb0d7717f5fe0",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 1.00000001,
+                    "threshold": 1.0
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "below_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 1.0,
+                    "threshold": 1.0
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          }
+        ],
+        "seed": 42,
+        "strategy": "informed_sweep"
+      },
+      {
+        "case": "lstsq_rank",
+        "completed_pairs": 4,
+        "contract_body": {
+          "assumptions": [
+            "Rank fraction > .75 declares both parameters identifiable under the specified numerical rank cutoff.",
+            "Historical documented lstsq default change; this input is constructed, not a downstream defect."
+          ],
+          "comparison": {
+            "atol": 1e-07,
+            "dtype_must_match": false,
+            "inf_equal": true,
+            "nan_equal": false,
+            "rtol": 1e-05
+          },
+          "conclusion": {
+            "operator": "gt",
+            "threshold": 0.75,
+            "tie_behavior": "inconclusive",
+            "units": null
+          },
+          "input_schema": {
+            "cross_constraints": null,
+            "fields": [
+              {
+                "allow_inf": false,
+                "allow_nan": false,
+                "dtype": "float64",
+                "max_value": 10.0,
+                "min_value": -10.0,
+                "name": "matrix",
+                "shape": [
+                  4,
+                  2
+                ]
+              }
+            ]
+          },
+          "output_selector": {
+            "dtype": null,
+            "field_name": "conclusion",
+            "units": null
+          },
+          "resource_limits": {
+            "max_cpu_seconds": 25.0,
+            "max_memory_mb": 256,
+            "max_wall_seconds": 10
+          },
+          "review_provenance": "numpy_25721_lstsq_default",
+          "schema_version": "1"
+        },
+        "contract_hash": "aa0b347826540157eac1f8e3c93ea8d334b5125b2024469884b751d7c08630ea",
+        "first_witness_pair": null,
+        "pair_budget": 4,
+        "records": [
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": true,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 1.0,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 1.0,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "matrix": [
+                [
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.5
+                ],
+                [
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0
+                ]
+              ]
+            },
+            "input_sha256": "70220217d99203b9baef10b2e79c8856c3c9cb87d4545d93698ea3c52c576615",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "coefficients": [
+                      1.0,
+                      2.0
+                    ],
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "rank": 2,
+                    "ratio": 1.0,
+                    "residuals": [
+                      0.0
+                    ],
+                    "singular_values": [
+                      1.0,
+                      0.5
+                    ],
+                    "threshold": 0.75
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": "C:\\Users\\Lenovo\\Documents\\Codex\\2026-10-09\\these-are-the-two-website-for-2\\work\\reprodelta-audit\\fixture\\project\\least_squares.py:11: FutureWarning: `rcond` parameter will change to the default of machine precision times ``max(M, N)`` where M and N are the input matrix dimensions.\r\nTo use the future default and silence this warning we advise to pass `rcond=None`, to keep using the old, explicitly pass `rcond=-1`.\r\n  coefficients, residuals, rank, singular_values = np.linalg.lstsq(matrix, [1., 1., 0., 0.])\r\n"
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "coefficients": [
+                      1.0,
+                      2.0
+                    ],
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "2.0.2",
+                    "rank": 2,
+                    "ratio": 1.0,
+                    "residuals": [
+                      0.0
+                    ],
+                    "singular_values": [
+                      1.0,
+                      0.5
+                    ],
+                    "threshold": 0.75
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": true,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 1.0,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 1.0,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "matrix": [
+                [
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.5
+                ],
+                [
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0
+                ]
+              ]
+            },
+            "input_sha256": "70220217d99203b9baef10b2e79c8856c3c9cb87d4545d93698ea3c52c576615",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "coefficients": [
+                      1.0,
+                      2.0
+                    ],
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "rank": 2,
+                    "ratio": 1.0,
+                    "residuals": [
+                      0.0
+                    ],
+                    "singular_values": [
+                      1.0,
+                      0.5
+                    ],
+                    "threshold": 0.75
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": "C:\\Users\\Lenovo\\Documents\\Codex\\2026-10-09\\these-are-the-two-website-for-2\\work\\reprodelta-audit\\fixture\\project\\least_squares.py:11: FutureWarning: `rcond` parameter will change to the default of machine precision times ``max(M, N)`` where M and N are the input matrix dimensions.\r\nTo use the future default and silence this warning we advise to pass `rcond=None`, to keep using the old, explicitly pass `rcond=-1`.\r\n  coefficients, residuals, rank, singular_values = np.linalg.lstsq(matrix, [1., 1., 0., 0.])\r\n"
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "coefficients": [
+                      1.0,
+                      2.0
+                    ],
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "2.0.2",
+                    "rank": 2,
+                    "ratio": 1.0,
+                    "residuals": [
+                      0.0
+                    ],
+                    "singular_values": [
+                      1.0,
+                      0.5
+                    ],
+                    "threshold": 0.75
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": true,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 1.0,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 1.0,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "matrix": [
+                [
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.5
+                ],
+                [
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0
+                ]
+              ]
+            },
+            "input_sha256": "70220217d99203b9baef10b2e79c8856c3c9cb87d4545d93698ea3c52c576615",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "coefficients": [
+                      1.0,
+                      2.0
+                    ],
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "rank": 2,
+                    "ratio": 1.0,
+                    "residuals": [
+                      0.0
+                    ],
+                    "singular_values": [
+                      1.0,
+                      0.5
+                    ],
+                    "threshold": 0.75
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": "C:\\Users\\Lenovo\\Documents\\Codex\\2026-10-09\\these-are-the-two-website-for-2\\work\\reprodelta-audit\\fixture\\project\\least_squares.py:11: FutureWarning: `rcond` parameter will change to the default of machine precision times ``max(M, N)`` where M and N are the input matrix dimensions.\r\nTo use the future default and silence this warning we advise to pass `rcond=None`, to keep using the old, explicitly pass `rcond=-1`.\r\n  coefficients, residuals, rank, singular_values = np.linalg.lstsq(matrix, [1., 1., 0., 0.])\r\n"
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "coefficients": [
+                      1.0,
+                      2.0
+                    ],
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "2.0.2",
+                    "rank": 2,
+                    "ratio": 1.0,
+                    "residuals": [
+                      0.0
+                    ],
+                    "singular_values": [
+                      1.0,
+                      0.5
+                    ],
+                    "threshold": 0.75
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": true,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 1.0,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 1.0,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "matrix": [
+                [
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.5
+                ],
+                [
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0
+                ]
+              ]
+            },
+            "input_sha256": "70220217d99203b9baef10b2e79c8856c3c9cb87d4545d93698ea3c52c576615",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "coefficients": [
+                      1.0,
+                      2.0
+                    ],
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "rank": 2,
+                    "ratio": 1.0,
+                    "residuals": [
+                      0.0
+                    ],
+                    "singular_values": [
+                      1.0,
+                      0.5
+                    ],
+                    "threshold": 0.75
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": "C:\\Users\\Lenovo\\Documents\\Codex\\2026-10-09\\these-are-the-two-website-for-2\\work\\reprodelta-audit\\fixture\\project\\least_squares.py:11: FutureWarning: `rcond` parameter will change to the default of machine precision times ``max(M, N)`` where M and N are the input matrix dimensions.\r\nTo use the future default and silence this warning we advise to pass `rcond=None`, to keep using the old, explicitly pass `rcond=-1`.\r\n  coefficients, residuals, rank, singular_values = np.linalg.lstsq(matrix, [1., 1., 0., 0.])\r\n"
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "coefficients": [
+                      1.0,
+                      2.0
+                    ],
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "2.0.2",
+                    "rank": 2,
+                    "ratio": 1.0,
+                    "residuals": [
+                      0.0
+                    ],
+                    "singular_values": [
+                      1.0,
+                      0.5
+                    ],
+                    "threshold": 0.75
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          }
+        ],
+        "seed": 42,
+        "strategy": "fixed_replay"
+      },
+      {
+        "case": "lstsq_rank",
+        "completed_pairs": 4,
+        "contract_body": {
+          "assumptions": [
+            "Rank fraction > .75 declares both parameters identifiable under the specified numerical rank cutoff.",
+            "Historical documented lstsq default change; this input is constructed, not a downstream defect."
+          ],
+          "comparison": {
+            "atol": 1e-07,
+            "dtype_must_match": false,
+            "inf_equal": true,
+            "nan_equal": false,
+            "rtol": 1e-05
+          },
+          "conclusion": {
+            "operator": "gt",
+            "threshold": 0.75,
+            "tie_behavior": "inconclusive",
+            "units": null
+          },
+          "input_schema": {
+            "cross_constraints": null,
+            "fields": [
+              {
+                "allow_inf": false,
+                "allow_nan": false,
+                "dtype": "float64",
+                "max_value": 10.0,
+                "min_value": -10.0,
+                "name": "matrix",
+                "shape": [
+                  4,
+                  2
+                ]
+              }
+            ]
+          },
+          "output_selector": {
+            "dtype": null,
+            "field_name": "conclusion",
+            "units": null
+          },
+          "resource_limits": {
+            "max_cpu_seconds": 25.0,
+            "max_memory_mb": 256,
+            "max_wall_seconds": 10
+          },
+          "review_provenance": "numpy_25721_lstsq_default",
+          "schema_version": "1"
+        },
+        "contract_hash": "aa0b347826540157eac1f8e3c93ea8d334b5125b2024469884b751d7c08630ea",
+        "first_witness_pair": null,
+        "pair_budget": 4,
+        "records": [
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": true,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 1.0,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 1.0,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "matrix": [
+                [
+                  -1.561563606294591,
+                  -9.404055611238594
+                ],
+                [
+                  -5.627240503927933,
+                  0.10710576206724731
+                ],
+                [
+                  -9.469280606322727,
+                  -6.02324698626703
+                ],
+                [
+                  2.997688755590463,
+                  0.8988296120643327
+                ]
+              ]
+            },
+            "input_sha256": "1c83955212c3b8a966615ed46d90ab2ce9770d85d3d5a9f12c3f3e7210ef3fb8",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "coefficients": [
+                      -0.019274932394459172,
+                      -0.06272521334193981
+                    ],
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "rank": 2,
+                    "ratio": 1.0,
+                    "residuals": [
+                      1.2782831240598627
+                    ],
+                    "singular_values": [
+                      14.24946555362534,
+                      7.432737961942665
+                    ],
+                    "threshold": 0.75
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": "C:\\Users\\Lenovo\\Documents\\Codex\\2026-10-09\\these-are-the-two-website-for-2\\work\\reprodelta-audit\\fixture\\project\\least_squares.py:11: FutureWarning: `rcond` parameter will change to the default of machine precision times ``max(M, N)`` where M and N are the input matrix dimensions.\r\nTo use the future default and silence this warning we advise to pass `rcond=None`, to keep using the old, explicitly pass `rcond=-1`.\r\n  coefficients, residuals, rank, singular_values = np.linalg.lstsq(matrix, [1., 1., 0., 0.])\r\n"
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "coefficients": [
+                      -0.019274932394459172,
+                      -0.06272521334193981
+                    ],
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "2.0.2",
+                    "rank": 2,
+                    "ratio": 1.0,
+                    "residuals": [
+                      1.2782831240598627
+                    ],
+                    "singular_values": [
+                      14.24946555362534,
+                      7.432737961942665
+                    ],
+                    "threshold": 0.75
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": true,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 1.0,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 1.0,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "matrix": [
+                [
+                  9.144261444135623,
+                  -3.2681090977474643
+                ],
+                [
+                  -8.145083132397042,
+                  -8.06567246333072
+                ],
+                [
+                  6.949887326949195,
+                  2.0745206273378223
+                ],
+                [
+                  6.142565465487603,
+                  4.594635733876357
+                ]
+              ]
+            },
+            "input_sha256": "412a54c7f5fcc4c9610fee997067292b77ff6ae45e0632d5076b5e38b56b3bb2",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "coefficients": [
+                      0.05589446013389767,
+                      -0.1554009588018022
+                    ],
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "rank": 2,
+                    "ratio": 1.0,
+                    "residuals": [
+                      0.1828709462461373
+                    ],
+                    "singular_values": [
+                      16.49281582776609,
+                      8.070247191977272
+                    ],
+                    "threshold": 0.75
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": "C:\\Users\\Lenovo\\Documents\\Codex\\2026-10-09\\these-are-the-two-website-for-2\\work\\reprodelta-audit\\fixture\\project\\least_squares.py:11: FutureWarning: `rcond` parameter will change to the default of machine precision times ``max(M, N)`` where M and N are the input matrix dimensions.\r\nTo use the future default and silence this warning we advise to pass `rcond=None`, to keep using the old, explicitly pass `rcond=-1`.\r\n  coefficients, residuals, rank, singular_values = np.linalg.lstsq(matrix, [1., 1., 0., 0.])\r\n"
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "coefficients": [
+                      0.05589446013389767,
+                      -0.1554009588018022
+                    ],
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "2.0.2",
+                    "rank": 2,
+                    "ratio": 1.0,
+                    "residuals": [
+                      0.1828709462461373
+                    ],
+                    "singular_values": [
+                      16.49281582776609,
+                      8.070247191977272
+                    ],
+                    "threshold": 0.75
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": true,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 1.0,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 1.0,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "matrix": [
+                [
+                  4.09143672429847,
+                  -9.083512326886755
+                ],
+                [
+                  -5.442034486969063,
+                  -4.212240727957857
+                ],
+                [
+                  -8.40416046152745,
+                  -5.344182272779396
+                ],
+                [
+                  -7.979971411805417,
+                  -4.440527937798158
+                ]
+              ]
+            },
+            "input_sha256": "669471295a16b597117632d0c2abf78a3236c0b81fb694de34c98c3c06c848ee",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "coefficients": [
+                      0.03019615575402108,
+                      -0.10295399578801567
+                    ],
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "rank": 2,
+                    "ratio": 1.0,
+                    "residuals": [
+                      0.671931956395666
+                    ],
+                    "singular_values": [
+                      15.252220916406149,
+                      9.826848345924583
+                    ],
+                    "threshold": 0.75
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": "C:\\Users\\Lenovo\\Documents\\Codex\\2026-10-09\\these-are-the-two-website-for-2\\work\\reprodelta-audit\\fixture\\project\\least_squares.py:11: FutureWarning: `rcond` parameter will change to the default of machine precision times ``max(M, N)`` where M and N are the input matrix dimensions.\r\nTo use the future default and silence this warning we advise to pass `rcond=None`, to keep using the old, explicitly pass `rcond=-1`.\r\n  coefficients, residuals, rank, singular_values = np.linalg.lstsq(matrix, [1., 1., 0., 0.])\r\n"
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "coefficients": [
+                      0.030196155754021074,
+                      -0.10295399578801566
+                    ],
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "2.0.2",
+                    "rank": 2,
+                    "ratio": 1.0,
+                    "residuals": [
+                      0.671931956395666
+                    ],
+                    "singular_values": [
+                      15.252220916406149,
+                      9.826848345924583
+                    ],
+                    "threshold": 0.75
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": true,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 1.0,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 1.0,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "matrix": [
+                [
+                  -6.57722703603806,
+                  4.582535959006984
+                ],
+                [
+                  -6.731950124761433,
+                  -2.410891164847044
+                ],
+                [
+                  9.790467012731906,
+                  2.7999951970818575
+                ],
+                [
+                  1.1389948754929247,
+                  3.6922850197974917
+                ]
+              ]
+            },
+            "input_sha256": "94b6f091375c29b23346c4f82598e2bc1d452ddb376b9f4e7313a157ba7f1a94",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "coefficients": [
+                      -0.07869897957196029,
+                      0.07383820426744868
+                    ],
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "rank": 2,
+                    "ratio": 1.0,
+                    "residuals": [
+                      0.7922309865951173
+                    ],
+                    "singular_values": [
+                      13.710379411636646,
+                      6.785284946415901
+                    ],
+                    "threshold": 0.75
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": "C:\\Users\\Lenovo\\Documents\\Codex\\2026-10-09\\these-are-the-two-website-for-2\\work\\reprodelta-audit\\fixture\\project\\least_squares.py:11: FutureWarning: `rcond` parameter will change to the default of machine precision times ``max(M, N)`` where M and N are the input matrix dimensions.\r\nTo use the future default and silence this warning we advise to pass `rcond=None`, to keep using the old, explicitly pass `rcond=-1`.\r\n  coefficients, residuals, rank, singular_values = np.linalg.lstsq(matrix, [1., 1., 0., 0.])\r\n"
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "coefficients": [
+                      -0.07869897957196029,
+                      0.07383820426744866
+                    ],
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "2.0.2",
+                    "rank": 2,
+                    "ratio": 1.0,
+                    "residuals": [
+                      0.7922309865951173
+                    ],
+                    "singular_values": [
+                      13.710379411636646,
+                      6.785284946415901
+                    ],
+                    "threshold": 0.75
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          }
+        ],
+        "seed": 42,
+        "strategy": "random_valid"
+      },
+      {
+        "case": "lstsq_rank",
+        "completed_pairs": 4,
+        "contract_body": {
+          "assumptions": [
+            "Rank fraction > .75 declares both parameters identifiable under the specified numerical rank cutoff.",
+            "Historical documented lstsq default change; this input is constructed, not a downstream defect."
+          ],
+          "comparison": {
+            "atol": 1e-07,
+            "dtype_must_match": false,
+            "inf_equal": true,
+            "nan_equal": false,
+            "rtol": 1e-05
+          },
+          "conclusion": {
+            "operator": "gt",
+            "threshold": 0.75,
+            "tie_behavior": "inconclusive",
+            "units": null
+          },
+          "input_schema": {
+            "cross_constraints": null,
+            "fields": [
+              {
+                "allow_inf": false,
+                "allow_nan": false,
+                "dtype": "float64",
+                "max_value": 10.0,
+                "min_value": -10.0,
+                "name": "matrix",
+                "shape": [
+                  4,
+                  2
+                ]
+              }
+            ]
+          },
+          "output_selector": {
+            "dtype": null,
+            "field_name": "conclusion",
+            "units": null
+          },
+          "resource_limits": {
+            "max_cpu_seconds": 25.0,
+            "max_memory_mb": 256,
+            "max_wall_seconds": 10
+          },
+          "review_provenance": "numpy_25721_lstsq_default",
+          "schema_version": "1"
+        },
+        "contract_hash": "aa0b347826540157eac1f8e3c93ea8d334b5125b2024469884b751d7c08630ea",
+        "first_witness_pair": 1,
+        "pair_budget": 4,
+        "records": [
+          {
+            "comparison": {
+              "conclusion_changed": true,
+              "dtype_equal": true,
+              "new_conclusion": "below_threshold",
+              "new_ratio": 0.5,
+              "new_reported_conclusion": "below_threshold",
+              "numeric_equal": false,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 1.0,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "supported_conclusion_change"
+            },
+            "input": {
+              "matrix": [
+                [
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  3.3306690738754696e-16
+                ],
+                [
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0
+                ]
+              ]
+            },
+            "input_sha256": "a0e0ea034d0fa199373e61fc4d96be8ad9ccd962d8a35a809c04aef42dc69464",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "coefficients": [
+                      1.0,
+                      3002399751580330.5
+                    ],
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "rank": 2,
+                    "ratio": 1.0,
+                    "residuals": [
+                      0.0
+                    ],
+                    "singular_values": [
+                      1.0,
+                      3.3306690738754696e-16
+                    ],
+                    "threshold": 0.75
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": "C:\\Users\\Lenovo\\Documents\\Codex\\2026-10-09\\these-are-the-two-website-for-2\\work\\reprodelta-audit\\fixture\\project\\least_squares.py:11: FutureWarning: `rcond` parameter will change to the default of machine precision times ``max(M, N)`` where M and N are the input matrix dimensions.\r\nTo use the future default and silence this warning we advise to pass `rcond=None`, to keep using the old, explicitly pass `rcond=-1`.\r\n  coefficients, residuals, rank, singular_values = np.linalg.lstsq(matrix, [1., 1., 0., 0.])\r\n"
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "coefficients": [
+                      1.0,
+                      0.0
+                    ],
+                    "conclusion": "below_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "2.0.2",
+                    "rank": 1,
+                    "ratio": 0.5,
+                    "residuals": [],
+                    "singular_values": [
+                      1.0,
+                      3.3306690738754696e-16
+                    ],
+                    "threshold": 0.75
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": true,
+              "dtype_equal": true,
+              "new_conclusion": "below_threshold",
+              "new_ratio": 0.5,
+              "new_reported_conclusion": "below_threshold",
+              "numeric_equal": false,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 1.0,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "supported_conclusion_change"
+            },
+            "input": {
+              "matrix": [
+                [
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  4.440892098500626e-16
+                ],
+                [
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0
+                ]
+              ]
+            },
+            "input_sha256": "7b9e62b4f6900a30c31d201dbee6b87f3b1082d3e862f18a5f14359407fbbfd4",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "coefficients": [
+                      1.0,
+                      2251799813685248.0
+                    ],
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "rank": 2,
+                    "ratio": 1.0,
+                    "residuals": [
+                      0.0
+                    ],
+                    "singular_values": [
+                      1.0,
+                      4.440892098500626e-16
+                    ],
+                    "threshold": 0.75
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": "C:\\Users\\Lenovo\\Documents\\Codex\\2026-10-09\\these-are-the-two-website-for-2\\work\\reprodelta-audit\\fixture\\project\\least_squares.py:11: FutureWarning: `rcond` parameter will change to the default of machine precision times ``max(M, N)`` where M and N are the input matrix dimensions.\r\nTo use the future default and silence this warning we advise to pass `rcond=None`, to keep using the old, explicitly pass `rcond=-1`.\r\n  coefficients, residuals, rank, singular_values = np.linalg.lstsq(matrix, [1., 1., 0., 0.])\r\n"
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "coefficients": [
+                      1.0,
+                      0.0
+                    ],
+                    "conclusion": "below_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "2.0.2",
+                    "rank": 1,
+                    "ratio": 0.5,
+                    "residuals": [],
+                    "singular_values": [
+                      1.0,
+                      4.440892098500626e-16
+                    ],
+                    "threshold": 0.75
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": true,
+              "dtype_equal": true,
+              "new_conclusion": "below_threshold",
+              "new_ratio": 0.5,
+              "new_reported_conclusion": "below_threshold",
+              "numeric_equal": false,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 1.0,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "supported_conclusion_change"
+            },
+            "input": {
+              "matrix": [
+                [
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  5.551115123125783e-16
+                ],
+                [
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0
+                ]
+              ]
+            },
+            "input_sha256": "a8b543bc855e0e148951af12dd4460f560226f54d89eb6cc90935a601848f61b",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "coefficients": [
+                      1.0,
+                      1801439850948198.5
+                    ],
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "rank": 2,
+                    "ratio": 1.0,
+                    "residuals": [
+                      0.0
+                    ],
+                    "singular_values": [
+                      1.0,
+                      5.551115123125783e-16
+                    ],
+                    "threshold": 0.75
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": "C:\\Users\\Lenovo\\Documents\\Codex\\2026-10-09\\these-are-the-two-website-for-2\\work\\reprodelta-audit\\fixture\\project\\least_squares.py:11: FutureWarning: `rcond` parameter will change to the default of machine precision times ``max(M, N)`` where M and N are the input matrix dimensions.\r\nTo use the future default and silence this warning we advise to pass `rcond=None`, to keep using the old, explicitly pass `rcond=-1`.\r\n  coefficients, residuals, rank, singular_values = np.linalg.lstsq(matrix, [1., 1., 0., 0.])\r\n"
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "coefficients": [
+                      1.0,
+                      0.0
+                    ],
+                    "conclusion": "below_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "2.0.2",
+                    "rank": 1,
+                    "ratio": 0.5,
+                    "residuals": [],
+                    "singular_values": [
+                      1.0,
+                      5.551115123125783e-16
+                    ],
+                    "threshold": 0.75
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": true,
+              "dtype_equal": true,
+              "new_conclusion": "below_threshold",
+              "new_ratio": 0.5,
+              "new_reported_conclusion": "below_threshold",
+              "numeric_equal": false,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 1.0,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "supported_conclusion_change"
+            },
+            "input": {
+              "matrix": [
+                [
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  6.661338147750939e-16
+                ],
+                [
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0
+                ]
+              ]
+            },
+            "input_sha256": "1c010c83f2d6f8b8e212617da42f4929bc23e3b97b687243bbbcdeeaabee2d32",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "coefficients": [
+                      1.0,
+                      1501199875790165.2
+                    ],
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "rank": 2,
+                    "ratio": 1.0,
+                    "residuals": [
+                      0.0
+                    ],
+                    "singular_values": [
+                      1.0,
+                      6.661338147750939e-16
+                    ],
+                    "threshold": 0.75
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": "C:\\Users\\Lenovo\\Documents\\Codex\\2026-10-09\\these-are-the-two-website-for-2\\work\\reprodelta-audit\\fixture\\project\\least_squares.py:11: FutureWarning: `rcond` parameter will change to the default of machine precision times ``max(M, N)`` where M and N are the input matrix dimensions.\r\nTo use the future default and silence this warning we advise to pass `rcond=None`, to keep using the old, explicitly pass `rcond=-1`.\r\n  coefficients, residuals, rank, singular_values = np.linalg.lstsq(matrix, [1., 1., 0., 0.])\r\n"
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "coefficients": [
+                      1.0,
+                      0.0
+                    ],
+                    "conclusion": "below_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "2.0.2",
+                    "rank": 1,
+                    "ratio": 0.5,
+                    "residuals": [],
+                    "singular_values": [
+                      1.0,
+                      6.661338147750939e-16
+                    ],
+                    "threshold": 0.75
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          }
+        ],
+        "seed": 42,
+        "strategy": "informed_sweep"
+      },
+      {
+        "case": "unchanged_control",
+        "completed_pairs": 4,
+        "contract_body": {
+          "assumptions": [
+            "Input signal is a 1D float32 array with exactly 8 elements.",
+            "All values are finite and within [-10, 10].",
+            "This is a constructed demonstration case. See fixture/project/pipeline.py."
+          ],
+          "comparison": {
+            "atol": 1e-07,
+            "dtype_must_match": false,
+            "inf_equal": true,
+            "nan_equal": false,
+            "rtol": 1e-05
+          },
+          "conclusion": {
+            "operator": "gt",
+            "threshold": 0.5,
+            "tie_behavior": "inconclusive",
+            "units": null
+          },
+          "input_schema": {
+            "cross_constraints": null,
+            "fields": [
+              {
+                "allow_inf": false,
+                "allow_nan": false,
+                "dtype": "float32",
+                "max_value": 10.0,
+                "min_value": -10.0,
+                "name": "signal",
+                "shape": [
+                  8
+                ]
+              }
+            ]
+          },
+          "output_selector": {
+            "dtype": null,
+            "field_name": "conclusion",
+            "units": null
+          },
+          "resource_limits": {
+            "max_cpu_seconds": 25.0,
+            "max_memory_mb": 256,
+            "max_wall_seconds": 10
+          },
+          "review_provenance": "fixture_default_v1",
+          "schema_version": "1"
+        },
+        "contract_hash": "e1d68eeb3ecb1a729e34f8bad85fe65824945e565a23d20f1e953e3ee0d4affd",
+        "first_witness_pair": null,
+        "pair_budget": 4,
+        "records": [
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 0.8999999761581421,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 0.9,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                0.5,
+                0.5,
+                0.5,
+                0.5,
+                1.5,
+                1.5,
+                1.5,
+                1.5
+              ]
+            },
+            "input_sha256": "d0c240ac9a331f3340ef196f5859b6b440d3235c15bd980a9eb6f66f74d1a540",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 0.9,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 0.8999999761581421,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 0.8999999761581421,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 0.9,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                0.5,
+                0.5,
+                0.5,
+                0.5,
+                1.5,
+                1.5,
+                1.5,
+                1.5
+              ]
+            },
+            "input_sha256": "d0c240ac9a331f3340ef196f5859b6b440d3235c15bd980a9eb6f66f74d1a540",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 0.9,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 0.8999999761581421,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 0.8999999761581421,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 0.9,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                0.5,
+                0.5,
+                0.5,
+                0.5,
+                1.5,
+                1.5,
+                1.5,
+                1.5
+              ]
+            },
+            "input_sha256": "d0c240ac9a331f3340ef196f5859b6b440d3235c15bd980a9eb6f66f74d1a540",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 0.9,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 0.8999999761581421,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 0.8999999761581421,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 0.9,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                0.5,
+                0.5,
+                0.5,
+                0.5,
+                1.5,
+                1.5,
+                1.5,
+                1.5
+              ]
+            },
+            "input_sha256": "d0c240ac9a331f3340ef196f5859b6b440d3235c15bd980a9eb6f66f74d1a540",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 0.9,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 0.8999999761581421,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          }
+        ],
+        "seed": 42,
+        "strategy": "fixed_replay"
+      },
+      {
+        "case": "unchanged_control",
+        "completed_pairs": 4,
+        "contract_body": {
+          "assumptions": [
+            "Input signal is a 1D float32 array with exactly 8 elements.",
+            "All values are finite and within [-10, 10].",
+            "This is a constructed demonstration case. See fixture/project/pipeline.py."
+          ],
+          "comparison": {
+            "atol": 1e-07,
+            "dtype_must_match": false,
+            "inf_equal": true,
+            "nan_equal": false,
+            "rtol": 1e-05
+          },
+          "conclusion": {
+            "operator": "gt",
+            "threshold": 0.5,
+            "tie_behavior": "inconclusive",
+            "units": null
+          },
+          "input_schema": {
+            "cross_constraints": null,
+            "fields": [
+              {
+                "allow_inf": false,
+                "allow_nan": false,
+                "dtype": "float32",
+                "max_value": 10.0,
+                "min_value": -10.0,
+                "name": "signal",
+                "shape": [
+                  8
+                ]
+              }
+            ]
+          },
+          "output_selector": {
+            "dtype": null,
+            "field_name": "conclusion",
+            "units": null
+          },
+          "resource_limits": {
+            "max_cpu_seconds": 25.0,
+            "max_memory_mb": 256,
+            "max_wall_seconds": 10
+          },
+          "review_provenance": "fixture_default_v1",
+          "schema_version": "1"
+        },
+        "contract_hash": "e1d68eeb3ecb1a729e34f8bad85fe65824945e565a23d20f1e953e3ee0d4affd",
+        "first_witness_pair": null,
+        "pair_budget": 4,
+        "records": [
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 0.8999999761581421,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 0.9,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                0.5,
+                0.5,
+                0.5,
+                0.5,
+                1.5,
+                1.5,
+                1.5,
+                1.5
+              ]
+            },
+            "input_sha256": "d0c240ac9a331f3340ef196f5859b6b440d3235c15bd980a9eb6f66f74d1a540",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 0.9,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 0.8999999761581421,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 0.8999999761581421,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 0.9,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                0.5,
+                0.5,
+                0.5,
+                0.5,
+                1.5,
+                1.5,
+                1.5,
+                1.5
+              ]
+            },
+            "input_sha256": "d0c240ac9a331f3340ef196f5859b6b440d3235c15bd980a9eb6f66f74d1a540",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 0.9,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 0.8999999761581421,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 0.8999999761581421,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 0.9,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                0.5,
+                0.5,
+                0.5,
+                0.5,
+                1.5,
+                1.5,
+                1.5,
+                1.5
+              ]
+            },
+            "input_sha256": "d0c240ac9a331f3340ef196f5859b6b440d3235c15bd980a9eb6f66f74d1a540",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 0.9,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 0.8999999761581421,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 0.8999999761581421,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 0.9,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                0.5,
+                0.5,
+                0.5,
+                0.5,
+                1.5,
+                1.5,
+                1.5,
+                1.5
+              ]
+            },
+            "input_sha256": "d0c240ac9a331f3340ef196f5859b6b440d3235c15bd980a9eb6f66f74d1a540",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 0.9,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 0.8999999761581421,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          }
+        ],
+        "seed": 42,
+        "strategy": "random_valid"
+      },
+      {
+        "case": "unchanged_control",
+        "completed_pairs": 4,
+        "contract_body": {
+          "assumptions": [
+            "Input signal is a 1D float32 array with exactly 8 elements.",
+            "All values are finite and within [-10, 10].",
+            "This is a constructed demonstration case. See fixture/project/pipeline.py."
+          ],
+          "comparison": {
+            "atol": 1e-07,
+            "dtype_must_match": false,
+            "inf_equal": true,
+            "nan_equal": false,
+            "rtol": 1e-05
+          },
+          "conclusion": {
+            "operator": "gt",
+            "threshold": 0.5,
+            "tie_behavior": "inconclusive",
+            "units": null
+          },
+          "input_schema": {
+            "cross_constraints": null,
+            "fields": [
+              {
+                "allow_inf": false,
+                "allow_nan": false,
+                "dtype": "float32",
+                "max_value": 10.0,
+                "min_value": -10.0,
+                "name": "signal",
+                "shape": [
+                  8
+                ]
+              }
+            ]
+          },
+          "output_selector": {
+            "dtype": null,
+            "field_name": "conclusion",
+            "units": null
+          },
+          "resource_limits": {
+            "max_cpu_seconds": 25.0,
+            "max_memory_mb": 256,
+            "max_wall_seconds": 10
+          },
+          "review_provenance": "fixture_default_v1",
+          "schema_version": "1"
+        },
+        "contract_hash": "e1d68eeb3ecb1a729e34f8bad85fe65824945e565a23d20f1e953e3ee0d4affd",
+        "first_witness_pair": null,
+        "pair_budget": 4,
+        "records": [
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 0.8999999761581421,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 0.9,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                0.5,
+                0.5,
+                0.5,
+                0.5,
+                1.5,
+                1.5,
+                1.5,
+                1.5
+              ]
+            },
+            "input_sha256": "d0c240ac9a331f3340ef196f5859b6b440d3235c15bd980a9eb6f66f74d1a540",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 0.9,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 0.8999999761581421,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 0.8999999761581421,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 0.9,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                0.5,
+                0.5,
+                0.5,
+                0.5,
+                1.5,
+                1.5,
+                1.5,
+                1.5
+              ]
+            },
+            "input_sha256": "d0c240ac9a331f3340ef196f5859b6b440d3235c15bd980a9eb6f66f74d1a540",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 0.9,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 0.8999999761581421,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 0.8999999761581421,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 0.9,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                0.5,
+                0.5,
+                0.5,
+                0.5,
+                1.5,
+                1.5,
+                1.5,
+                1.5
+              ]
+            },
+            "input_sha256": "d0c240ac9a331f3340ef196f5859b6b440d3235c15bd980a9eb6f66f74d1a540",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 0.9,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 0.8999999761581421,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          },
+          {
+            "comparison": {
+              "conclusion_changed": false,
+              "dtype_equal": false,
+              "new_conclusion": "above_threshold",
+              "new_ratio": 0.8999999761581421,
+              "new_reported_conclusion": "above_threshold",
+              "numeric_equal": true,
+              "old_conclusion": "above_threshold",
+              "old_ratio": 0.9,
+              "old_reported_conclusion": "above_threshold",
+              "verdict_hint": "no_violation_found"
+            },
+            "input": {
+              "signal": [
+                0.5,
+                0.5,
+                0.5,
+                0.5,
+                1.5,
+                1.5,
+                1.5,
+                1.5
+              ]
+            },
+            "input_sha256": "d0c240ac9a331f3340ef196f5859b6b440d3235c15bd980a9eb6f66f74d1a540",
+            "runs": [
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "old",
+                "numpy_version": "1.26.4",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float64",
+                    "numpy_version": "1.26.4",
+                    "ratio": 0.9,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              },
+              {
+                "base_project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+                "exit_code": 0,
+                "kind": "new",
+                "numpy_version": "2.0.2",
+                "outputs": {
+                  "result": {
+                    "conclusion": "above_threshold",
+                    "intermediate_dtype": "float32",
+                    "numpy_version": "2.0.2",
+                    "ratio": 0.8999999761581421,
+                    "threshold": 0.5
+                  },
+                  "status": "ok"
+                },
+                "patched_project_sha256": null,
+                "status": "ok",
+                "stderr": ""
+              }
+            ]
+          }
+        ],
+        "seed": 42,
+        "strategy": "informed_sweep"
+      }
+    ],
+    "schema_version": "2",
+    "status": "completed"
+  },
+  "project_sha256": "9bb6fb8e833cbe2d091d37d96d0229a0daa4dd1b45a9a208bf814fce83eff8f1",
+  "replay": "python scripts/export_demonstration.py --old-python OLD --new-python NEW --replay EVIDENCE.json --output REPLAY.json",
+  "run_mode": "pinned_interpreters",
+  "schema_version": "1",
+  "sources": {
+    "least_squares.py": "\"\"\"Compatibility replay of NumPy's independently documented lstsq default change.\n\nSource: https://github.com/numpy/numpy/pull/25721 (NumPy 2.0).\nThe bounded matrix is ours, not a claim of a downstream scientific defect.\n\"\"\"\nimport numpy as np\n\n\ndef classify_rank(matrix):\n    matrix = np.asarray(matrix, dtype=np.float64)\n    coefficients, residuals, rank, singular_values = np.linalg.lstsq(matrix, [1., 1., 0., 0.])\n    ratio = float(rank / 2)\n    return {\"ratio\": ratio, \"conclusion\": \"above_threshold\" if ratio > .75 else \"below_threshold\",\n            \"threshold\": .75, \"rank\": int(rank), \"coefficients\": coefficients.tolist(),\n            \"singular_values\": singular_values.tolist(), \"residuals\": residuals.tolist(),\n            \"numpy_version\": np.__version__, \"intermediate_dtype\": str(matrix.dtype)}\n",
+    "pipeline.py": "\"\"\"\nSignal classification pipeline \u2014 constructed demonstration case.\n\nThis pipeline classifies a 1D float32 signal as 'above_threshold' or\n'below_threshold' based on its normalized power spectral density ratio.\n\nIMPORTANT: This is a constructed demonstration case to show a documented\nNumPy 1.26\u21922.0 behavior difference. It is NOT an independently observed\nresearch defect.\n\nNumPy behavior that creates the difference:\n- NumPy 1.26: each float32 scalar / Python float \u2192 float64 (upcasting)\n- NumPy 2.0:  each float32 scalar / Python float \u2192 float32 (no upcasting)\nThis changes intermediate precision in the power computation, which can\nflip the classification near the threshold.\n\nReference: https://numpy.org/doc/2.0/numpy_2_0_migration_guide.html\n           (NEP 50 \u2014 scalar promotion)\n\"\"\"\nimport numpy as np\n\nTHRESHOLD = 0.5  # Ratio threshold for classification\n\n\ndef compute_power_ratio(signal: np.ndarray) -> float:\n    \"\"\"\n    Compute the ratio of high-frequency to total power.\n\n    The signal must be a 1D float32 array with at least 4 elements.\n    Returns a Python float (the ratio).\n\n    The scalar division deliberately exposes NEP 50. Array division does not:\n    a float32 array divided by 2.0 stays float32 in both tested releases.\n    \"\"\"\n    # NumPy 1.26 promotes each scalar result to float64; NumPy 2.0 keeps float32.\n    normalized = np.array([sample / 2.0 for sample in signal])\n\n    # Compute element-wise squared power\n    power = normalized ** 2\n\n    # Split into two halves and sum each\n    mid = len(power) // 2\n    high_power = np.sum(power[mid:])\n    total_power = np.sum(power)\n\n    if total_power == 0.0:\n        return 0.0\n\n    ratio = float(high_power / total_power)\n    return ratio\n\n\ndef classify_signal(signal: np.ndarray) -> dict:\n    \"\"\"\n    Classify a signal and return the result dict.\n\n    Returns:\n        {\n          \"ratio\": float,\n          \"conclusion\": \"above_threshold\" | \"below_threshold\",\n          \"threshold\": float,\n          \"numpy_version\": str,\n          \"intermediate_dtype\": str,  # dtype of normalized array\n        }\n    \"\"\"\n    ratio = compute_power_ratio(signal)\n    conclusion = \"above_threshold\" if ratio > THRESHOLD else \"below_threshold\"\n    # Record what dtype the intermediate computation used\n    normalized = np.array([sample / 2.0 for sample in signal])\n    return {\n        \"ratio\": ratio,\n        \"conclusion\": conclusion,\n        \"threshold\": THRESHOLD,\n        \"numpy_version\": np.__version__,\n        \"intermediate_dtype\": str(normalized.dtype),\n    }\n",
+    "run.py": "\"\"\"Execute the curated pipeline using the NumPy installed in this worker.\"\"\"\nimport json\nimport sys\n\nimport numpy as np\nfrom least_squares import classify_rank\nfrom pipeline import classify_signal\nfrom sensor import classify_sensor\n\n\ndef main() -> None:\n    data = json.load(sys.stdin)\n    if data.get(\"_case\") == \"lstsq_rank\":\n        json.dump({\"status\": \"ok\", \"result\": classify_rank(data[\"matrix\"])}, sys.stdout)\n        return\n    signal = np.array(data[\"signal\"], dtype=np.float32)\n    mode = data.get(\"_mode\")\n    if data.get(\"_case\") == \"sensor_offset\":\n        json.dump({\"status\": \"ok\", \"result\": classify_sensor(signal)}, sys.stdout)\n        return\n    if mode == \"explicit_float32\":\n        normalized = np.array([sample / np.float32(2.0) for sample in signal])\n        power = normalized ** 2\n        total = np.sum(power)\n        ratio = float(np.sum(power[len(power) // 2 :]) / total) if total else 0.0\n        result = {\n            \"ratio\": ratio,\n            \"conclusion\": \"above_threshold\" if ratio > 0.5 else \"below_threshold\",\n            \"threshold\": 0.5,\n            \"numpy_version\": np.__version__,\n            \"intermediate_dtype\": str(normalized.dtype),\n        }\n    elif mode == \"overfitted\" and len(signal) == 8 and 1.0 < float(signal[7]) < 1.00001:\n        result = {\n            \"ratio\": 0.4999999,\n            \"conclusion\": \"below_threshold\",\n            \"threshold\": 0.5,\n            \"numpy_version\": np.__version__,\n            \"intermediate_dtype\": \"float32\",\n        }\n    elif mode in (None, \"overfitted\"):\n        result = classify_signal(signal)\n    else:\n        raise ValueError(f\"Unknown fixture mode: {mode}\")\n    json.dump({\"status\": \"ok\", \"result\": result}, sys.stdout)\n\n\nif __name__ == \"__main__\":\n    main()\n",
+    "sensor.py": "\"\"\"Constructed sensor calibration case exposing scalar addition precision.\n\nThis is an independently executed expression, not a historical research defect.\nThe calibrated first reading is compared to a fixed decision boundary of 1.0.\n\"\"\"\nimport numpy as np\n\n\ndef classify_sensor(signal: np.ndarray) -> dict:\n    calibrated = signal[0] + 1e-8\n    ratio = float(calibrated)\n    return {\n        \"ratio\": ratio,\n        \"conclusion\": \"above_threshold\" if ratio > 1.0 else \"below_threshold\",\n        \"threshold\": 1.0,\n        \"numpy_version\": np.__version__,\n        \"intermediate_dtype\": str(calibrated.dtype),\n    }\n"
+  }
+}

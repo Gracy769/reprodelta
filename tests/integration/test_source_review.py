@@ -52,6 +52,29 @@ def test_lock_versions_and_yaml_limits():
     assert parsed == {"numpy": "==2.0.2"} and limits
 
 
+@pytest.mark.parametrize("path,old,new", [
+    ("requirements.txt", 'numpy==1.26.4; python_version < "3"', 'numpy==2.0.2; python_version < "3"'),
+    ("pyproject.toml", '[project.optional-dependencies]\nscience=["numpy==1.26.4"]',
+     '[project.optional-dependencies]\nscience=["numpy==2.0.2"]'),
+    ("Pipfile", '[packages]\nnumpy={version="==1.26.4", markers="python_version < \'3\'"}',
+     '[packages]\nnumpy={version="==2.0.2", markers="python_version < \'3\'"}'),
+])
+@pytest.mark.asyncio
+async def test_conditional_or_optional_pin_cannot_authorize_replay(path, old, new):
+    source = Path("fixture/project/pipeline.py").read_text(encoding="utf-8")
+
+    async def get(provider, token, endpoint, params=None):
+        if endpoint.endswith("/7"):
+            return {"base": {"sha": BASE}, "head": {"sha": HEAD}}
+        if endpoint.endswith("pipeline.py"):
+            return encoded(source)
+        return encoded(old if params["ref"] == BASE else new)
+
+    with pytest.raises(HTTPException) as failure:
+        await source_analysis.prepare_replay(get, "github", "token", "lab/project", 7, HEAD, path)
+    assert failure.value.status_code == 422
+
+
 @pytest.mark.asyncio
 async def test_file_pagination_inspects_dependency_after_first_page(monkeypatch):
     pages = []

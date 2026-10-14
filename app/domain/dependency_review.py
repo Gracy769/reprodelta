@@ -41,6 +41,8 @@ def parse_manifest(path: str, content: str | None) -> tuple[dict[str, str], list
     limits: list[str] = []
 
     def add(value):
+        if isinstance(value, str) and ";" in value:
+            limits.append("Environment-marked requirements are conditional and need resolution.")
         parsed = _requirement(value) if isinstance(value, str) else None
         if parsed:
             package, spec = parsed
@@ -62,11 +64,16 @@ def parse_manifest(path: str, content: str | None) -> tuple[dict[str, str], list
                 project = data.get("project", {})
                 for item in project.get("dependencies", []):
                     add(item)
-                for group in project.get("optional-dependencies", {}).values():
+                optional_groups = project.get("optional-dependencies", {})
+                if optional_groups:
+                    limits.append("Optional dependency groups are not guaranteed to be installed.")
+                for group in optional_groups.values():
                     for item in group:
                         add(item)
                 for package, spec in data.get("tool", {}).get("poetry", {}).get("dependencies", {}).items():
                     if package != "python":
+                        if isinstance(spec, dict) and (spec.get("optional") or spec.get("markers")):
+                            limits.append("Optional or environment-marked Poetry dependencies need resolution.")
                         result[_name(package)] = str(spec.get("version", "unresolved") if isinstance(spec, dict) else spec)
                 if project.get("dynamic"):
                     limits.append("Dynamic project metadata is not resolved.")
@@ -79,11 +86,15 @@ def parse_manifest(path: str, content: str | None) -> tuple[dict[str, str], list
             data = json.loads(content)
             for group in ("default", "develop"):
                 for package, info in data.get(group, {}).items():
+                    if isinstance(info, dict) and info.get("markers"):
+                        limits.append("Environment-marked Pipfile dependencies need resolution.")
                     result[_name(package)] = info.get("version", "unresolved")
         elif name == "pipfile":
             data = tomllib.loads(content)
             for group in ("packages", "dev-packages"):
                 for package, spec in data.get(group, {}).items():
+                    if isinstance(spec, dict) and spec.get("markers"):
+                        limits.append("Environment-marked Pipfile dependencies need resolution.")
                     result[_name(package)] = str(spec.get("version", "unresolved") if isinstance(spec, dict) else spec)
         else:
             # Read only simple conda/pip dependency-list entries, never YAML tags.

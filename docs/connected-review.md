@@ -29,7 +29,9 @@ The separately approved replay is deliberately narrow:
 1. Both remote revisions must contain `fixture/project/pipeline.py` identical to
    the trusted supported numerical source after canonical UTF-8/LF normalization.
 2. The selected manifest must unambiguously pin `numpy==1.26.4` at the base and
-   `numpy==2.0.2` at the head. Missing, ambiguous or unresolved pins fail closed.
+   `numpy==2.0.2` at the head. Missing, ambiguous, optional, conditional or
+   unresolved pins fail closed; a declaration guarded by an environment marker
+   cannot authorize a replay on its own.
 3. The user reviews and approves the existing eight-sample float32 contract,
    threshold/tie policy and execution/model budget. The submitted contract hash
    must match the current supported contract.

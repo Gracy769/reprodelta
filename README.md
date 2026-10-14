@@ -34,13 +34,13 @@ These checks do not verify a live Nebius call or Docker deployment.
 
 ## Accounts and source connections
 
-`/investigations/new` and `/workspace` show a bounded queue of recent open
-changes from up to eight recently updated connected projects. Repository search
-is available for a specific project, including private, forked, and starred
-GitHub repositories. Reviewing a selected change checks at most 100 changed
-files and names matching dependency and test evidence. It never executes that
-repository or claims a replay verdict. The fixed, executable NumPy contract is
-at `/demo/investigation`.
+`/workspace` (also served at `/investigations/new` for existing links) accepts
+a GitHub pull request or GitLab merge request URL, offers recent open changes
+from up to eight recently updated connected projects, and provides repository
+search as a fallback. Selecting a change immediately reviews up to 100 changed
+files, showing dependency and test evidence plus concrete follow-up checks.
+This is a read-only diff review: it never executes that repository or claims a
+replay verdict. The fixed, executable NumPy contract is at `/demo/investigation`.
 
 First-party GitHub and GitLab OAuth use a short-lived state challenge, an
 HttpOnly session cookie, and server-side encrypted token storage in Postgres.

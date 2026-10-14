@@ -70,6 +70,14 @@ implemented and verified.
 
 The hackathon submission additionally needs a public repository with an open-source license, working demo, and a public video under three minutes. Check the [official rules](https://nebiusglobalaihackathon.devpost.com/rules) before submission.
 
+**Workspace UX update, 14 October 2026:** The public home page opens with the
+curated replay and offers a separate repository diff review. The signed-in
+workspace takes a PR/MR URL directly, offers a bounded recent-change list, and
+keeps repository search and source settings secondary. Selecting an open change
+immediately produces a read-only, file-backed review. The result states its
+file limit and that no repository code was executed. The UI must not imply that
+this review reproduced a dependency regression.
+
 ## Success measures and research test
 
 The research hypothesis is that contract-guided search finds independently confirmed conclusion changes more efficiently than fixed replay or random valid search at an equal execution budget. Track executions to first valid witness, true conclusion changes found, invalid-input rejection, unchanged-control false alarms, reduction size and cost, mechanism localization, wrong-patch rejection, and compute/model cost. The [Testing plan](testing.md) defines comparisons and labels. No improvement is claimed until measured.

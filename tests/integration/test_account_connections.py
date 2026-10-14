@@ -30,7 +30,7 @@ async def test_account_pages_expose_real_forms_and_assets():
     assert 'autocomplete="current-password"' in signin.text
     assert "Connect GitHub" in workspace.text
     assert workspace.headers["cache-control"] == "no-store"
-    assert "Your selected repository is reviewed from its diff only" in workspace.text
+    assert "Your repository code is not executed" in workspace.text
     assert '/assets/workspace.js?v=' in workspace.text
     assert '/assets/nav-session.js?v=' in workspace.text
     assert '/assets/auth.js?v=' in signin.text
@@ -309,6 +309,27 @@ async def test_repository_path_cannot_escape_fixed_host_api(monkeypatch):
     monkeypatch.setattr(connections, "_saved_token", lambda owner, provider: "test-token")
     with pytest.raises(HTTPException) as exc:
         await connections.changes("github", "owner/repo/../../user", "user-42")
+    assert exc.value.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_gitlab_direct_link_uses_encoded_project_path(monkeypatch):
+    monkeypatch.setattr(connections, "_saved_token", lambda owner, provider: "test-token")
+    paths = []
+
+    async def fake_get(provider, token, path, params=None):
+        paths.append(path)
+        return {"changes": []} if path.endswith("/changes") else []
+
+    monkeypatch.setattr(connections, "_host_get", fake_get)
+    await connections.changes("gitlab", "group/nested/project", "user-42")
+    await connections.change_advice("gitlab", "group/nested/project", 7, "user-42")
+    assert paths == [
+        "/projects/group%2Fnested%2Fproject/merge_requests",
+        "/projects/group%2Fnested%2Fproject/merge_requests/7/changes",
+    ]
+    with pytest.raises(HTTPException) as exc:
+        await connections.change_advice("gitlab", "group/../project", 7, "user-42")
     assert exc.value.status_code == 422
 
 

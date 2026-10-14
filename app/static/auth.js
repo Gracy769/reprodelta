@@ -103,7 +103,7 @@
       button.disabled = true;
       try {
         if (["github", "gitlab"].includes(button.dataset.provider)) {
-          window.location.assign(`/oauth/${button.dataset.provider}/start?next=/investigations/new`);
+          window.location.assign(`/oauth/${button.dataset.provider}/start?next=/workspace`);
           return;
         }
         if (button.dataset.provider === "google" && firebaseConfig) {
@@ -111,7 +111,7 @@
           const result = await authClient.signInWithPopup(new firebase.auth.GoogleAuthProvider());
           await exchangeFirebase(result.user);
           await authClient.signOut().catch(() => {});
-          window.location.assign("/investigations/new");
+          window.location.assign("/workspace");
           return;
         }
         const result = await auth("/sign-in/social", {

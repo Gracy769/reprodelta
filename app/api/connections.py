@@ -10,6 +10,7 @@ import asyncio
 import base64
 import hashlib
 import re
+from urllib.parse import quote
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from typing import Annotated
@@ -192,6 +193,17 @@ def _github_repository(value: str) -> str:
     return value
 
 
+def _gitlab_project(value: str) -> str:
+    if value.isdigit() and len(value) <= 20:
+        return value
+    segments = value.split("/")
+    if (len(value) > 255 or len(segments) < 2 or
+            any(segment in {"", ".", ".."} or not re.fullmatch(r"[A-Za-z0-9_.-]+", segment)
+                for segment in segments)):
+        raise HTTPException(422, "Invalid GitLab project path")
+    return quote(value, safe="")
+
+
 @router.get("")
 def list_connections(owner_id: Annotated[str, Depends(current_user)]):
     with psycopg.connect(_database_dsn(), row_factory=dict_row) as conn:
@@ -326,8 +338,7 @@ async def changes(provider: str, repository: str, owner_id: Annotated[str, Depen
             for item in data
         ]
     else:
-        if not repository.isdigit():
-            raise HTTPException(422, "Invalid project ID")
+        repository = _gitlab_project(repository)
         data = await _host_get(
             provider,
             token,
@@ -426,8 +437,7 @@ async def change_advice(
             for x in data
         ]
     else:
-        if not repository.isdigit():
-            raise HTTPException(422, "Invalid project ID")
+        repository = _gitlab_project(repository)
         result = await _host_get(
             provider, token, f"/projects/{repository}/merge_requests/{number}/changes"
         )

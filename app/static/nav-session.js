@@ -3,10 +3,17 @@
   const profile = document.getElementById("nav-profile");
   if (!guest || !profile) return;
 
+  async function timedFetch(url) {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 8000);
+    try { return await fetch(url, { credentials: "include", signal: controller.signal }); }
+    finally { window.clearTimeout(timer); }
+  }
+
   async function session() {
-    const firstParty = await fetch("/oauth/session", { credentials: "include" });
+    const firstParty = await timedFetch("/oauth/session");
     if (firstParty.ok) return firstParty.json();
-    const legacy = await fetch("/auth/get-session", { credentials: "include" });
+    const legacy = await timedFetch("/auth/get-session");
     return legacy.ok ? legacy.json() : null;
   }
 

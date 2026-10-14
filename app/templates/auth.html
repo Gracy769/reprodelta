@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#091812" />
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="/assets/auth.css" />
+  <link rel="stylesheet" href="{{ asset_url('auth.css') }}" />
   <title>{{ 'Create account' if mode == 'signup' else 'Sign in' }} — ReproDelta</title>
 </head>
 <body data-mode="{{ mode }}" data-auth-base="{{ auth_base_url or '' }}">
@@ -60,6 +60,6 @@
     </main>
   </div>
   {% if firebase_config %}<script id="firebase-config" type="application/json">{{ firebase_config | tojson }}</script><script src="/assets/firebase/firebase-app-compat.js" defer></script><script src="/assets/firebase/firebase-auth-compat.js" defer></script>{% endif %}
-  <script src="/assets/auth.js" defer></script>
+  <script src="{{ asset_url('auth.js') }}" defer></script>
 </body>
 </html>

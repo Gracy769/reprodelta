@@ -376,7 +376,7 @@
       }
       $("workspace-loading").hidden = true;
       $("workspace-content").hidden = false;
-      await api("/investigation-session", {method: "POST"});
+      await api("/session/investigation", {method: "POST"});
       await loadConnections();
     } catch (error) {
       $("workspace-loading").hidden = true;

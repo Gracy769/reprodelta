@@ -263,6 +263,8 @@ async def test_workbench_cookie_allows_navigation_only_for_verified_owner():
     from app.main import app
     store = MemoryInvestigationStore()
     previous = investigations._store
+    previous_override = app.dependency_overrides.get(connections.current_user)
+    app.dependency_overrides[connections.current_user] = lambda: "neon-user-42"
     investigations.set_store(store)
     job = store.create_investigation("00000000-0000-0000-0000-000000000001", {}, "neon-user-42")
     def cookie(owner):
@@ -273,6 +275,11 @@ async def test_workbench_cookie_allows_navigation_only_for_verified_owner():
         return "rd_workbench=" + values["rd_workbench"].value
     try:
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            # Exercise actual route ordering; the one-segment provider connect
+            # route must not shadow workbench session issuance.
+            session = await client.post("/api/connections/session/investigation")
+            assert session.status_code == 200
+            assert "rd_workbench=" in session.headers["set-cookie"]
             accepted = await client.get(f"/api/investigations/{job}", headers={"Cookie": cookie("neon-user-42")})
             assert accepted.status_code == 200
             assert accepted.headers["cache-control"] == "no-store"
@@ -282,6 +289,10 @@ async def test_workbench_cookie_allows_navigation_only_for_verified_owner():
             assert tampered.status_code == 401
     finally:
         investigations.set_store(previous)
+        if previous_override is None:
+            app.dependency_overrides.pop(connections.current_user, None)
+        else:
+            app.dependency_overrides[connections.current_user] = previous_override
 
 
 def test_failed_benchmark_executions_are_not_completed_pairs():

@@ -453,7 +453,7 @@ async def recent_reviews(owner_id: Annotated[str, Depends(current_user)]):
     return {"reviews": await asyncio.to_thread(source_reviews.recent, _database_dsn(), owner_id)}
 
 
-@router.post("/investigation-session")
+@router.post("/session/investigation")
 async def investigation_session(response: Response, owner_id: Annotated[str, Depends(current_user)]):
     from app.api.investigation_access import set_workbench_cookie
     set_workbench_cookie(response, owner_id)

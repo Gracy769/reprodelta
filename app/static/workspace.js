@@ -19,7 +19,7 @@
     box.classList.toggle("success", success);
     box.hidden = false;
   };
-  async function timedFetch(url, options = {}, timeout = 12000) {
+  async function timedFetch(url, options = {}, timeout = 100000) {
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), timeout);
     try { return await fetch(url, { ...options, signal: controller.signal }); }
@@ -75,6 +75,7 @@
     if (!state.connections.length) $("source-settings").open = true;
     const lists = await Promise.allSettled(state.connections.map(async (connection) => {
       const response = await api(`/${connection.provider}/repositories`);
+      if (response.has_more) status(response.scope || "Repository listing is incomplete; paste a direct change URL.");
       return (response.repositories || []).map((repo) => ({ ...repo, provider: connection.provider,
         key: connection.provider === "github" ? repo.name : String(repo.id) }));
     }));
@@ -82,7 +83,7 @@
     const failed = lists.find((entry) => entry.status === "rejected");
     if (failed) status(`Some repositories could not be loaded: ${failed.reason.message}`);
     renderRepos();
-    await loadQueue();
+    await Promise.all([loadQueue(), loadRecentReviews()]);
   }
   function changeButton(change, repository, compact = false) {
     const button = document.createElement("button");
@@ -107,6 +108,7 @@
       const data = await api("/review-queue");
       $("queue-scope").textContent = `Checked ${data.projects_checked} of ${data.projects_available} connected projects. Paste a link above to reach any other change.`;
       clear(list);
+      if (data.errors?.length) status(data.errors.map((item) => `${item.provider}: ${item.error}`).join("; "));
       if (!data.changes.length) {
         empty(list, "No open changes in those recent projects. Paste a PR or MR link above, or browse a repository below.");
         return;
@@ -151,10 +153,10 @@
       if (nonce !== state.repoNonce) return;
       const list = $("change-list");
       clear(list);
-      $("selected-repository-status").textContent = `${result.changes.length} open ${repo.provider === "github" ? "pull requests" : "merge requests"}. Choose one, then start the investigation.`;
+      $("selected-repository-status").textContent = `${result.changes.length} open ${repo.provider === "github" ? "pull requests" : "merge requests"}. Choose one, then analyze the changed files.`;
       if (!result.changes.length) { empty(list, "No open changes here. You can still paste a direct link to a closed PR or MR above."); return; }
       result.changes.forEach((change) => list.append(changeButton(change, repo, true)));
-      if (result.has_more) status("Showing the first 50 open changes in this repository. Paste a direct link for another one.");
+      if (result.has_more) status("Showing the first 1,000 open changes in this repository. Paste a direct link for another one.");
     } catch (error) {
       if (nonce !== state.repoNonce) return;
       $("selected-repository-status").textContent = "Changes could not be loaded.";
@@ -187,18 +189,9 @@
     clear(body);
     const summary = document.createElement("div"); summary.className = "review-result-summary";
     const count = result.changed_file_count_checked ?? 0;
-    const dependencyCount = (result.dependency_files || []).length;
-    let heading, description;
-    if (dependencyCount) {
-      heading = `${dependencyCount} dependency file${dependencyCount === 1 ? "" : "s"} changed`;
-      description = `We checked ${count} changed file${count === 1 ? "" : "s"} and found a dependency manifest or lockfile. Review the resolved versions and the assertions affected by them.`;
-    } else if (result.numpy_mentioned) {
-      heading = "NumPy appears in this diff";
-      description = `We checked ${count} changed file${count === 1 ? "" : "s"}. NumPy appears in a changed patch, but a version change or behavior change has not been established.`;
-    } else {
-      heading = "No supported dependency signal found";
-      description = `We checked ${count} changed file${count === 1 ? "" : "s"}. That is not a pass or a safety verdict; inspect the full change and its tests before deciding.`;
-    }
+    const changes = result.dependency_changes || [];
+    const heading = changes.length ? `${changes.length} dependency declaration changes observed` : "No dependency version change established";
+    const description = `${result.evidence_level || "Diff review"} · ${result.complete ? "Complete retrieval" : "Incomplete evidence"} · ${count} files · Commit ${(result.head_sha || "unknown").slice(0, 12)}. Declared constraints are not resolved environments or reproduced regressions.`;
     summary.append(text("strong", heading), text("p", description));
     body.append(summary);
     (result.findings || []).forEach((finding, index) => {
@@ -206,19 +199,77 @@
       const content = document.createElement("div");
       content.append(text("h3", finding.title || "Finding"));
       if (finding.evidence) content.append(text("code", finding.evidence));
+      const evidenceUrl = safeSourceUrl(finding.url, change.provider);
+      if (evidenceUrl) { const link = text("a", "Open evidence at this commit"); link.href = evidenceUrl; link.target = "_blank"; link.rel = "noopener noreferrer"; content.append(link); }
       content.append(text("p", finding.action || "Review this part of the change."));
       item.append(text("span", String(index + 1).padStart(2, "0"), "review-finding-index"), content);
       body.append(item);
     });
+    const limits = text("ul", "");
+    (result.limitations || []).forEach((value) => limits.append(text("li", value)));
+    body.append(text("h3", "Limits and missing information"), limits);
+    const actions = text("ol", "");
+    (result.next_actions || []).forEach((value) => actions.append(text("li", value)));
+    body.append(text("h3", "What to do next"), actions);
     const next = document.createElement("div"); next.className = "review-next";
     next.append(text("p", `${result.scope || "A bounded diff review."} No repository code was executed. This is not a reproduced regression.`, "review-scope"));
     const demo = document.createElement("a"); demo.href = "/demo/investigation"; demo.textContent = "See a real paired replay ↗";
     next.append(demo); body.append(next);
+    const configure = text("button", "Configure supported paired replay", "review-button review-button-secondary");
+    configure.type = "button";
+    configure.addEventListener("click", () => configureReplay(result, change, next, configure));
+    next.append(configure);
     $("review-result-meta").textContent = `${change.provider.toUpperCase()} · ${change.repoKey} · ${change.provider === "github" ? "PR" : "MR"} #${change.number}`;
+  }
+  async function loadRecentReviews() {
+    const list = $("recent-reviews");
+    try {
+      const data = await api("/reviews"); clear(list);
+      if (!data.reviews.length) { empty(list, "Your completed diff reviews will appear here."); return; }
+      data.reviews.forEach((review) => {
+        const button = text("button", `${review.repository} #${review.number} · ${review.head_sha.slice(0, 12)}`, "review-change-item");
+        button.type = "button";
+        button.addEventListener("click", async () => {
+          try {
+            const saved = await api(`/reviews/${encodeURIComponent(review.id)}`);
+            const change = {provider: saved.provider, repoKey: saved.repository, number: saved.number,
+              title: `Saved review #${saved.number}`, url: `https://${saved.provider === "github" ? "github.com" : "gitlab.com"}/${saved.repository}/${saved.provider === "github" ? "pull" : "-/merge_requests"}/${saved.number}`};
+            selectChange(change); $("review-result").hidden = false; renderReview(saved, change);
+            status("Historical review loaded. Replay rechecks the latest PR revisions.", true);
+          } catch (error) { status(error.message); }
+        }); list.append(button);
+      });
+    } catch (error) { empty(list, `Saved reviews unavailable: ${error.message}`); }
+  }
+  async function configureReplay(result, change, parent, trigger) {
+    trigger.disabled = true;
+    try {
+      const response = await timedFetch("/api/projects/00000000-0000-0000-0000-000000000001/contract", {headers: {Authorization: `Bearer ${state.jwt}`}});
+      const approved = await response.json();
+      if (!response.ok) throw new Error(approved.detail || "Supported contract unavailable");
+      const form = document.createElement("form");
+      form.append(text("p", "Supported scope: the exact fixture/project/pipeline.py kernel at both commits, with an explicit NumPy 1.26.4 to 2.0.2 pin. Other project code and dependency changes are excluded."));
+      form.append(text("p", "Contract: 8 finite float32 signal values in [-10, 10]; ratio > 0.5, exact ties inconclusive. Up to 400 executions, 600 seconds and 2 model calls; model cost cap $0.10. Only curated data reaches the configured model provider."));
+      const path = document.createElement("select"); path.required = true; path.setAttribute("aria-label", "Dependency manifest containing the NumPy pins");
+      (result.dependency_files || []).forEach((file) => {const option = text("option", file); option.value = file; path.append(option);});
+      if (!path.options.length) { form.append(text("p", "No supported dependency manifest was found. A pinned manifest and validated numerical adapter are required before replay.")); parent.append(form); return; }
+      const label = document.createElement("label"), checkbox = document.createElement("input"); checkbox.type = "checkbox"; checkbox.required = true;
+      label.append(checkbox, document.createTextNode(" I approve this exact contract, scope and budget."));
+      const submit = text("button", "Run approved paired investigation", "review-button review-button-primary"); submit.type = "submit";
+      const message = text("p", ""); message.setAttribute("role", "status");
+      form.append(path, label, submit, message); parent.append(form);
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault(); submit.disabled = true; message.textContent = "Verifying immutable source and environment pins…";
+        try {
+          const job = await api(`/${change.provider}/paired-replay`, {method: "POST", body: JSON.stringify({repository: change.repoKey, number: change.number, expected_head_sha: result.head_sha, dependency_path: path.value, contract_hash: approved.contract_hash})});
+          location.href = `/investigations/${encodeURIComponent(job.investigation_id)}`;
+        } catch (error) { message.textContent = error.message; submit.disabled = false; }
+      });
+    } catch (error) { status(error.message); trigger.disabled = false; }
   }
   function selectChange(change) {
     if (!state.connections.some((connection) => connection.provider === change.provider)) {
-      $("change-link-help").textContent = `Connect ${change.provider === "github" ? "GitHub" : "GitLab"} below before investigating this link.`;
+      $("change-link-help").textContent = `Connect ${change.provider === "github" ? "GitHub" : "GitLab"} below before analyzing this link.`;
       $("change-link-help").classList.add("is-error");
       $("source-settings").open = true;
       $("source-settings").scrollIntoView({ behavior: "smooth", block: "center" });
@@ -235,8 +286,8 @@
     if (sourceUrl) $("chosen-source-link").href = sourceUrl;
     const button = $("start-investigation-btn");
     button.disabled = false;
-    $("start-investigation-label").textContent = "Start investigation";
-    $("change-link-help").textContent = "Change selected. Start the investigation below.";
+    $("start-investigation-label").textContent = "Analyze changed files";
+    $("change-link-help").textContent = "Change selected. Analyze the changed files below.";
     $("change-link-help").classList.remove("is-error");
     $("chosen-change").scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "center" });
     button.focus({ preventScroll: true });
@@ -245,7 +296,7 @@
     const nonce = ++state.reviewNonce;
     const button = $("start-investigation-btn");
     button.disabled = true;
-    $("start-investigation-label").textContent = "Investigating…";
+    $("start-investigation-label").textContent = "Analyzing changed files…";
     const resultSection = $("review-result");
     resultSection.hidden = false;
     $("review-result-title").textContent = change.title;
@@ -259,7 +310,8 @@
       const result = await api(`/${change.provider}/advice?repository=${encodeURIComponent(change.repoKey)}&number=${change.number}`);
       if (nonce !== state.reviewNonce) return;
       renderReview(result, change);
-      $("change-link-help").textContent = "Investigation findings are ready below.";
+      loadRecentReviews();
+      $("change-link-help").textContent = "Diff observations are ready below.";
       $("change-link-help").classList.remove("is-error");
     } catch (error) {
       if (nonce !== state.reviewNonce) return;
@@ -267,7 +319,7 @@
     } finally {
       if (nonce === state.reviewNonce) {
         button.disabled = false;
-        $("start-investigation-label").textContent = "Run investigation again";
+        $("start-investigation-label").textContent = "Analyze latest revision";
       }
     }
   }
@@ -324,6 +376,7 @@
       }
       $("workspace-loading").hidden = true;
       $("workspace-content").hidden = false;
+      await api("/investigation-session", {method: "POST"});
       await loadConnections();
     } catch (error) {
       $("workspace-loading").hidden = true;

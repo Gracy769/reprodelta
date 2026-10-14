@@ -33,8 +33,19 @@ def cookie_key() -> str:
 async def investigation_owner(request: Request, response: Response):
     authorization = request.headers.get("authorization")
     session = request.cookies.get("rd_session")
+    workbench = request.cookies.get("rd_workbench")
     if authorization or session:
         owner = current_user(authorization or f"Bearer {session}")
+    elif workbench:
+        try:
+            claims = jwt.decode(workbench, cookie_key(), algorithms=["HS256"],
+                                issuer="reprodelta-investigation", audience="reprodelta-investigation",
+                                options={"require": ["sub", "exp"]})
+            owner = claims["sub"]
+            if not isinstance(owner, str) or not owner or owner.startswith("guest:"):
+                raise ValueError("invalid workbench subject")
+        except (jwt.PyJWTError, ValueError) as exc:
+            raise HTTPException(401, "Investigation session expired; return to the workspace") from exc
     else:
         token = request.cookies.get("rd_demo")
         owner = None
@@ -84,6 +95,14 @@ async def investigation_owner(request: Request, response: Response):
         yield owner
     finally:
         owner_context.reset(context)
+
+
+def set_workbench_cookie(response: Response, owner: str) -> None:
+    """Bridge a verified bearer identity to same-origin investigation navigation."""
+    token = jwt.encode({"sub": owner, "iss": "reprodelta-investigation", "aud": "reprodelta-investigation",
+                        "exp": datetime.now(UTC) + timedelta(minutes=30)}, cookie_key(), algorithm="HS256")
+    response.set_cookie("rd_workbench", token, httponly=True, samesite="strict", max_age=1800,
+                        secure=bool(get_settings().app_url and get_settings().app_url.startswith("https://")))
 
 
 def approval_key(project_id: str) -> str:

@@ -56,6 +56,7 @@ async def test_firebase_verifies_signature_project_and_google_provider(monkeypat
 
 @pytest.mark.asyncio
 async def test_firebase_exchange_checks_origin_and_sets_http_only_cookie(monkeypatch):
+    monkeypatch.setattr(firebase_auth, "upsert_profile", lambda *args: None)
     monkeypatch.setattr(firebase_auth, "get_settings", lambda: SimpleNamespace(
         firebase_project_id="reprodelta-firebase", secret_key="test-secret-that-is-long-enough-for-hs256",
         app_url="https://reprodelta.example",

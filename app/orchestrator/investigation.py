@@ -73,7 +73,7 @@ def _run_result_to_evidence(result: RunResult, environment: str, contract: Contr
     return RunEvidence(
         run_id=result.run_id,
         environment=environment,
-        numpy_version=inner.get("numpy_version") if isinstance(inner, dict) else None,
+        numpy_version=result.numpy_version or (inner.get("numpy_version") if isinstance(inner, dict) else None),
         conclusion=evaluated["conclusion"] if evaluated else None,
         ratio=evaluated["ratio"] if evaluated else None,
         intermediate_dtype=inner.get("intermediate_dtype") if isinstance(inner, dict) else None,
@@ -286,7 +286,11 @@ class InvestigationRunner:
             self.runner,
             on_progress=lambda event_type, payload: self._emit(investigation_id, event_type, payload),
         )
-        progress: SearchProgress = searcher.run_search(investigation_id)
+        search_settings = self._store.get_investigation(investigation_id).get("budget_json", {}) if self._store else {}
+        progress: SearchProgress = searcher.run_search(
+            investigation_id, seed=search_settings.get("search_seed", 42),
+            search_strategy=search_settings.get("search_strategy", "sweep"),
+        )
 
         witness_evidence: WitnessEvidence | None = None
         reduction: ReductionResult | None = None

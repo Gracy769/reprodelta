@@ -49,7 +49,7 @@ def main():
                         candidate_sha256=record["input_sha256"],
                         entry_point="run.py",
                         input_json=record["input"],
-                        case="sensor_offset" if row["case"] == "sensor_offset" else "power_ratio",
+                        case="power_ratio" if row["case"] == "unchanged_control" else row["case"],
                     )
                     actual = runner.submit(manifest)
                     if (

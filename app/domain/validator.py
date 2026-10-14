@@ -55,22 +55,23 @@ def validate_input(contract: ContractBody, input_json: dict) -> ValidationResult
                 checked_fields=checked,
             )
 
-        # 3. Shape check (only 1-D shapes supported for now — len(shape) == 1)
-        if len(field.shape) == 1:
-            expected_len = field.shape[0]
-            if len(value) != expected_len:
-                return ValidationResult(
-                    valid=False,
-                    reason=(
-                        f"Field '{fname}' has wrong length: "
-                        f"expected {expected_len}, got {len(value)}"
-                    ),
-                    checked_fields=checked,
-                )
+        # Validate every dimension, including ragged arrays, before flattening.
+        def flatten(items, shape):
+            if not shape:
+                return [items]
+            if not isinstance(items, (list, tuple)) or len(items) != shape[0]:
+                raise ValueError("shape mismatch")
+            return [item for child in items for item in flatten(child, shape[1:])]
+        try:
+            if not 1 <= len(field.shape) <= 4 or any(dimension < 1 or dimension > 1000 for dimension in field.shape):
+                raise ValueError("unsupported shape")
+            value = flatten(value, field.shape)
+        except ValueError:
+            return ValidationResult(valid=False, reason=f"Field '{fname}' has wrong length or shape: expected {field.shape}", checked_fields=checked)
 
         # 4. All elements must be numeric
         for i, elem in enumerate(value):
-            if not isinstance(elem, (int, float)):
+            if type(elem) not in (int, float):
                 return ValidationResult(
                     valid=False,
                     reason=(

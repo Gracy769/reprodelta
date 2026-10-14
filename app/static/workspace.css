@@ -86,7 +86,13 @@ main:has(.review-page){background:#f7f8f4;padding-top:0}
 .review-finding h3{font-size:19px;letter-spacing:-.035em;margin:0 0 8px}
 .review-finding code{display:block;white-space:pre-wrap;overflow-wrap:anywhere;color:#42654b;background:#eef5ed;padding:10px 12px;font:12px/1.55 var(--font-mono);margin:10px 0}
 .review-finding p{font-size:14px;line-height:1.6;color:#445a49;margin:0}
-.review-next{padding:24px 0 0;display:flex;align-items:center;justify-content:space-between;gap:20px}
+.review-next{padding:24px 0 0;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:20px}
+.review-next form{flex-basis:100%;display:grid;gap:16px;max-width:760px}
+.review-next form p{max-width:100%}
+.review-next form select{width:100%;padding:12px;font:inherit}
+.review-next form label{display:flex;align-items:flex-start;gap:8px;font-size:14px;line-height:1.6}
+.review-next form input[type=checkbox]{width:auto;flex:none;margin-top:5px}
+.review-next form button{justify-self:start}
 .review-next p{font:12px/1.55 var(--font-mono);color:#586d5e;max-width:660px;margin:0}
 .review-next a{flex:none;font-size:13px;font-weight:700}
 .review-settings{margin:22px 0 0}

@@ -25,7 +25,7 @@ import json
 import pathlib
 import uuid
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import PlainTextResponse, StreamingResponse
@@ -36,6 +36,7 @@ from app.config import get_settings
 from app.domain.contract import FIXTURE_CONTRACT, hash_contract
 from app.domain.types import BudgetConfig
 from app.domain.validator import validate_input
+from app.orchestrator import admission
 from app.orchestrator.budget import BudgetExceeded, BudgetLedger, BudgetRunner
 from app.orchestrator.executor import PairedRunRequest, PairedRunResult, run_pair
 from app.orchestrator.investigation import InvestigationRunner
@@ -117,6 +118,8 @@ def get_runner() -> RunnerAdapter:
 class CreateInvestigationRequest(BaseModel):
     project_id: uuid.UUID
     description: str = ""
+    search_strategy: Literal["sweep", "random"] = "sweep"
+    search_seed: int = Field(default=42, ge=0, le=2**32-1)
     max_candidates: int = Field(default=50, ge=1, le=1000)
     max_runs: int = Field(default=400, ge=1, le=4000)
 
@@ -177,6 +180,7 @@ def _get_investigation_or_404(investigation_id: str) -> dict[str, Any]:
             "id": investigation_id,
             "project_id": stored["project_id"],
             "description": "",
+            "owner_id": stored.get("owner_id"),
             "created_at": stored.get("created_at"),
             "runs": [],
             "max_candidates": budget.get("max_candidates", 50),
@@ -234,11 +238,14 @@ def _run_investigation_sync(
         from app.orchestrator.report import generate_report, generate_text_summary
 
         store.store_evidence(investigation_id, evidence.model_dump(mode="json"))
-        store.store_report(
-            investigation_id,
-            generate_report(evidence),
-            generate_text_summary(evidence),
-        )
+        report = generate_report(evidence)
+        summary = generate_text_summary(evidence)
+        bindings = [event["payload"] for event in store.get_events(investigation_id)
+                    if event["event_type"] == "source_binding"]
+        if bindings:
+            report["source_binding"] = bindings[0]
+            summary += "\nConnected source scope: " + json.dumps(bindings[0], sort_keys=True)
+        store.store_report(investigation_id, report, summary)
         store.transition_status(investigation_id, "completed")
         state["evidence"] = evidence
         state["status"] = "completed"
@@ -307,9 +314,10 @@ async def create_investigation(body: CreateInvestigationRequest) -> dict:
     _ensure_demo_project(body.project_id)
     store = get_store()
     budget_json = BudgetConfig(
-        **body.model_dump(exclude={"project_id", "description"})
+        **body.model_dump(exclude={"project_id", "description", "search_strategy", "search_seed"})
     ).model_dump()
-    inv_id = store.create_investigation(
+    budget_json.update(search_strategy=body.search_strategy, search_seed=body.search_seed)
+    inv_id = admission.create(store,
         project_id=str(body.project_id),
         budget_json=budget_json,
         owner_id=owner_context.get() or "user",
@@ -359,7 +367,7 @@ async def start_investigation(
     state = _investigation_state.setdefault(investigation_id, {})
     store = get_store()
     try:
-        store.transition_status(investigation_id, "running")
+        admission.start(store, investigation_id, record.get("owner_id", owner_context.get() or "user"))
     except ValueError as exc:
         raise HTTPException(409, "Investigation has already been started") from exc
     state["status"] = "running"

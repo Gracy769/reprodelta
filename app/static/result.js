@@ -64,7 +64,9 @@
     const witness = data.witness;
     const verdict = verdicts[data.verdict] || ["Investigation recorded", "Review the recorded observations and checks below."];
     const strongFinding = data.verdict === "supported_conclusion_change" || data.verdict === "repair_passes_stated_checks";
-    byId("result-mode").textContent = modeLabel(data.run_mode);
+    const mock = (data.model_proposals || []).some((proposal) => proposal.is_mock);
+    byId("result-mode").textContent = modeLabel(data.run_mode) + (mock ? " · Mock model proposals" : "");
+    if (data.source_binding) addCheck("Connected source", `${data.source_binding.repository} #${data.source_binding.number} at ${data.source_binding.head_sha.slice(0,12)}`, data.source_binding.scope);
     byId("result-status").textContent = strongFinding ? (data.run_mode === "pinned_workers" ? "REPRODUCED FINDING" : data.run_mode === "local_simulation" ? "SIMULATED FINDING" : "RECORDED FINDING") : "BOUNDED RESULT";
     if (!strongFinding) byId("result-status").classList.add("is-uncertain");
     byId("result-title").textContent = verdict[0];

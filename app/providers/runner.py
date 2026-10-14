@@ -27,7 +27,7 @@ class RunManifest(BaseModel):
     run_id: str
     kind: Literal["old", "new"]
     candidate_sha256: str
-    case: Literal["power_ratio", "sensor_offset"] = "power_ratio"
+    case: Literal["power_ratio", "sensor_offset", "lstsq_rank"] = "power_ratio"
     entry_point: str
     input_json: dict
     timeout_seconds: int = Field(default=30, ge=1, le=60)
@@ -149,7 +149,7 @@ def _run_fixture_inprocess(input_json: dict, kind: Literal["old", "new"]) -> dic
             "ratio": ratio,
             "conclusion": conclusion,
             "threshold": 0.5,
-            "numpy_version": np.__version__,
+            "numpy_version": f"simulated-{kind}-using-{np.__version__}",
             "intermediate_dtype": str(normalized.dtype),
         }
 
@@ -175,6 +175,18 @@ class LocalRunnerAdapter(RunnerAdapter):
                 stderr="Local simulation cannot execute model patches; use pinned workers",
             )
         try:
+            if manifest.case == "lstsq_rank":
+                matrix = np.asarray(manifest.input_json["matrix"], dtype=np.float64)
+                coefficients, residuals, rank, singular = np.linalg.lstsq(
+                    matrix, [1., 1., 0., 0.], rcond=-1 if manifest.kind == "old" else None,
+                )
+                ratio = float(rank / 2)
+                return RunResult(run_id=manifest.run_id, status="ok", exit_code=0, outputs={"result": {
+                    "ratio": ratio, "conclusion": "above_threshold" if ratio > .75 else "below_threshold",
+                    "rank": int(rank), "coefficients": coefficients.tolist(), "singular_values": singular.tolist(),
+                    "residuals": residuals.tolist(), "intermediate_dtype": "float64",
+                    "numpy_version": f"simulated-{'1.26.4' if manifest.kind == 'old' else '2.0.2'}",
+                }})
             result_data = _run_fixture_inprocess(manifest.input_json, manifest.kind)
             if manifest.case == "sensor_offset":
                 sample = np.float32(manifest.input_json["signal"][0])

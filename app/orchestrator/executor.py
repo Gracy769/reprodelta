@@ -135,17 +135,17 @@ def compare_outputs(old_out: dict, new_out: dict, contract: ContractBody) -> dic
     }
 
 
-def _run_result_to_record(result: RunResult, environment: str) -> SingleRunRecord:
-    now = _utcnow()
+def _run_result_to_record(result: RunResult, environment: str, started_at: datetime,
+                          ended_at: datetime) -> SingleRunRecord:
     return SingleRunRecord(
         environment=environment,
         status=result.status,
         outputs=result.outputs,
         stderr=result.stderr,
         run_id=result.run_id,
-        started_at=now,
-        ended_at=now,
-        numpy_version=_extract_numpy_version(result.outputs),
+        started_at=started_at,
+        ended_at=ended_at,
+        numpy_version=result.numpy_version or _extract_numpy_version(result.outputs),
     )
 
 
@@ -170,11 +170,15 @@ def run_pair(request: PairedRunRequest, runner: RunnerAdapter) -> PairedRunResul
         timeout_seconds=request.contract.resource_limits.max_wall_seconds,
     )
 
+    old_started = _utcnow()
     old_result = runner.submit(old_manifest)
+    old_ended = _utcnow()
+    new_started = _utcnow()
     new_result = runner.submit(new_manifest)
+    new_ended = _utcnow()
 
-    old_record = _run_result_to_record(old_result, "old")
-    new_record = _run_result_to_record(new_result, "new")
+    old_record = _run_result_to_record(old_result, "old", old_started, old_ended)
+    new_record = _run_result_to_record(new_result, "new", new_started, new_ended)
 
     # Build dicts that compare_outputs expects: {"status": ..., "outputs": ...}
     old_out = {"status": old_result.status, "outputs": old_result.outputs}

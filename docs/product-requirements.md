@@ -93,3 +93,5 @@ The research hypothesis is that contract-guided search finds independently confi
 ## Dependencies and open questions
 
 The team must verify Nebius account access, Job availability and isolation properties, exact model identifier, and permitted input sizes. A domain expert must approve the demonstration contract and the meaning of its threshold. Decide whether public judges receive only a curated sandboxed project; do not accept arbitrary public code until the security gate passes.
+
+Implementation update: revision-keyed manifest review, bounded connected supported-kernel replay, durable daily admission and the independent least-squares compatibility case are described in [connected review](connected-review.md) and [historical replay](historical-replay.md). General user-project execution and independent downstream scientific validation remain unsupported.

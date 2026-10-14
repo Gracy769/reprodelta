@@ -91,6 +91,11 @@ class PostgresInvestigationStore(InvestigationStore):
             ),
         )
 
+    def admission_records(self) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute("SELECT id FROM demo_investigations WHERE created_at >= date_trunc('day', NOW() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' OR status='running'").fetchall()
+        return [record for row in rows if (record := self.get_investigation(str(row["id"]))) is not None]
+
     def create_investigation(
         self, project_id: str, budget_json: dict, owner_id: str = "user"
     ) -> str:

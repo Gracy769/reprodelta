@@ -76,7 +76,7 @@ def validate_manifest(manifest: dict) -> None:
     )
     if unknown:
         raise ValueError("Unknown manifest fields")
-    if manifest.get("case", "power_ratio") not in ("power_ratio", "sensor_offset"):
+    if manifest.get("case", "power_ratio") not in ("power_ratio", "sensor_offset", "lstsq_rank"):
         raise ValueError("Unsupported fixture case")
     timeout = manifest.get("timeout_seconds", DEFAULT_TIMEOUT)
     if type(timeout) is not int or not 1 <= timeout <= 60:
@@ -125,6 +125,13 @@ def run_fixture(manifest: dict) -> dict:
 
     if "_case" in input_json:
         raise ValueError("Case selection must be in the manifest")
+    if manifest.get("case") == "lstsq_rank":
+        matrix = input_json.get("matrix")
+        if (set(input_json) != {"matrix"} or not isinstance(matrix, list) or len(matrix) != 4
+                or any(not isinstance(row, list) or len(row) != 2 for row in matrix)
+                or any(type(value) not in (int, float) or not math.isfinite(value) or abs(value) > 10
+                       for row in matrix for value in row)):
+            raise ValueError("Least-squares replay requires a finite bounded 4x2 matrix")
     execution_input = {**input_json, "_case": manifest.get("case", "power_ratio")}
     input_bytes = json.dumps(execution_input).encode()
     if len(input_bytes) > MAX_INPUT_SIZE:

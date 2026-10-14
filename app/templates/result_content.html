@@ -1,0 +1,32 @@
+<div class="result-page" id="result-page" data-view="{{ result_view }}" data-investigation-id="{{ investigation_id }}">
+  <div id="result-loading" class="result-loading" role="status">Opening investigation findings…</div>
+  <div id="result-error" class="result-error" role="alert" hidden></div>
+  <div id="result-content" hidden>
+    <header class="result-hero">
+      <div class="result-topline"><span class="result-kicker">REPRODELTA / INVESTIGATION RECORD</span><span id="result-mode" class="result-mode"></span></div>
+      <div class="result-hero-grid">
+        <div><span id="result-status" class="result-status"></span><h1 id="result-title"></h1><p id="result-intro" class="result-intro"></p></div>
+        <div class="result-actions"><a id="result-secondary" class="result-action" href="#"></a><button id="result-print" class="result-action" type="button" hidden>Print / save PDF <span aria-hidden="true">↗</span></button><a id="result-download" class="result-action result-action-primary" href="#" download>Download evidence <span aria-hidden="true">↗</span></a></div>
+      </div>
+      <div class="result-meta"><span id="result-project"></span><span>Run <code id="result-id"></code></span><span id="result-date"></span></div>
+    </header>
+    <section class="result-section result-observation" aria-labelledby="observation-title">
+      <div class="result-section-head"><span class="result-index">01 / OBSERVATION</span><h2 id="observation-title">The same input, two outcomes</h2><p id="observation-caption"></p></div>
+      <div id="result-comparison" class="result-comparison"></div><div id="result-mechanism" class="result-mechanism"></div>
+    </section>
+    <section class="result-section" aria-labelledby="checks-title">
+      <div class="result-section-head"><span class="result-index">02 / CHECKS</span><h2 id="checks-title">What the checks establish</h2><p>Each result below comes from a recorded run or verification step.</p></div>
+      <div id="result-checks" class="result-checks"></div>
+    </section>
+    <section class="result-section" aria-labelledby="repair-title">
+      <div class="result-section-head"><span class="result-index">03 / REPAIR</span><h2 id="repair-title">Which fixes held up?</h2><p>Patch checks are limited to the witness and stated holdout cases. Nothing is applied to your repository.</p></div>
+      <div id="result-repairs" class="result-repairs"></div>
+    </section>
+    <section class="result-section result-details" aria-labelledby="details-title">
+      <div class="result-section-head"><span class="result-index">04 / RECORD</span><h2 id="details-title">Inspect the record</h2><p>Exact inputs, search steps, model provenance, and replay instructions.</p></div>
+      <div id="result-disclosures"></div>
+    </section>
+    <footer class="result-boundary"><span class="result-index">INTERPRETATION</span><p id="result-boundary"></p><span id="result-contract"></span></footer>
+  </div>
+</div>
+<script src="{{ asset_url('result.js') }}" defer></script>

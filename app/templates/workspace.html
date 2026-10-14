@@ -28,5 +28,6 @@ main{max-width:1180px;padding-top:58px}.workspace-head{display:flex;justify-cont
     </div>
   </div>
 </div>
-<script src="/assets/workspace.js" defer></script>
+<script>window.setTimeout(function(){var status=document.getElementById('workspace-loading');if(status&&!status.hidden){status.textContent='The session check took too long. Please reload or sign in again.';document.getElementById('workspace-signin').hidden=false;}},18000);</script>
+<script src="{{ asset_url('workspace.js') }}" defer></script>
 {% endblock %}

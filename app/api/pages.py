@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import pathlib
+from functools import lru_cache
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, Response
@@ -13,6 +15,16 @@ from app.domain.contract import FIXTURE_CONTRACT, hash_contract
 
 TEMPLATES_DIR = pathlib.Path(__file__).parent.parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+
+@lru_cache(maxsize=32)
+def asset_url(filename: str) -> str:
+    """Change the browser URL whenever a shipped asset's contents change."""
+    digest = hashlib.sha256((TEMPLATES_DIR.parent / "static" / filename).read_bytes()).hexdigest()[:12]
+    return f"/assets/{filename}?v={digest}"
+
+
+templates.env.globals["asset_url"] = asset_url
 
 router = APIRouter()
 

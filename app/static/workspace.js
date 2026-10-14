@@ -14,14 +14,20 @@
     clear(element);
     const p = document.createElement("p"); p.className = "empty-state"; p.textContent = text; element.append(p);
   };
+  async function timedFetch(url, options = {}) {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 8000);
+    try { return await fetch(url, { ...options, signal: controller.signal }); }
+    finally { window.clearTimeout(timer); }
+  }
   async function account(path, options = {}) {
     if (!base) throw new Error("Sign-in is not configured yet.");
-    let response = await fetch("/auth" + path, { credentials: "include", ...options });
+    let response = await timedFetch("/auth" + path, { credentials: "include", ...options });
     let data = await response.json().catch(() => null);
     // Social sign-in callbacks originate at the managed Auth domain. Browsers
     // that retain its partitioned cookie can complete the session directly.
     if (path !== "/sign-out" && (response.status === 401 || data === null)) {
-      response = await fetch(base + path, { credentials: "include", ...options });
+      response = await timedFetch(base + path, { credentials: "include", ...options });
       data = await response.json().catch(() => null);
     }
     if (!response.ok) throw new Error(data?.message || data?.error || "Account service is unavailable.");
@@ -193,7 +199,7 @@
   });
   async function start() {
     try {
-      const oauth = await fetch("/oauth/session", { credentials: "include" }).then((response) => response.ok ? response.json() : null).catch(() => null);
+      const oauth = await timedFetch("/oauth/session", { credentials: "include" }).then((response) => response.ok ? response.json() : null).catch(() => null);
       if (oauth?.user && oauth?.token) {
         $("workspace-loading").hidden = true; $("workspace-content").hidden = false;
         state.jwt = oauth.token;

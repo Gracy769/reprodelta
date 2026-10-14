@@ -29,7 +29,11 @@ async def test_account_pages_expose_real_forms_and_assets():
     assert 'autocomplete="new-password"' in signup.text
     assert 'autocomplete="current-password"' in signin.text
     assert "Connect GitHub" in workspace.text
+    assert workspace.headers["cache-control"] == "no-store"
     assert "Your selected repository is reviewed from its diff only" in workspace.text
+    assert '/assets/workspace.js?v=' in workspace.text
+    assert '/assets/nav-session.js?v=' in workspace.text
+    assert '/assets/auth.js?v=' in signin.text
     assert css.status_code == js.status_code == 200
     assert '/assets/github.svg' in signup.text
     assert '/assets/google.svg' in signup.text

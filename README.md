@@ -34,16 +34,19 @@ These checks do not verify a live Nebius call or Docker deployment.
 
 ## Accounts and source connections
 
-`/investigations/new` is the signed-in source picker. Without a source session,
-it offers GitHub and GitLab sign-in. With a source session, it lists accessible
-repositories (including private, forked, and starred GitHub repositories), open
-PRs or merge requests, and open issues. The fixed, executable NumPy contract is
-at `/demo/investigation`. Selecting a repository only reads metadata and a
-bounded diff: **Get scoped advice** checks at most 100 changed files and never
-executes that repository or claims a replay verdict on it.
+`/investigations/new` and `/workspace` show a bounded queue of recent open
+changes from up to eight recently updated connected projects. Repository search
+is available for a specific project, including private, forked, and starred
+GitHub repositories. Reviewing a selected change checks at most 100 changed
+files and names matching dependency and test evidence. It never executes that
+repository or claims a replay verdict. The fixed, executable NumPy contract is
+at `/demo/investigation`.
 
 First-party GitHub and GitLab OAuth use a short-lived state challenge, an
 HttpOnly session cookie, and server-side encrypted token storage in Postgres.
+Account profiles persist a random generated identicon and display a masked
+email in the header. GitHub users may need to sign in again to grant the added
+`user:email` scope; an unavailable provider email is never invented.
 Configure `APP_URL`, `SECRET_KEY`, and provider OAuth client variables to enable
 them. GitHub OAuth Apps require the broad `repo` scope to show private repos;
 ReproDelta itself makes read requests only. A fine-grained GitHub token remains

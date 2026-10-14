@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from app.api.profiles import upsert_profile
 from app.config import get_settings
 
 router = APIRouter(prefix="/firebase", include_in_schema=False)
@@ -78,6 +79,7 @@ async def firebase_session(request: Request, exchange: TokenExchange):
     claims = await _verified_claims(exchange.id_token, settings.firebase_project_id)
     now = datetime.now(UTC)
     name = claims.get("name") or claims.get("email") or "User"
+    upsert_profile(f"firebase:{claims['sub']}", name, claims.get("email"))
     session = jwt.encode(
         {"sub": f"firebase:{claims['sub']}", "name": name, "iss": "reprodelta", "aud": "reprodelta",
          "iat": now, "exp": now + timedelta(days=7)},

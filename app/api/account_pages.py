@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app.api.pages import templates
 from app.config import get_settings
@@ -27,12 +27,28 @@ def _context() -> dict[str, object]:
 
 @router.get("/signup", response_class=HTMLResponse, include_in_schema=False)
 async def signup(request: Request) -> HTMLResponse:
+    if _signed_in(request):
+        return RedirectResponse("/workspace", status_code=303)
     return templates.TemplateResponse(request, "auth.html", {**_context(), "mode": "signup"})
 
 
 @router.get("/signin", response_class=HTMLResponse, include_in_schema=False)
 async def signin(request: Request) -> HTMLResponse:
+    if _signed_in(request):
+        return RedirectResponse("/workspace", status_code=303)
     return templates.TemplateResponse(request, "auth.html", {**_context(), "mode": "signin"})
+
+
+def _signed_in(request: Request) -> bool:
+    from fastapi import HTTPException
+
+    from app.api.source_oauth import _session_claims
+
+    try:
+        _session_claims(request.cookies.get("rd_session"))
+        return True
+    except HTTPException:
+        return False
 
 
 @router.get("/workspace", response_class=HTMLResponse, include_in_schema=False)

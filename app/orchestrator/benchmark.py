@@ -15,6 +15,7 @@ from app.domain.contract import (
     InputSchema,
     hash_contract,
 )
+from app.domain.types import VerdictKind
 from app.orchestrator.budget import BudgetExceeded
 from app.orchestrator.executor import compare_outputs
 from app.providers.runner import RunManifest, RunnerAdapter, make_run_id
@@ -48,6 +49,7 @@ def compare_searches(runner: RunnerAdapter, pairs_per_strategy: int = 8, seed: i
         raise ValueError("pairs_per_strategy must be between 1 and 32")
     rows = []
     stopped = False
+    failed = False
     for case, contract in (
         ("power_ratio", FIXTURE_CONTRACT),
         ("sensor_offset", SENSOR_CONTRACT),
@@ -105,6 +107,8 @@ def compare_searches(runner: RunnerAdapter, pairs_per_strategy: int = 8, seed: i
                 if stopped:
                     break
                 comparison = compare_outputs(results[0], results[1], contract)
+                if comparison.get("verdict_hint") == VerdictKind.setup_failure:
+                    failed = True
                 if comparison.get("conclusion_changed") is True and first_witness is None:
                     first_witness = i + 1
                 records.append(
@@ -121,7 +125,8 @@ def compare_searches(runner: RunnerAdapter, pairs_per_strategy: int = 8, seed: i
                     "strategy": strategy,
                     "seed": seed,
                     "pair_budget": pairs_per_strategy,
-                    "completed_pairs": sum("comparison" in item for item in records),
+                    "completed_pairs": sum("comparison" in item and item["comparison"].get("verdict_hint") != VerdictKind.setup_failure for item in records),
+                    "failed_pairs": sum(item.get("comparison", {}).get("verdict_hint") == VerdictKind.setup_failure for item in records),
                     "first_witness_pair": first_witness,
                     "contract_hash": hash_contract(contract),
                     "contract_body": contract.model_dump(mode="json"),
@@ -137,7 +142,7 @@ def compare_searches(runner: RunnerAdapter, pairs_per_strategy: int = 8, seed: i
         "historical_sources": [{"case": "lstsq_rank", "url": "https://github.com/numpy/numpy/pull/25721",
                                 "commit": "80acab201eb5445af925552468983073616284dc",
                                 "classification": "documented compatibility change; independently sourced mechanism, constructed input"}],
-        "status": "budget_exhausted" if stopped else "completed",
+        "status": "budget_exhausted" if stopped else "execution_failed" if failed else "completed",
         "rows": rows,
         "limitations": [
             "Power and sensor inputs share the promotion mechanism; least-squares replays an independent documented default change. No case establishes a downstream scientific defect.",

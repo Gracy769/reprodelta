@@ -363,6 +363,14 @@ async def start_investigation(
         raise HTTPException(status_code=409, detail="Approve the project contract before starting")
     if record["status"] != "draft":
         raise HTTPException(status_code=409, detail="Investigation has already been started")
+    if isinstance(runner, WorkerHttpRunnerAdapter):
+        from app.api.health import ready
+        response = await ready()
+        if response.status_code != 200:
+            get_store().append_event(investigation_id, "runner", "stage_failed", {
+                "stage": "preflight", "error": "Pinned worker readiness failed; no executions started",
+            })
+            raise HTTPException(503, "Pinned worker readiness failed; check /ready before retrying")
 
     state = _investigation_state.setdefault(investigation_id, {})
     store = get_store()

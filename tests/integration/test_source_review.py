@@ -282,3 +282,38 @@ async def test_workbench_cookie_allows_navigation_only_for_verified_owner():
             assert tampered.status_code == 401
     finally:
         investigations.set_store(previous)
+
+
+def test_failed_benchmark_executions_are_not_completed_pairs():
+    from app.orchestrator.benchmark import compare_searches
+    from app.providers.runner import RunnerAdapter, RunResult
+    class FailedRunner(RunnerAdapter):
+        def submit(self, manifest):
+            return RunResult(run_id=manifest.run_id, status="error", exit_code=1, outputs={})
+    result = compare_searches(FailedRunner(), 1)
+    assert result["status"] == "execution_failed"
+    assert all(row["completed_pairs"] == 0 and row["failed_pairs"] == 1 for row in result["rows"])
+
+
+@pytest.mark.asyncio
+async def test_start_fails_readiness_before_any_worker_execution(monkeypatch):
+    from fastapi.responses import JSONResponse
+
+    from app.api import health, investigations
+    from app.providers.runner import WorkerHttpRunnerAdapter
+    store = MemoryInvestigationStore()
+    previous = investigations._store
+    investigations.set_store(store)
+    async def unavailable():
+        return JSONResponse({"status": "unavailable"}, status_code=503)
+    monkeypatch.setattr(health, "ready", unavailable)
+    try:
+        await investigations.approve_contract(investigations.DEMO_PROJECT_ID)
+        record = await investigations.create_investigation(investigations.CreateInvestigationRequest(project_id=investigations.DEMO_PROJECT_ID))
+        with pytest.raises(HTTPException) as error:
+            await investigations.start_investigation(record["id"], WorkerHttpRunnerAdapter("http://old/run", "http://new/run"))
+        assert error.value.status_code == 503
+        assert store.get_investigation(record["id"])["status"] == "draft"
+        assert store.get_events(record["id"])[-1]["payload"]["stage"] == "preflight"
+    finally:
+        investigations.set_store(previous)

@@ -520,7 +520,7 @@ class InvestigationRunner:
         demonstration_comparison = compare_searches(self.runner)
         self._emit(investigation_id, "demonstration_compared", {"status": demonstration_comparison["status"]})
         if demonstration_comparison["status"] != "completed":
-            record_failure("demonstration", ValueError("Comparison stopped at the shared execution budget"))
+            record_failure("demonstration", ValueError(f"Comparison incomplete: {demonstration_comparison['status']}"))
         evidence = InvestigationEvidence(
             investigation_id=investigation_id,
             project_name=self.PROJECT_NAME,

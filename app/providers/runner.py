@@ -220,6 +220,10 @@ class WorkerHttpRunnerAdapter(RunnerAdapter):
 
     def submit(self, manifest: RunManifest) -> RunResult:
         try:
+            if manifest.base_project_sha256 is None:
+                from runner.patching import project_digest, project_sources
+                digest = project_digest(project_sources(Path(__file__).resolve().parents[2] / "fixture/project"))
+                manifest = manifest.model_copy(update={"base_project_sha256": digest})
             response = httpx.post(
                 self.urls[manifest.kind],
                 json=manifest.model_dump(),

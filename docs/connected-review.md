@@ -33,7 +33,9 @@ The separately approved replay is deliberately narrow:
 3. The user reviews and approves the existing eight-sample float32 contract,
    threshold/tie policy and execution/model budget. The submitted contract hash
    must match the current supported contract.
-4. The deployment must use pinned HTTP workers. Local simulation cannot start
+4. The deployment must use pinned HTTP workers. Start verifies `/ready` before
+   launching any execution, and normal manifests enforce the trusted project
+   hash as well as repair manifests. Local simulation cannot start
    this connected replay. Remote code is never imported or executed; only the
    trusted source-identical numerical kernel runs in the existing workers.
 5. A verified bearer session is bridged to a signed, HttpOnly, SameSite=Strict

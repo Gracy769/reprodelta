@@ -10,10 +10,10 @@ import asyncio
 import base64
 import hashlib
 import re
-from urllib.parse import quote
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from typing import Annotated
+from urllib.parse import quote
 
 import httpx
 import jwt

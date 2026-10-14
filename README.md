@@ -37,8 +37,9 @@ These checks do not verify a live Nebius call or Docker deployment.
 `/workspace` (also served at `/investigations/new` for existing links) accepts
 a GitHub pull request or GitLab merge request URL, offers recent open changes
 from up to eight recently updated connected projects, and provides repository
-search as a fallback. Selecting a change immediately reviews up to 100 changed
-files, showing dependency and test evidence plus concrete follow-up checks.
+search as a fallback. Selecting a change reveals an explicit **Start investigation**
+button. Starting it reviews up to 100 changed files, showing dependency and test
+evidence plus concrete follow-up checks.
 This is a read-only diff review: it never executes that repository or claims a
 replay verdict. The fixed, executable NumPy contract is at `/demo/investigation`.
 
@@ -77,7 +78,7 @@ open http://localhost:8000
 **Demo flow:**
 
 1. Open `http://localhost:8000/demo/investigation`
-2. Review the signal classifier contract → click **Approve and Start**
+2. Click **Start live investigation**; the pinned contract is approved automatically
 3. Watch live progress: controls → search → reduction → intervention → repair
 4. Inspect the evidence page — witness, model explanation, intervention result,
    and the predefined fixture repair checks

@@ -5,9 +5,11 @@ from __future__ import annotations
 import pathlib
 
 from fastapi import FastAPI, Request
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.openapi.docs import get_redoc_html
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.account_pages import router as account_pages_router
 from app.api.auth_bridge import router as auth_bridge_router
@@ -31,6 +33,18 @@ def create_app() -> FastAPI:
         docs_url=None,
         redoc_url=None,
     )
+
+    @app.exception_handler(StarletteHTTPException)
+    async def not_found_page(request: Request, exc: StarletteHTTPException):
+        """Show a branded page for browser navigation; preserve JSON API errors."""
+        if (
+            exc.status_code == 404
+            and request.method in {"GET", "HEAD"}
+            and "text/html" in request.headers.get("accept", "")
+            and not request.url.path.startswith(("/api/", "/auth/", "/oauth/", "/assets/"))
+        ):
+            return templates.TemplateResponse(request, "not_found.html", status_code=404)
+        return await http_exception_handler(request, exc)
 
     @app.middleware("http")
     async def security_headers(request, call_next):

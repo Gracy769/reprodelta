@@ -1,0 +1,19 @@
+main:has(.lost-page){background:#f4f8f2}
+.lost-page{min-height:650px;display:grid;grid-template-columns:minmax(0,1fr) minmax(270px,.75fr);align-items:center;gap:30px;padding:55px 0 70px}
+.lost-label{font:12px/1.4 var(--font-mono);letter-spacing:.09em;color:#14723b}
+.lost-copy h1{max-width:690px;margin:19px 0;font-size:clamp(55px,7vw,98px);line-height:.98;letter-spacing:-.07em}
+.lost-copy h1 em{font-family:Georgia,Cambria,serif;font-weight:400;color:#167c3e}
+.lost-copy p{max-width:520px;color:#48614f;font-size:20px;line-height:1.55;margin:0 0 29px}
+.lost-actions{display:flex;gap:11px;flex-wrap:wrap}
+.lost-actions a{display:inline-flex;align-items:center;min-height:48px;padding:12px 19px;text-decoration:none;font-size:14px;font-weight:700;border:1px solid #16743a;transition:transform .18s,background .18s}
+.lost-actions a:hover{transform:translateY(-2px)}
+.lost-primary{background:#137738;color:#fff}
+.lost-primary:hover{color:#fff;background:#0c632d}
+.lost-secondary{color:#176b38;background:#fff}
+.lost-secondary:hover{background:#e6f0e4}
+.lost-copy small{display:block;color:#758678;font:11px/1.5 var(--font-mono);margin-top:23px}
+.lost-art{background:repeating-linear-gradient(0deg,transparent 0 35px,#e2ebe1 35px 36px),repeating-linear-gradient(90deg,transparent 0 35px,#e2ebe1 35px 36px);border:1px solid #dbe6da;padding:24px;animation:robot-arrive .5s both}
+.lost-art svg{width:100%;height:auto;display:block}
+@keyframes robot-arrive{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:800px){.lost-page{grid-template-columns:1fr;min-height:0;padding:48px 0}.lost-art{max-width:430px}}
+@media(prefers-reduced-motion:reduce){.lost-art,.lost-actions a{animation:none;transition:none}}

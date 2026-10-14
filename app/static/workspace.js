@@ -3,7 +3,7 @@
   const root = document.getElementById("workspace-root");
   if (!root) return;
   const authBase = root.dataset.authBase?.replace(/\/$/, "");
-  const state = { jwt: null, connections: [], repositories: [], selectedRepo: null, reviewNonce: 0, repoNonce: 0 };
+  const state = { jwt: null, connections: [], repositories: [], selectedRepo: null, selectedChange: null, reviewNonce: 0, repoNonce: 0 };
   const $ = (id) => document.getElementById(id);
   const clear = (element) => { while (element.firstChild) element.firstChild.remove(); };
   const text = (tag, value, className = "") => {
@@ -89,8 +89,8 @@
     button.type = "button";
     button.className = "review-change-item";
     const details = text("small", `${repository.name} · ${repository.provider === "github" ? "PR" : "MR"} #${change.number}${change.draft ? " · draft" : ""}`);
-    button.append(text("strong", change.title || `Change #${change.number}`), details, text("span", "Review ↗"));
-    button.addEventListener("click", () => reviewChange({ provider: repository.provider, repoKey: repository.key,
+    button.append(text("strong", change.title || `Change #${change.number}`), details, text("span", "Choose ↗"));
+    button.addEventListener("click", () => selectChange({ provider: repository.provider, repoKey: repository.key,
       number: change.number, title: change.title || `Change #${change.number}`, url: change.url }));
     if (compact) button.dataset.compact = "true";
     return button;
@@ -151,7 +151,7 @@
       if (nonce !== state.repoNonce) return;
       const list = $("change-list");
       clear(list);
-      $("selected-repository-status").textContent = `${result.changes.length} open ${repo.provider === "github" ? "pull requests" : "merge requests"}. Choose one to review its diff.`;
+      $("selected-repository-status").textContent = `${result.changes.length} open ${repo.provider === "github" ? "pull requests" : "merge requests"}. Choose one, then start the investigation.`;
       if (!result.changes.length) { empty(list, "No open changes here. You can still paste a direct link to a closed PR or MR above."); return; }
       result.changes.forEach((change) => list.append(changeButton(change, repo, true)));
       if (result.has_more) status("Showing the first 50 open changes in this repository. Paste a direct link for another one.");
@@ -216,15 +216,36 @@
     next.append(demo); body.append(next);
     $("review-result-meta").textContent = `${change.provider.toUpperCase()} · ${change.repoKey} · ${change.provider === "github" ? "PR" : "MR"} #${change.number}`;
   }
-  async function reviewChange(change) {
+  function selectChange(change) {
     if (!state.connections.some((connection) => connection.provider === change.provider)) {
-      $("change-link-help").textContent = `Connect ${change.provider === "github" ? "GitHub" : "GitLab"} below before reviewing this link.`;
+      $("change-link-help").textContent = `Connect ${change.provider === "github" ? "GitHub" : "GitLab"} below before investigating this link.`;
       $("change-link-help").classList.add("is-error");
       $("source-settings").open = true;
       $("source-settings").scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
+    state.selectedChange = change;
+    state.reviewNonce += 1;
+    $("review-result").hidden = true;
+    $("chosen-change").hidden = false;
+    $("chosen-change-title").textContent = change.title;
+    $("chosen-change-meta").textContent = `${change.provider.toUpperCase()} · ${change.repoKey} · ${change.provider === "github" ? "PR" : "MR"} #${change.number}`;
+    const sourceUrl = safeSourceUrl(change.url, change.provider);
+    $("chosen-source-link").hidden = !sourceUrl;
+    if (sourceUrl) $("chosen-source-link").href = sourceUrl;
+    const button = $("start-investigation-btn");
+    button.disabled = false;
+    $("start-investigation-label").textContent = "Start investigation";
+    $("change-link-help").textContent = "Change selected. Start the investigation below.";
+    $("change-link-help").classList.remove("is-error");
+    $("chosen-change").scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "center" });
+    button.focus({ preventScroll: true });
+  }
+  async function reviewChange(change) {
     const nonce = ++state.reviewNonce;
+    const button = $("start-investigation-btn");
+    button.disabled = true;
+    $("start-investigation-label").textContent = "Investigating…";
     const resultSection = $("review-result");
     resultSection.hidden = false;
     $("review-result-title").textContent = change.title;
@@ -238,19 +259,27 @@
       const result = await api(`/${change.provider}/advice?repository=${encodeURIComponent(change.repoKey)}&number=${change.number}`);
       if (nonce !== state.reviewNonce) return;
       renderReview(result, change);
-      $("change-link-help").textContent = "Review ready below. The original change remains available from the result panel.";
+      $("change-link-help").textContent = "Investigation findings are ready below.";
       $("change-link-help").classList.remove("is-error");
     } catch (error) {
       if (nonce !== state.reviewNonce) return;
       empty($("review-result-body"), `${error.message} Check source access and try this link again.`);
+    } finally {
+      if (nonce === state.reviewNonce) {
+        button.disabled = false;
+        $("start-investigation-label").textContent = "Run investigation again";
+      }
     }
   }
+  $("start-investigation-btn").addEventListener("click", () => {
+    if (state.selectedChange) reviewChange(state.selectedChange);
+  });
   $("change-link-form").addEventListener("submit", (event) => {
     event.preventDefault();
     try {
       const change = parseChangeUrl($("change-url").value);
       $("change-link-help").classList.remove("is-error");
-      reviewChange(change);
+      selectChange(change);
     } catch (error) {
       $("change-link-help").textContent = error.message;
       $("change-link-help").classList.add("is-error");
@@ -274,8 +303,8 @@
     card.querySelector(".disconnect").addEventListener("click", async () => {
       try {
         await api(`/${provider}`, { method: "DELETE" });
-        state.selectedRepo = null; state.reviewNonce += 1;
-        $("selected-repository").hidden = true; $("review-result").hidden = true;
+        state.selectedRepo = null; state.selectedChange = null; state.reviewNonce += 1;
+        $("selected-repository").hidden = true; $("chosen-change").hidden = true; $("review-result").hidden = true;
         status(`${provider === "github" ? "GitHub" : "GitLab"} disconnected.`, true);
         await loadConnections();
       } catch (error) { status(error.message); }

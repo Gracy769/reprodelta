@@ -74,9 +74,17 @@ The hackathon submission additionally needs a public repository with an open-sou
 curated replay and offers a separate repository diff review. The signed-in
 workspace takes a PR/MR URL directly, offers a bounded recent-change list, and
 keeps repository search and source settings secondary. Selecting an open change
-immediately produces a read-only, file-backed review. The result states its
+presents an explicit Start investigation action. That action produces a
+read-only, file-backed review. The result states its
 file limit and that no repository code was executed. The UI must not imply that
 this review reproduced a dependency regression.
+
+**Navigation update, 14 October 2026:** The curated demo exposes its executable
+Start live investigation action near the top. Optional one-input exploration
+uses a single labelled, validated signal field rather than eight table cells.
+Unknown browser routes show a branded 404 page; unknown API routes retain JSON
+errors. `robots.txt` and `sitemap.xml` list only public pages. Server secrets
+remain server-side; Firebase's web configuration is a public client identifier.
 
 ## Success measures and research test
 

@@ -29,6 +29,31 @@ templates.env.globals["asset_url"] = asset_url
 router = APIRouter()
 
 DEMO_PROJECT_ID = "00000000-0000-0000-0000-000000000001"
+PUBLIC_ORIGIN = "https://reprodelta-web-production.up.railway.app"
+
+
+@router.get("/robots.txt", include_in_schema=False)
+async def robots() -> Response:
+    body = (
+        "User-agent: *\n"
+        "Disallow: /api/\nDisallow: /auth/\nDisallow: /oauth/\n"
+        "Disallow: /investigations/\nDisallow: /workspace\n"
+        "Disallow: /signin\nDisallow: /signup\n"
+        f"Sitemap: {PUBLIC_ORIGIN}/sitemap.xml\n"
+    )
+    return Response(body, media_type="text/plain", headers={"Cache-Control": "public, max-age=3600"})
+
+
+@router.get("/sitemap.xml", include_in_schema=False)
+async def sitemap() -> Response:
+    body = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+        f"<url><loc>{PUBLIC_ORIGIN}/</loc></url>"
+        f"<url><loc>{PUBLIC_ORIGIN}/demo/investigation</loc></url>"
+        "</urlset>"
+    )
+    return Response(body, media_type="application/xml", headers={"Cache-Control": "public, max-age=3600"})
 
 
 @router.get("/", response_class=HTMLResponse, include_in_schema=False)

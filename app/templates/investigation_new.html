@@ -33,40 +33,6 @@
   }
   .assumptions-list li { margin-bottom: var(--sp-1); }
 
-  .signal-grid {
-    display: grid;
-    grid-template-columns: repeat(8, 1fr);
-    gap: var(--sp-2);
-    margin-bottom: var(--sp-4);
-  }
-  .signal-grid input[type="number"] {
-    width: 100%;
-    padding: var(--sp-2);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    font-family: var(--font-mono);
-    font-size: 14px;
-    text-align: center;
-    background: var(--surface);
-    color: var(--text);
-  }
-  .signal-grid input[type="number"]:focus {
-    outline: 3px solid var(--focus);
-    outline-offset: 1px;
-  }
-  .signal-labels {
-    display: grid;
-    grid-template-columns: repeat(8, 1fr);
-    gap: var(--sp-2);
-    margin-bottom: var(--sp-2);
-  }
-  .signal-labels span {
-    text-align: center;
-    font-size: 12px;
-    color: var(--text-muted);
-    font-family: var(--font-mono);
-  }
-
   .btn {
     display: inline-block;
     padding: var(--sp-2) var(--sp-6);
@@ -148,39 +114,55 @@
   .section h2 { color: var(--text); font-size: 21px; font-weight: 650; letter-spacing: -.04em; }
   .kv-grid { grid-template-columns: 200px minmax(0, 1fr); gap: 0 14px; }
   .kv-grid > * { border-bottom: 1px solid #e4eae5; padding: 10px 0; }
-  .signal-grid input[type="number"] { border-radius: 0; background: #f8faf8; }
   .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; border: 1px solid var(--accent); border-radius: 2px; padding: 10px 18px; font-weight: 700; }
   .btn-secondary { background: var(--panel); color: var(--accent); border-color: var(--accent); }
   .result-card, .env-tag, .hash-pill { border-radius: 0; }
   .verdict-badge { border-radius: 2px; }
-  @media (max-width: 640px) { .section { padding: 20px; } .kv-grid { grid-template-columns: 1fr; } .signal-grid, .signal-labels { grid-template-columns: repeat(4, 1fr); } }
+  .demo-start { background:#102b1d;border:1px solid #294a31;color:#f1f8ef;padding:32px 36px;margin:28px 0 32px;display:flex;justify-content:space-between;gap:28px;align-items:center; }
+  .demo-start h2 { font-size:clamp(25px,3vw,38px);line-height:1.12;letter-spacing:-.045em;margin:6px 0 10px; }
+  .demo-start p { color:#c0d6c3;font-size:14px;line-height:1.55;max-width:570px;margin:0; }
+  .demo-start .eyebrow { color:#a6dfaa; }
+  .demo-start .btn { background:#27a657;border-color:#27a657;white-space:nowrap; }
+  .demo-start-action { display:flex;flex-direction:column;gap:8px;align-items:flex-start; }
+  .demo-start-action small,.demo-start #start-spinner { color:#bcd0bd;font:12px var(--font-mono); }
+  #start-error { color:#ffb8aa!important; }
+  .demo-playground { border:1px solid #b9d0bd;background:#fff;margin:28px 0; }
+  .demo-playground>summary { list-style:none;cursor:pointer;display:flex;justify-content:space-between;gap:20px;align-items:center;padding:24px 28px;font-weight:700;font-size:20px;letter-spacing:-.035em; }
+  .demo-playground>summary::-webkit-details-marker { display:none; }
+  .demo-playground>summary:after { content:"+";font:26px/1 var(--font-mono);color:#137738; }
+  .demo-playground[open]>summary:after { content:"−"; }
+  .demo-contract{border:1px solid #c6d7c8;background:#fff;margin:22px 0}
+  .demo-contract>summary{list-style:none;display:flex;justify-content:space-between;gap:12px;align-items:center;padding:22px 27px;cursor:pointer;font-size:18px;font-weight:700}
+  .demo-contract>summary::-webkit-details-marker{display:none}
+  .demo-contract>summary:after{content:"+";color:#137738;font:25px/1 var(--font-mono)}
+  .demo-contract[open]>summary:after{content:"−"}
+  .demo-contract-body{border-top:1px solid #dce6dc;padding:8px 27px 27px}
+  .demo-playground-body { border-top:1px solid #d9e5da;padding:26px 28px 30px; }
+  .demo-playground-body p { color:#4e6654;font-size:14px;line-height:1.55;max-width:690px;margin:0 0 18px; }
+  .demo-presets { display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px; }
+  .demo-presets button { border:1px solid #a9c5ad;background:#eef5ed;color:#176739;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer; }
+  .demo-presets button:hover { background:#deeddf; }
+  .demo-signal-label { display:block;font-size:13px;font-weight:700;margin-bottom:8px; }
+  .demo-signal-input { width:100%;max-width:780px;border:1px solid #9fbda3;background:#f8fbf7;padding:13px 15px;font:14px/1.5 var(--font-mono);color:#14271d; }
+  .demo-playground-actions { display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:17px; }
+  #result-section { margin:0 0 28px; }
+  .demo-result-grid { display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-4); }
+  @media(max-width:800px){.demo-start{flex-direction:column;align-items:flex-start}.demo-start .btn{white-space:normal}}
+  @media (max-width: 640px) { .section { padding: 20px; } .kv-grid,.demo-result-grid { grid-template-columns: 1fr; } }
 {% endblock %}
 
 {% block content %}
-<header class="page-intro"><span class="eyebrow">Workbench / New investigation</span><h1 class="page-title">Investigate a changed conclusion.</h1><p class="page-lede">Review the fixed contract, approve the comparison, and follow each piece of evidence from replay to repair.</p></header>
+<header class="page-intro"><span class="eyebrow">Live demo / Curated NumPy fixture</span><h1 class="page-title">See a changed answer, live.</h1><p class="page-lede">Run the same signal in NumPy 1.26.4 and 2.0.2, then follow the evidence behind the changed conclusion.</p></header>
 
-<!-- Project Info -->
-<div class="section">
-  <h2>Project</h2>
-  <div class="kv-grid">
-    <span class="kv-label">Name</span>
-    <span class="kv-value">Signal Classifier (NumPy 1.26 → 2.0 demo)</span>
-    <span class="kv-label">ID</span>
-    <span class="kv-value">{{ project_id }}</span>
-    <span class="kv-label">Description</span>
-    <span class="kv-value" style="font-family:var(--font-sans)">
-      Demonstrates a NumPy NEP-50 scalar promotion change that flips a
-      signal classification near the decision boundary.
-    </span>
-  </div>
-</div>
+<section class="demo-start" aria-labelledby="demo-start-title">
+  <div><span class="eyebrow">READY TO RUN</span><h2 id="demo-start-title">Start the paired investigation</h2><p>This approves the pinned demo contract, starts both environments, and opens a live progress page. This run uses the curated Signal Classifier, not a repository selected in your workspace.</p></div>
+  <div class="demo-start-action"><button type="button" class="btn btn-primary" id="start-btn" onclick="startInvestigation('{{ project_id }}')">Start live investigation ↗</button><small>Usually completes in a few minutes</small><span id="start-spinner" style="display:none;">Starting…</span><p id="start-error" style="display:none;"></p></div>
+</section>
 
 <!-- Contract -->
-<div class="section">
-  <h2>
-    Contract for approval
-    <span class="hash-pill" title="Contract SHA-256">{{ contract_hash[:16] }}…</span>
-  </h2>
+<details class="demo-contract">
+  <summary>Inspect the fixed contract</summary>
+  <div class="demo-contract-body"><p style="font-size:13px;color:var(--text-muted);line-height:1.5;">The live run approves this pinned contract automatically. Review its exact rule and assumptions here.</p><span class="hash-pill" title="Contract SHA-256">{{ contract_hash[:16] }}…</span>
   <div class="kv-grid">
     <span class="kv-label">Schema version</span>
     <span class="kv-value">{{ contract.schema_version }}</span>
@@ -224,7 +206,8 @@
       Approved ✓
     </span>
   </div>
-</div>
+  </div>
+</details>
 
 <!-- Environment cards -->
 <div class="section">
@@ -243,63 +226,25 @@
   </div>
 </div>
 
-<!-- Start investigation -->
-<div class="section">
-  <h2>Approve Contract and Start Investigation</h2>
-  <p style="font-size:14px;color:var(--text-muted);margin-bottom:var(--sp-4);">
-    This will approve the contract above and immediately start the full investigation
-    loop: preflight controls → boundary search → witness reduction → intervention →
-    patch repair. You will be redirected to the live progress page.
-  </p>
-  <button type="button" class="btn btn-primary" id="start-btn"
-          onclick="startInvestigation('{{ project_id }}')">
-    Approve Contract and Start Investigation
-  </button>
-  <span id="start-spinner" style="display:none; margin-left:var(--sp-3); font-size:13px; color:var(--text-muted);">
-    Starting…
-  </span>
-  <p id="start-error" style="color:var(--failure);font-size:14px;margin-top:var(--sp-3);display:none;"></p>
-</div>
-
-<!-- Ad-hoc Run Pair Input (optional exploration) -->
-<div class="section">
-  <h2>Ad-hoc Paired Execution <span style="font-size:13px;font-weight:400;color:var(--text-muted);">(optional — for manual exploration)</span></h2>
-  <p style="font-size:14px; color:var(--text-muted); margin-bottom:var(--sp-4);">
-    Enter 8 float32 signal values (each within [−10, 10]). Values near the
-    classification boundary (ratio ≈ 0.5) are most likely to expose the
-    NumPy 1.26→2.0 precision difference.
-  </p>
-
-  <div class="signal-labels">
-    {% for i in range(8) %}
-    <span>s[{{ i }}]</span>
-    {% endfor %}
+<!-- Optional manual comparison -->
+<details class="demo-playground">
+  <summary>Try your own eight-value signal</summary>
+  <div class="demo-playground-body">
+    <p>Explore the pinned classifier without starting a full search. Choose a preset or enter eight comma-separated numbers from −10 to 10. This compares one input in both environments.</p>
+    <div class="demo-presets"><button type="button" data-signal-preset="1, 1, 1, 1, 0.5, 0.5, 0.5, 0.5">Near the boundary</button><button type="button" data-signal-preset="1, 1, 1, 1, 1, 1, 1, 1">Unchanged control</button></div>
+    <label class="demo-signal-label" for="signal-values">Signal values</label>
+    <input class="demo-signal-input" id="signal-values" type="text" inputmode="decimal" value="1, 1, 1, 1, 0.5, 0.5, 0.5, 0.5" aria-describedby="signal-hint">
+    <p id="signal-hint" style="margin:8px 0 0;font:12px var(--font-mono);">Eight values, separated by commas.</p>
+    <div class="demo-playground-actions"><button type="button" class="btn btn-primary" id="run-btn">Compare this signal ↗</button><span id="run-spinner" style="display:none;font:12px var(--font-mono);">Comparing…</span></div>
+    <p id="error-msg" role="alert"></p>
   </div>
-  <div class="signal-grid" id="signal-inputs">
-    <input type="number" step="any" value="1.0" id="s0" aria-label="signal[0]" />
-    <input type="number" step="any" value="1.0" id="s1" aria-label="signal[1]" />
-    <input type="number" step="any" value="1.0" id="s2" aria-label="signal[2]" />
-    <input type="number" step="any" value="1.0" id="s3" aria-label="signal[3]" />
-    <input type="number" step="any" value="0.5" id="s4" aria-label="signal[4]" />
-    <input type="number" step="any" value="0.5" id="s5" aria-label="signal[5]" />
-    <input type="number" step="any" value="0.5" id="s6" aria-label="signal[6]" />
-    <input type="number" step="any" value="0.5" id="s7" aria-label="signal[7]" />
-  </div>
-
-  <button type="button" class="btn btn-primary" id="run-btn">
-    ▶ Run Pair
-  </button>
-  <span id="run-spinner" style="display:none; margin-left:var(--sp-3); font-size:13px; color:var(--text-muted);">
-    Running…
-  </span>
-  <p id="error-msg"></p>
-</div>
+</details>
 
 <!-- Results -->
 <div class="section" id="result-section">
   <h2>Results</h2>
   <div id="verdict-row" style="margin-bottom:var(--sp-4);"></div>
-  <div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--sp-4);">
+  <div class="demo-result-grid">
     <div class="result-card">
       <h3>Old environment (NumPy 1.26)</h3>
       <div id="old-result"></div>
@@ -371,14 +316,23 @@ function startInvestigation(projectId) {
   var runBtn = document.getElementById("run-btn");
   if (!runBtn) return;
 
+  document.querySelectorAll("[data-signal-preset]").forEach(function(button) {
+    button.addEventListener("click", function() {
+      document.getElementById("signal-values").value = button.dataset.signalPreset;
+      document.getElementById("error-msg").style.display = "none";
+    });
+  });
+
   runBtn.addEventListener("click", function () {
-    var signal = [];
-    for (var i = 0; i < 8; i++) {
-      var val = parseFloat(document.getElementById("s" + i).value);
-      if (isNaN(val)) { alert("Signal value s[" + i + "] is not a number."); return; }
-      signal.push(val);
-    }
     var errEl = document.getElementById("error-msg");
+    var parts = document.getElementById("signal-values").value.split(",").map(function(value) { return value.trim(); });
+    var signal = parts.map(Number);
+    if (parts.length !== 8 || parts.some(function(value) { return value === ""; }) ||
+        signal.some(function(value) { return !Number.isFinite(value) || value < -10 || value > 10; })) {
+      errEl.textContent = "Enter exactly eight numbers between −10 and 10, separated by commas.";
+      errEl.style.display = "block";
+      return;
+    }
     var spinner = document.getElementById("run-spinner");
     var resultSection = document.getElementById("result-section");
     errEl.style.display = "none";
@@ -404,7 +358,7 @@ function startInvestigation(projectId) {
     .then(function(data) {
       spinner.style.display = "none";
       runBtn.disabled = false;
-      resultSection.style.display = "";
+      resultSection.style.display = "block";
 
       var oldR = (data.old_run && data.old_run.outputs && data.old_run.outputs.result) || {};
       var newR = (data.new_run && data.new_run.outputs && data.new_run.outputs.result) || {};
@@ -425,7 +379,7 @@ function startInvestigation(projectId) {
       spinner.style.display = "none";
       runBtn.disabled = false;
       errEl.textContent = err.message;
-      errEl.style.display = "";
+      errEl.style.display = "block";
     });
   });
 }());

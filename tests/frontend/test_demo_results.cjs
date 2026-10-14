@@ -9,8 +9,8 @@ const script = html.match(/<script>\s*\/\/ Ad-hoc run pair([\s\S]*?)<\/script>/)
 
 async function render(payload) {
   const elements = new Map();
-  const document = { getElementById(id) {
-    if (!elements.has(id)) elements.set(id, { value: '1', style: {}, textContent: '',
+  const document = { querySelectorAll() { return []; }, getElementById(id) {
+    if (!elements.has(id)) elements.set(id, { value: id === 'signal-values' ? '1, 1, 1, 1, 0.5, 0.5, 0.5, 0.5' : '1', style: {}, textContent: '',
       addEventListener(event, handler) { this.handler = handler; } });
     return elements.get(id);
   }};
@@ -27,6 +27,7 @@ test('actual API old_run/new_run renders measurements and contract conclusions',
   assert.match(fields.get('old-result').textContent, /float64/);
   assert.match(fields.get('new-result').textContent, /inconclusive.*float32/);
   assert.equal(fields.get('verdict-row').textContent, 'supported conclusion change');
+  assert.equal(fields.get('result-section').style.display, 'block');
 });
 
 test('failed evidence never falls back to no change', async () => {

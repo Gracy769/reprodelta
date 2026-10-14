@@ -21,7 +21,6 @@
     if (!data?.user) { guest.style.visibility = "visible"; return; }
     guest.hidden = true;
     profile.hidden = false;
-    document.getElementById("nav-investigation").hidden = false;
     document.getElementById("nav-profile-name").textContent = data.user.name || "Your account";
     document.getElementById("nav-profile-email").textContent = data.user.masked_email || "Email unavailable";
     if (data.user.avatar_url) document.getElementById("nav-avatar").src = data.user.avatar_url;

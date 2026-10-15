@@ -91,6 +91,22 @@ open http://localhost:8000
    and the predefined fixture repair checks
 5. Download the evidence report (JSON bundle + text summary)
 
+The public demo explicitly requests `model_mode: "mock"`, including for signed-in
+users. Numerical executions and repair verification still use the real pinned
+workers in hosted mode; model proposals are deterministic and labeled mock.
+The normal API default remains `configured` for deliberately configured live
+model investigations. The demo does not depend on a billable model key or cost
+ceiling. A stale login now shows a sign-in recovery link instead of an opaque
+approval error.
+
+The boundary preset uses the verified witness; the unchanged preset stays away
+from the decision threshold. Starting again after a temporary capacity failure
+reuses the existing draft, and a lost start response checks the job status before
+retrying. The progress timeline includes all 96 benchmark pairs after repair,
+so that stage no longer appears idle. Custom-signal explorations allow ten
+pairs; an explicit new-exploration button recovers after exhaustion while the
+existing per-investigation and daily admission limits remain enforced.
+
 ## Local development (no Docker)
 
 ```sh

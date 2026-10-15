@@ -118,6 +118,7 @@ def get_runner() -> RunnerAdapter:
 class CreateInvestigationRequest(BaseModel):
     project_id: uuid.UUID
     description: str = ""
+    model_mode: Literal["configured", "mock"] = "configured"
     search_strategy: Literal["sweep", "random"] = "sweep"
     search_seed: int = Field(default=42, ge=0, le=2**32-1)
     max_candidates: int = Field(default=50, ge=1, le=1000)
@@ -220,7 +221,7 @@ def _run_investigation_sync(
             **{key: value for key, value in budget_values.items() if key != "usage"}
         )
         guest_client = None
-        if saved and str(saved.get("owner_id", "")).startswith("guest:"):
+        if saved and (str(saved.get("owner_id", "")).startswith("guest:") or budget_values.get("model_mode") == "mock"):
             settings = get_settings()
             guest_client = NebiusClient(
                 api_key=None,
@@ -314,9 +315,9 @@ async def create_investigation(body: CreateInvestigationRequest) -> dict:
     _ensure_demo_project(body.project_id)
     store = get_store()
     budget_json = BudgetConfig(
-        **body.model_dump(exclude={"project_id", "description", "search_strategy", "search_seed"})
+        **body.model_dump(exclude={"project_id", "description", "search_strategy", "search_seed", "model_mode"})
     ).model_dump()
-    budget_json.update(search_strategy=body.search_strategy, search_seed=body.search_seed)
+    budget_json.update(search_strategy=body.search_strategy, search_seed=body.search_seed, model_mode=body.model_mode)
     inv_id = admission.create(store,
         project_id=str(body.project_id),
         budget_json=budget_json,
@@ -416,6 +417,8 @@ async def get_progress(investigation_id: str) -> dict:
         (event for event in reversed(events) if event.get("event_type") == "investigation_failed"),
         None,
     )
+    if not error_event:
+        error_event = next((event for event in reversed(events) if event.get("event_type") == "budget_exhausted"), None)
     if state.get("error") or error_event:
         result["error"] = state.get("error") or error_event.get("payload", {}).get("error")
 
@@ -478,10 +481,10 @@ async def get_report_text(investigation_id: str) -> PlainTextResponse:
         raise HTTPException(status_code=404, detail="Report not yet available")
     state = _investigation_state.get(investigation_id, {})
     evidence = state.get("evidence")
+    persisted = get_store().get_report_text(investigation_id)
+    if persisted is not None:
+        return PlainTextResponse(persisted)
     if evidence is None:
-        persisted = get_store().get_report_text(investigation_id)
-        if persisted is not None:
-            return PlainTextResponse(persisted)
         status = state.get("status", "draft")
         raise HTTPException(
             status_code=404,
@@ -522,7 +525,7 @@ async def stream_progress(investigation_id: str) -> StreamingResponse:
 
             yield f"data: {_json.dumps(payload)}\n\n"
 
-            if status in ("completed", "failed", "interrupted"):
+            if status in ("completed", "failed", "interrupted", "cancelled"):
                 break
             await _asyncio.sleep(1)
 

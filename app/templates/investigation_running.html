@@ -105,8 +105,15 @@
       <div class="stage-detail" id="detail-repair">Waiting…</div>
     </div>
   </li>
+  <li id="stage-comparison">
+    <div class="stage-icon" id="icon-comparison">6</div>
+    <div>
+      <div class="stage-label">Equal-budget comparisons</div>
+      <div class="stage-detail" id="detail-comparison">Waiting…</div>
+    </div>
+  </li>
   <li id="stage-complete">
-    <div class="stage-icon" id="icon-complete">6</div>
+    <div class="stage-icon" id="icon-complete">7</div>
     <div>
       <div class="stage-label">Complete</div>
       <div class="stage-detail" id="detail-complete">Waiting…</div>
@@ -115,6 +122,8 @@
 </ul>
 
 <p id="status-msg" role="status" aria-live="polite">Starting investigation…</p>
+<a id="progress-signin" href="/signin?next=/investigations/{{ investigation_id }}" hidden>Sign in again to resume this investigation</a>
+<a id="progress-restart" href="/demo/investigation" hidden>Return to the demo to start a new investigation</a>
 <div id="complete-links" style="display:none;margin-top:var(--sp-4);">
   <a id="evidence-link" href="#"
      style="display:inline-block;padding:var(--sp-2) var(--sp-4);background:var(--accent);color:#fff;text-decoration:none;border-radius:4px;font-size:14px;font-weight:600;margin-right:var(--sp-3);">
@@ -134,6 +143,7 @@
   var reportUrl = "/api/investigations/" + invId + "/report";
   var pollInterval = 2000;
   var timer = null;
+  var polling = false;
 
   function setText(id, text) {
     var el = document.getElementById(id);
@@ -146,8 +156,18 @@
   }
 
   function poll() {
-    fetch(pollUrl)
-      .then(function (r) { return r.json(); })
+    if (polling) return;
+    polling = true;
+    var controller = new AbortController();
+    var timeout = setTimeout(function () { controller.abort(); }, 15000);
+    fetch(pollUrl, {signal: controller.signal, credentials: "same-origin"})
+      .then(function (r) {
+        if (!r.ok) return r.json().catch(function () { return {}; }).then(function (data) {
+          var error = new Error(typeof data.detail === "string" ? data.detail : "HTTP " + r.status);
+          error.status = r.status; throw error;
+        });
+        return r.json();
+      })
       .then(function (data) {
         var status = data.status || "unknown";
         setText("status-msg", "Status: " + status);
@@ -193,10 +213,18 @@
           setClass("icon-repair", "done");
           setText("detail-repair", "Predefined fixture checks completed");
         }
+        if (seen.demonstration_started) {
+          var comparisonEvents = events.filter(function (event) { return event.event_type === "demonstration_progress"; });
+          var latest = comparisonEvents.length ? comparisonEvents[comparisonEvents.length - 1].payload : {};
+          setClass("icon-comparison", seen.demonstration_compared ? "done" : "running");
+          setText("detail-comparison", seen.demonstration_compared ? "Comparison evidence recorded" : (latest.finished_pairs || 0) + "/" + (latest.total_pairs || 96) + " pairs finished" + (latest.case ? " · " + latest.case + " · " + latest.strategy : ""));
+          if (!seen.demonstration_compared) setText("status-msg", "Running equal-budget comparisons: " + (latest.finished_pairs || 0) + "/" + (latest.total_pairs || 96) + " pairs finished.");
+        }
         var failures = events.filter(function (event) { return event.event_type === "stage_failed"; });
         failures.forEach(function (event) {
           var failure = event.payload || {};
           var stage = failure.stage === "model_repair" || failure.stage === "overfitted_repair" || failure.stage === "good_repair" ? "repair" : failure.stage;
+          if (stage === "demonstration") stage = "comparison";
           setClass("icon-" + stage, "failed");
           setText("detail-" + stage, "Failed: " + (failure.error || "Stage did not finish"));
         });
@@ -214,16 +242,25 @@
           }
           clearInterval(timer);
           setTimeout(function () { window.location.href = evidenceUrl; }, 1500);
-        } else if (status === "failed" || status === "interrupted") {
+        } else if (status === "failed" || status === "interrupted" || status === "cancelled") {
           setClass("icon-complete", "failed");
-          setText("detail-complete", status === "interrupted" ? "Interrupted before completion" : "Investigation failed");
+          setText("detail-complete", status === "interrupted" ? "Interrupted before completion" : status === "cancelled" ? "Investigation cancelled" : "Investigation failed");
           clearInterval(timer);
-          setText("status-msg", status === "interrupted" ? "Investigation interrupted; no completed verdict is available." : "Investigation failed: " + (data.error || ""));
+          setText("status-msg", status === "interrupted" ? "Investigation interrupted; no completed verdict is available." : status === "cancelled" ? "Investigation cancelled; no completed verdict is available." : "Investigation failed: " + (data.error || "No failure detail was recorded."));
+          document.getElementById("progress-restart").hidden = false;
+        } else if (status === "draft") {
+          clearInterval(timer);
+          setText("status-msg", "This investigation has not started. Return to the demo to retry starting it.");
+          document.getElementById("progress-restart").hidden = false;
         }
       })
-      .catch(function () {
-        setText("status-msg", "Polling failed — retrying…");
-      });
+      .catch(function (error) {
+        if (error.status === 401 || error.status === 403 || error.status === 404) {
+          clearInterval(timer);
+          setText("status-msg", error.status === 401 ? "Your session expired. Sign in again to resume this investigation." : error.message);
+          document.getElementById(error.status === 401 ? "progress-signin" : "progress-restart").hidden = false;
+        } else setText("status-msg", "Progress request failed: " + (error.name === "AbortError" ? "request timed out" : error.message) + ". Retrying…");
+      }).finally(function () { clearTimeout(timeout); polling = false; });
   }
 
   timer = setInterval(poll, pollInterval);

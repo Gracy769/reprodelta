@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import random
+from collections.abc import Callable
 
 import numpy as np
 
@@ -39,7 +40,8 @@ LSTSQ_CONTRACT = FIXTURE_CONTRACT.model_copy(update={
 })
 
 
-def compare_searches(runner: RunnerAdapter, pairs_per_strategy: int = 8, seed: int = 42) -> dict:
+def compare_searches(runner: RunnerAdapter, pairs_per_strategy: int = 8, seed: int = 42,
+                     on_progress: Callable[[dict], None] | None = None) -> dict:
     """Every strategy receives the same paired-execution cap and runs to the cap.
 
     Informed sweep deliberately receives knowledge of the boundary. This small
@@ -50,6 +52,7 @@ def compare_searches(runner: RunnerAdapter, pairs_per_strategy: int = 8, seed: i
     rows = []
     stopped = False
     failed = False
+    finished_pairs = 0
     for case, contract in (
         ("power_ratio", FIXTURE_CONTRACT),
         ("sensor_offset", SENSOR_CONTRACT),
@@ -107,6 +110,11 @@ def compare_searches(runner: RunnerAdapter, pairs_per_strategy: int = 8, seed: i
                 if stopped:
                     break
                 comparison = compare_outputs(results[0], results[1], contract)
+                finished_pairs += 1
+                if on_progress:
+                    on_progress({"case": case, "strategy": strategy, "finished_pairs": finished_pairs,
+                                 "total_pairs": 12 * pairs_per_strategy,
+                                 "pair_status": "failed" if comparison.get("verdict_hint") == VerdictKind.setup_failure else "completed"})
                 if comparison.get("verdict_hint") == VerdictKind.setup_failure:
                     failed = True
                 if comparison.get("conclusion_changed") is True and first_witness is None:

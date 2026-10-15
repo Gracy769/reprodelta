@@ -517,7 +517,10 @@ class InvestigationRunner:
         # 10. Assemble final InvestigationEvidence
         # ------------------------------------------------------------------
         from app.orchestrator.benchmark import compare_searches
-        demonstration_comparison = compare_searches(self.runner)
+        self._emit(investigation_id, "demonstration_started", {"total_pairs": 96})
+        demonstration_comparison = compare_searches(
+            self.runner, on_progress=lambda payload: self._emit(investigation_id, "demonstration_progress", payload),
+        )
         self._emit(investigation_id, "demonstration_compared", {"status": demonstration_comparison["status"]})
         if demonstration_comparison["status"] != "completed":
             record_failure("demonstration", ValueError(f"Comparison incomplete: {demonstration_comparison['status']}"))

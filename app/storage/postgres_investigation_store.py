@@ -92,9 +92,18 @@ class PostgresInvestigationStore(InvestigationStore):
         )
 
     def admission_records(self) -> list[dict]:
-        with self._connect() as conn:
-            rows = conn.execute("SELECT id FROM demo_investigations WHERE created_at >= date_trunc('day', NOW() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' OR status='running'").fetchall()
-        return [record for row in rows if (record := self.get_investigation(str(row["id"]))) is not None]
+        # Creation/start must not open a connection per historical job. Lock the
+        # batch in the same transaction so restart recovery stays consistent.
+        with self._lock, self._connect() as conn:
+            rows = conn.execute("""SELECT id, owner_id, status, created_at FROM demo_investigations
+                WHERE created_at >= date_trunc('day', NOW() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+                   OR status='running' ORDER BY id FOR UPDATE""").fetchall()
+            for row in rows:
+                if row["status"] == "running" and str(row["id"]) not in self._known_running:
+                    conn.execute("UPDATE demo_investigations SET status='interrupted' WHERE id=%s", (row["id"],))
+                    self._event(conn, row["id"], "system", "investigation_interrupted", {"reason": "process_restart"})
+                    row["status"] = "interrupted"
+            return [{**row, "id": str(row["id"]), "created_at": row["created_at"].isoformat()} for row in rows]
 
     def create_investigation(
         self, project_id: str, budget_json: dict, owner_id: str = "user"

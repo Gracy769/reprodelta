@@ -179,10 +179,38 @@ def test_postgres_ownership_budget_restart():
     store.reserve_budget(inv, runs=2)
     store.transition_status(inv, "running")
     restored = PostgresInvestigationStore(dsn)
+    records = restored.admission_records()
+    recovered = next(record for record in records if record["id"] == inv)
+    assert recovered["owner_id"] == "firebase:alice"
+    assert recovered["status"] == "interrupted"
+    assert recovered["created_at"].startswith(datetime.now(UTC).date().isoformat())
     assert restored.get_investigation(inv)["owner_id"] == "firebase:alice"
     assert restored.get_investigation(inv)["status"] == "interrupted"
     with pytest.raises(BudgetExceeded):
         restored.reserve_budget(inv, runs=1)
+
+
+def test_quota_history_uses_one_database_connection(monkeypatch):
+    import threading
+    import uuid
+
+    from app.storage.postgres_investigation_store import PostgresInvestigationStore
+    class BatchConnection:
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def execute(self, *args):
+            return self
+        def fetchall(self):
+            return [{"id": uuid.uuid4(), "owner_id": "firebase:alice", "status": "completed", "created_at": datetime.now(UTC)} for _ in range(200)]
+    store = object.__new__(PostgresInvestigationStore)
+    store._lock, store._known_running = threading.Lock(), set()
+    opened = []
+    monkeypatch.setattr(store, "_connect", lambda: opened.append(1) or BatchConnection())
+    records = store.admission_records()
+    assert len(records) == 200
+    assert len(opened) == 1
 
 
 def test_full_investigation_cannot_bypass_cap_in_later_stages():

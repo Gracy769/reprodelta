@@ -4,18 +4,17 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const html = fs.readFileSync(path.join(__dirname, '../../app/templates/investigation_new.html'), 'utf8');
-const script = html.match(/<script>\s*\/\/ Ad-hoc run pair([\s\S]*?)<\/script>/)[1];
+const script = fs.readFileSync(path.join(__dirname, '../../app/static/demo.js'), 'utf8');
 
 async function render(payload) {
   const elements = new Map();
   const document = { querySelectorAll() { return []; }, getElementById(id) {
-    if (!elements.has(id)) elements.set(id, { value: id === 'signal-values' ? '1, 1, 1, 1, 0.5, 0.5, 0.5, 0.5' : '1', style: {}, textContent: '',
+    if (!elements.has(id)) elements.set(id, { value: id === 'signal-values' ? '1, 1, 1, 1, 0.5, 0.5, 0.5, 0.5' : '1', style: {}, textContent: '', dataset: {projectId: 'project'},
       addEventListener(event, handler) { this.handler = handler; } });
     return elements.get(id);
   }};
-  vm.runInNewContext(script, { document, alert() {}, fetch: async (url) => ({ ok: true, json: async () => url === "/api/investigations" ? {id: "probe"} : payload }) });
-  document.getElementById('run-btn').handler();
+  vm.runInNewContext(script, { document, window: {location: {}}, AbortController, setTimeout, clearTimeout, fetch: async (url) => ({ ok: true, json: async () => url === "/api/investigations" ? {id: "probe"} : payload }) });
+  await document.getElementById('run-btn').handler();
   await new Promise(resolve => setImmediate(resolve));
   return elements;
 }

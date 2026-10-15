@@ -156,7 +156,7 @@
 
 <section class="demo-start" aria-labelledby="demo-start-title">
   <div><span class="eyebrow">READY TO RUN</span><h2 id="demo-start-title">Start the paired investigation</h2><p>This approves the pinned demo contract, starts both environments, and opens a live progress page. This run uses the curated Signal Classifier, not a repository selected in your workspace.</p></div>
-  <div class="demo-start-action"><button type="button" class="btn btn-primary" id="start-btn" onclick="startInvestigation('{{ project_id }}')">Start live investigation ↗</button><small>Usually completes in a few minutes</small><span id="start-spinner" style="display:none;">Starting…</span><p id="start-error" style="display:none;"></p></div>
+  <div class="demo-start-action"><button type="button" class="btn btn-primary" id="start-btn" data-project-id="{{ project_id }}">Start live investigation ↗</button><small>Real pinned workers · mock model proposals · no billable model call</small><span id="start-spinner" role="status" style="display:none;">Starting…</span><p id="start-error" role="alert" style="display:none;"></p></div>
 </section>
 
 <!-- Contract -->
@@ -199,7 +199,7 @@
 
   <div style="margin-top:var(--sp-4);">
     <button type="button" class="btn btn-secondary" id="approve-btn"
-            onclick="approveContract('{{ project_id }}')">
+            data-project-id="{{ project_id }}">
       ✓ Approve Contract
     </button>
     <span id="approve-status" style="margin-left:var(--sp-3); font-size:13px; color:var(--supported); display:none;">
@@ -231,12 +231,12 @@
   <summary>Try your own eight-value signal</summary>
   <div class="demo-playground-body">
     <p>Explore the pinned classifier without starting a full search. Choose a preset or enter eight comma-separated numbers from −10 to 10. This compares one input in both environments.</p>
-    <div class="demo-presets"><button type="button" data-signal-preset="1, 1, 1, 1, 0.5, 0.5, 0.5, 0.5">Near the boundary</button><button type="button" data-signal-preset="1, 1, 1, 1, 1, 1, 1, 1">Unchanged control</button></div>
+    <div class="demo-presets"><button type="button" data-signal-preset="1, 1, 1, 1, 1, 1, 1, 1.0000001192092896">Near the boundary</button><button type="button" data-signal-preset="0.5, 0.5, 0.5, 0.5, 1.5, 1.5, 1.5, 1.5">Unchanged control</button></div>
     <label class="demo-signal-label" for="signal-values">Signal values</label>
-    <input class="demo-signal-input" id="signal-values" type="text" inputmode="decimal" value="1, 1, 1, 1, 0.5, 0.5, 0.5, 0.5" aria-describedby="signal-hint">
-    <p id="signal-hint" style="margin:8px 0 0;font:12px var(--font-mono);">Eight values, separated by commas.</p>
+    <input class="demo-signal-input" id="signal-values" type="text" inputmode="decimal" value="1, 1, 1, 1, 1, 1, 1, 1.0000001192092896" aria-describedby="signal-hint">
+    <p id="signal-hint" style="margin:8px 0 0;font:12px var(--font-mono);">Eight values, separated by commas. Up to ten comparisons per exploration; start a new exploration when its budget is used.</p>
     <div class="demo-playground-actions"><button type="button" class="btn btn-primary" id="run-btn">Compare this signal ↗</button><span id="run-spinner" style="display:none;font:12px var(--font-mono);">Comparing…</span></div>
-    <p id="error-msg" role="alert"></p>
+    <p id="error-msg" role="alert"></p><button type="button" class="btn btn-secondary" id="reset-exploration" hidden>Start a new signal exploration</button>
   </div>
 </details>
 
@@ -256,132 +256,6 @@
   </div>
 </div>
 
-<script>
-// Approve contract
-function approveContract(projectId) {
-  var btn = document.getElementById("approve-btn");
-  btn.disabled = true;
-  fetch("/api/projects/" + projectId + "/contract/approve", {method: "POST"})
-    .then(function(r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-    .then(function() {
-      var s = document.getElementById("approve-status");
-      if (s) s.style.display = "";
-    })
-    .catch(function(err) { btn.disabled = false; alert("Approve failed: " + err.message); });
-}
-
-// Start full investigation
-function startInvestigation(projectId) {
-  var btn = document.getElementById("start-btn");
-  var spinner = document.getElementById("start-spinner");
-  var errEl = document.getElementById("start-error");
-  btn.disabled = true;
-  spinner.style.display = "";
-  errEl.style.display = "none";
-
-  // Step 1: approve
-  fetch("/api/projects/" + projectId + "/contract/approve", {method: "POST"})
-    .then(function(r) { if (!r.ok) throw new Error("Approve failed: HTTP " + r.status); return r.json(); })
-    .then(function() {
-      // Step 2: create investigation
-      return fetch("/api/investigations", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({project_id: projectId, max_candidates: 50, max_runs: 400})
-      });
-    })
-    .then(function(r) { if (!r.ok) throw new Error("Create failed: HTTP " + r.status); return r.json(); })
-    .then(function(inv) {
-      // Step 3: start
-      return fetch("/api/investigations/" + inv.id + "/start", {method: "POST"})
-        .then(function(r) { if (!r.ok) throw new Error("Start failed: HTTP " + r.status); return r.json(); })
-        .then(function() { return inv.id; });
-    })
-    .then(function(invId) {
-      window.location.href = "/investigations/" + invId;
-    })
-    .catch(function(err) {
-      btn.disabled = false;
-      spinner.style.display = "none";
-      errEl.textContent = err.message;
-      errEl.style.display = "";
-    });
-}
-</script>
-
-<script>
-// Ad-hoc run pair
-(function() {
-  var probeId = null;
-  var runBtn = document.getElementById("run-btn");
-  if (!runBtn) return;
-
-  document.querySelectorAll("[data-signal-preset]").forEach(function(button) {
-    button.addEventListener("click", function() {
-      document.getElementById("signal-values").value = button.dataset.signalPreset;
-      document.getElementById("error-msg").style.display = "none";
-    });
-  });
-
-  runBtn.addEventListener("click", function () {
-    var errEl = document.getElementById("error-msg");
-    var parts = document.getElementById("signal-values").value.split(",").map(function(value) { return value.trim(); });
-    var signal = parts.map(Number);
-    if (parts.length !== 8 || parts.some(function(value) { return value === ""; }) ||
-        signal.some(function(value) { return !Number.isFinite(value) || value < -10 || value > 10; })) {
-      errEl.textContent = "Enter exactly eight numbers between −10 and 10, separated by commas.";
-      errEl.style.display = "block";
-      return;
-    }
-    var spinner = document.getElementById("run-spinner");
-    var resultSection = document.getElementById("result-section");
-    errEl.style.display = "none";
-    spinner.style.display = "";
-    runBtn.disabled = true;
-
-    var probe = probeId ? Promise.resolve({id: probeId}) : fetch("/api/investigations", {
-      method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({project_id: "00000000-0000-0000-0000-000000000001", max_candidates: 1, max_runs: 20})
-    }).then(function(r) { if (!r.ok) throw new Error("Cannot create paired exploration"); return r.json(); });
-    probe.then(function(inv) {
-      probeId = inv.id;
-      return fetch("/api/investigations/" + probeId + "/run-pair", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({input_json: {signal: signal}})
-      });
-    })
-    .then(function(r) {
-      if (!r.ok) return r.json().then(function(d) { throw new Error(d.detail || "HTTP " + r.status); });
-      return r.json();
-    })
-    .then(function(data) {
-      spinner.style.display = "none";
-      runBtn.disabled = false;
-      resultSection.style.display = "block";
-
-      var oldR = (data.old_run && data.old_run.outputs && data.old_run.outputs.result) || {};
-      var newR = (data.new_run && data.new_run.outputs && data.new_run.outputs.result) || {};
-
-      var comparison = data.comparison || {};
-      var usable = comparison.conclusion_changed === true || comparison.conclusion_changed === false;
-      function fmtResult(r, conclusion) {
-        if (!usable || !r || !conclusion) return "Result unavailable";
-        var ratio = typeof r.ratio === "number" && Number.isFinite(r.ratio) ? r.ratio.toFixed(11) : "?";
-        return conclusion + " | ratio: " + ratio + " | dtype: " + (r.intermediate_dtype || "?");
-      }
-      document.getElementById("old-result").textContent = fmtResult(oldR, comparison.old_conclusion);
-      document.getElementById("new-result").textContent = fmtResult(newR, comparison.new_conclusion);
-      document.getElementById("verdict-row").textContent = (comparison.verdict_hint || "inconclusive").replace(/_/g, " ");
-
-    })
-    .catch(function(err) {
-      spinner.style.display = "none";
-      runBtn.disabled = false;
-      errEl.textContent = err.message;
-      errEl.style.display = "block";
-    });
-  });
-}());
-</script>
+<a id="demo-signin" class="btn btn-secondary" href="/signin?next=/demo/investigation" hidden>Sign in again to resume</a>
+<script src="{{ asset_url('demo.js') }}" defer></script>
 {% endblock %}

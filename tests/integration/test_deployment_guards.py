@@ -245,16 +245,18 @@ def test_live_model_fails_closed_without_cost_configuration(monkeypatch):
     assert not client.budget_ledger.usage
 
 
-async def test_guest_demo_uses_mock_even_when_server_has_live_key(guarded_app, monkeypatch):
+@pytest.mark.parametrize("signed_in", [False, True])
+async def test_guest_demo_uses_mock_even_when_server_has_live_key(guarded_app, monkeypatch, signed_in):
     from app.config import get_settings
 
     monkeypatch.setattr(get_settings(), "nebius_api_key", "test-only-never-sent")
     monkeypatch.setattr(get_settings(), "nebius_call_cost_ceiling_usd", 0)
     async with AsyncClient(
-        transport=ASGITransport(app=guarded_app), base_url="http://test"
+        transport=ASGITransport(app=guarded_app), base_url="http://test",
+        headers={"Authorization": "Bearer " + token("alice")} if signed_in else {},
     ) as client:
         assert (await client.post(f"/api/projects/{PROJECT}/contract/approve")).status_code == 200
-        inv = (await client.post("/api/investigations", json={"project_id": PROJECT})).json()["id"]
+        inv = (await client.post("/api/investigations", json={"project_id": PROJECT, "model_mode": "mock"})).json()["id"]
         assert (await client.post(f"/api/investigations/{inv}/start")).status_code == 202
         for _ in range(100):
             progress = (await client.get(f"/api/investigations/{inv}/progress")).json()
@@ -277,3 +279,30 @@ async def test_unreviewed_fixture_mode_cannot_enter_public_pair(guarded_app):
             json={"input_json": {"signal": [1.0] * 8, "_mode": "explicit_float32"}},
         )
         assert response.status_code == 422
+
+
+async def test_failed_budget_reason_survives_progress_cache_reset(guarded_app):
+    from app.api import investigations as api
+    async with AsyncClient(transport=ASGITransport(app=guarded_app), base_url="http://test") as client:
+        inv = (await client.post("/api/investigations", json={"project_id": PROJECT})).json()["id"]
+        store = api.get_store()
+        store.transition_status(inv, "running")
+        store.append_event(inv, "runner", "budget_exhausted", {"error": "Investigation wall-time budget exhausted"})
+        store.transition_status(inv, "failed")
+        api._investigation_state.clear()
+        progress = (await client.get(f"/api/investigations/{inv}/progress")).json()
+        assert progress["error"] == "Investigation wall-time budget exhausted"
+
+
+async def test_text_export_uses_final_persisted_summary_even_with_active_cache(guarded_app):
+    from app.api import investigations as api
+    async with AsyncClient(transport=ASGITransport(app=guarded_app), base_url="http://test") as client:
+        inv = (await client.post("/api/investigations", json={"project_id": PROJECT})).json()["id"]
+        store = api.get_store()
+        store.transition_status(inv, "running")
+        store.store_report(inv, {"investigation_id": inv}, "Saved summary including immutable source scope")
+        store.transition_status(inv, "completed")
+        api._investigation_state[inv] = {"evidence": object()}
+        response = await client.get(f"/api/investigations/{inv}/report/text")
+        assert response.status_code == 200
+        assert response.text == "Saved summary including immutable source scope"

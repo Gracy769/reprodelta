@@ -46,6 +46,9 @@ async def test_investigation_start_is_explicit_and_demo_has_no_signal_table():
     assert "Start live investigation" in demo.text
     assert "Try your own eight-value signal" in demo.text
     assert 'id="signal-inputs"' not in demo.text
+    assert '/assets/demo.js?v=' in demo.text
+    assert 'data-signal-preset="1, 1, 1, 1, 1, 1, 1, 1.0000001192092896"' in demo.text
+    assert 'no billable model call' in demo.text
 
 
 @pytest.mark.asyncio

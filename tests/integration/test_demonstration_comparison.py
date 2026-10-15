@@ -34,6 +34,15 @@ def test_seeded_equal_cap_comparison():
     ]
 
 
+def test_comparison_reports_each_finished_pair_for_live_progress():
+    events = []
+    result = compare_searches(LocalRunnerAdapter(), 4, 42, on_progress=events.append)
+    assert result["status"] == "completed"
+    assert [event["finished_pairs"] for event in events] == list(range(1, 49))
+    assert all(event["total_pairs"] == 48 for event in events)
+    assert events[-1]["case"] == "unchanged_control"
+
+
 def test_truncated_comparison_is_labeled_incomplete():
     ledger = BudgetLedger(BudgetConfig(max_candidates=1, max_runs=3))
     result = compare_searches(BudgetRunner(LocalRunnerAdapter(), ledger), 4)

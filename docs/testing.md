@@ -1,5 +1,31 @@
 # Testing and evaluation plan
 
+## Demo workflow verification (15 October 2026)
+
+The deployed guest demo completed through the browser at investigation
+`d0d675b7-069c-4f4e-96a2-7fae8478f207`, with pinned NumPy workers, a changed
+declared outcome, passing good/model repair checks and rejected overfitting.
+This established a working guest path, not blanket success for every session.
+The old "Near the boundary" preset independently returned approximately 0.2 in
+both versions; it did not exercise the boundary. It now uses the exact known
+witness, with a separate decisive unchanged control.
+
+Browser verification of the repaired build used an isolated localhost API and
+real NumPy 1.26.4/2.0.2 workers. Full investigation
+`a974b2bf-4ae2-4a29-995f-758bd0b440c6` completed with report and repair checks;
+the timeline visibly counted benchmark pairs. Boundary replay produced
+0.5000000149011616 / 0.5. Exhausting the custom exploration surfaced the budget
+error and its reset control. Frontend regression tests cover lost start
+responses, capacity retry without extra drafts, expired sessions, terminal
+progress errors, cancelled/draft jobs, transient failures and preset identity.
+API tests verify signed-in mock mode cannot send a configured live key, durable
+budget failure messages and stable persisted text exports.
+
+Run `node --test tests/frontend/*.cjs` and `python -m pytest tests -q`.
+Native interpreter tests additionally require `REPRODELTA_OLD_PYTHON` and
+`REPRODELTA_NEW_PYTHON`. CI supplies those interpreters and disposable Postgres;
+Docker CI independently verifies the worker and restart boundaries.
+
 **Status:** proposed plan. No results have been measured. Testing must show the product works and determine whether the research hypothesis holds; a polished scripted video is insufficient evidence by itself.
 
 ## Verification layers

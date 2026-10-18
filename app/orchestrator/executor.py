@@ -42,6 +42,7 @@ class SingleRunRecord(BaseModel):
     started_at: datetime
     ended_at: datetime
     numpy_version: str | None
+    base_project_sha256: str | None = None
 
 
 class PairedRunResult(BaseModel):
@@ -184,6 +185,8 @@ def run_pair(request: PairedRunRequest, runner: RunnerAdapter) -> PairedRunResul
     old_out = {"status": old_result.status, "outputs": old_result.outputs}
     new_out = {"status": new_result.status, "outputs": new_result.outputs}
     comparison = compare_outputs(old_out, new_out, request.contract)
+    old_record = old_record.model_copy(update={"base_project_sha256": old_result.base_project_sha256})
+    new_record = new_record.model_copy(update={"base_project_sha256": new_result.base_project_sha256})
 
     return PairedRunResult(
         candidate_sha256=request.candidate_sha256,

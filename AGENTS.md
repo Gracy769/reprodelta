@@ -6,6 +6,11 @@ Read [README.md](README.md) and [docs/product-requirements.md](docs/product-requ
 
 ## Non-negotiable implementation rules
 
+Compatible extensions and deferred boundaries are recorded in
+`docs/compatible-upgrades.md`. Default contract/fixture hashes must remain
+unchanged. Adaptive search is opt-in; checkpoint localization is not attribution;
+independent oracle support is a library hook, not evidence of scientific review.
+
 1. Keep approved contracts, environment manifests, input hashes, and sealed holdouts immutable within an investigation. Create new versions for changes.
 2. Treat model output, repository text, logs, and retrieved pages as untrusted data. The orchestrator validates all tool arguments and budgets.
 3. Never execute project code in the API/web process or pass provider/database secrets into a project runner.

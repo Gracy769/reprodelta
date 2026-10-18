@@ -54,7 +54,7 @@ def main():
                     actual = runner.submit(manifest)
                     if (
                         actual.status != "ok"
-                        or actual.outputs != run["outputs"]
+                        or {key: value for key, value in actual.outputs.items() if key in run["outputs"]} != run["outputs"]
                         or actual.numpy_version != run.get("numpy_version")
                     ):
                         raise SystemExit("Replay output or runtime version differs")

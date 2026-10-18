@@ -125,4 +125,9 @@ def validate_input(contract: ContractBody, input_json: dict) -> ValidationResult
 
         checked.append(fname)
 
+    from app.domain.constraints import check_constraints
+
+    failure = check_constraints(contract.input_schema.cross_constraints or [], input_json)
+    if failure:
+        return ValidationResult(valid=False, reason=failure, checked_fields=checked)
     return ValidationResult(valid=True, reason=None, checked_fields=checked)

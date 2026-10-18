@@ -31,6 +31,7 @@ class RunEvidence(BaseModel):
     ratio: float | None
     intermediate_dtype: str | None
     status: str
+    base_project_sha256: str | None = None
 
 
 class WitnessEvidence(BaseModel):
@@ -84,3 +85,5 @@ class InvestigationEvidence(BaseModel):
     frozen_holdouts: list[dict] = []
     model_patch_result: object | None = None
     patch_results: list[object] = []     # list[VerificationResult]
+    checkpoint_diagnostics: dict | None = None
+    search_provenance: dict | None = None

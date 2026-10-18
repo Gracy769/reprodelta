@@ -12,6 +12,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.comparison import evaluate_output
 from app.domain.contract import ContractBody, hash_contract
+from app.domain.diagnostics import preserve_measurement
+from app.domain.repair_oracle import RepairOracle
 from app.domain.validator import validate_input
 from app.orchestrator.repair import HoldoutResult
 from app.providers.runner import RunManifest, RunnerAdapter, make_run_id
@@ -65,6 +67,8 @@ class ConstrainedPatchVerificationResult(BaseModel):
     patched_project_sha256: str | None = None
     contract_sha256: str | None = None
     holdouts_sha256: str | None = None
+    measurement_checks: list[dict] = []
+    scientific_oracle: dict = {"status": "not_supplied", "scope": "Compatibility checks only"}
 
 
 def validate_patch_proposal(diff_text: str) -> PatchParseResult:
@@ -151,6 +155,7 @@ def apply_and_verify_patch(
     witness_input: dict | None = None,
     contract: ContractBody | None = None,
     runner: RunnerAdapter | None = None,
+    oracle: RepairOracle | None = None,
 ) -> ConstrainedPatchVerificationResult:
     """Execute exact allowed hunks in pinned workers; missing evidence never passes."""
     parsed = validate_patch_proposal(proposal.diff_text)
@@ -180,10 +185,15 @@ def apply_and_verify_patch(
     ).hexdigest()
     witness_result = None
     results: list[HoldoutResult] = []
+    measurement_checks: list[dict] = []
+    oracle = copy.deepcopy(oracle)
+    scientific_oracle = ({"status": "supplied", "sha256": oracle.digest(), "provenance": oracle.provenance}
+                         if oracle else {"status": "not_supplied", "scope": "Compatibility checks only"})
     verdict = "inconclusive"
     limitations = [
         "Bounded curated numerical edits only; no arbitrary Python execution.",
         "Passing these checks is not proof of scientific correctness.",
+        "An old/new agreement is not an independent scientific oracle. No version is automatically ground truth.",
     ]
     try:
         if runner is None or contract is None or not frozen_holdouts or frozen_witness is None:
@@ -254,10 +264,36 @@ def apply_and_verify_patch(
             conclusions = [value["conclusion"] if value else None for value in outcomes]
             old, new, pold, pnew = conclusions
             consistent = old is not None and new is not None and old == new
-            if any(value is None for value in outcomes):
+            measurement_preserved = True
+            reference_passed = True
+            reference_available = True
+            if all(value is not None for value in outcomes):
+                policy = contract.comparison
+                if consistent:
+                    measurement_preserved = all(preserve_measurement(
+                        outcomes[index]["ratio"], outcomes[index + 2]["ratio"], policy.atol, policy.rtol
+                    ) for index in (0, 1))
+                if oracle:
+                    reference = oracle.reference_by_input_sha256.get(sha)
+                    reference_available = reference is not None
+                    reference_passed = reference_available and all(preserve_measurement(
+                        reference, outcomes[index]["ratio"], policy.atol, policy.rtol
+                    ) for index in (2, 3))
+            measurement_checks.append({
+                "case": case, "input_sha256": sha,
+                "baseline_ratios": [value["ratio"] if value else None for value in outcomes[:2]],
+                "patched_ratios": [value["ratio"] if value else None for value in outcomes[2:]],
+                "preservation": "not_run" if any(value is None for value in outcomes) else
+                    "not_applicable_divergent_baseline" if not consistent else "pass" if measurement_preserved else "fail",
+                "reference": "not_supplied" if oracle is None else "not_run" if not reference_available or any(value is None for value in outcomes)
+                    else "pass" if reference_passed else "fail",
+            })
+            if any(value is None for value in outcomes) or not reference_available:
                 status = "not_run"
             elif (
                 pold != pnew
+                or not measurement_preserved
+                or not reference_passed
                 or (consistent and old != pold)
                 or contract.comparison.dtype_must_match
                 and outcomes[2]["dtype"] != outcomes[3]["dtype"]
@@ -316,6 +352,8 @@ def apply_and_verify_patch(
         proposal=proposal,
         parse_result=parsed,
         holdout_results=results,
+        measurement_checks=measurement_checks,
+        scientific_oracle=scientific_oracle,
         witness_result=witness_result,
         execution_runs=runs,
         patch_checks=checks,

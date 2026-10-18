@@ -123,6 +123,12 @@
       const passed = model.verdict === "repair_passes_stated_checks";
       addRepair(passed ? "is-pass" : model.verdict === "invalid_patch" ? "is-fail" : "", "Model proposed diff", model.verdict === "invalid_patch" ? "The proposed diff was rejected as invalid. No patch was applied or executed." : passed ? "The proposed diff passed its recorded checks. Inspect the verification record before considering it for your code." : `Verification result: ${titleCase(model.verdict)}. This is not an accepted repair.`);
     }
+    if (data.model_patch_result?.measurement_checks?.length) disclosure("Repair measurement preservation", (body) => {
+      const model = data.model_patch_result;
+      paragraph(body, "Previously consistent cases must also preserve their measured ratios within the approved tolerances. Agreement alone is a compatibility check, not scientific correctness.");
+      list(body, model.measurement_checks.map((check) => `${check.case}: preservation ${titleCase(check.preservation)}; independent reference ${titleCase(check.reference)}. Ratios ${JSON.stringify(check.baseline_ratios)} → ${JSON.stringify(check.patched_ratios)}`));
+      paragraph(body, `Scientific oracle: ${titleCase(model.scientific_oracle?.status || "not_supplied")}`);
+    });
     if (!repairs.length && !data.model_patch_result) addRepair("", "No verified repair", "This record does not contain a candidate patch that passed stated checks.");
 
     if (witness) disclosure("Witness input and exact measurements", (body) => {
@@ -138,6 +144,7 @@
     });
     if (reduction) disclosure("Input reduction steps", (body) => {
       paragraph(body, `${format(reduction.size_before)} values before, ${format(reduction.size_after)} after.`);
+      if (reduction.complexity_before != null) paragraph(body, `Numeric representation: ${reduction.complexity_before} → ${reduction.complexity_after} JSON characters. ${reduction.minimality_scope}`);
       list(body, (reduction.steps || []).map((step) => `Step ${format(step.step_id)}: ${plain(step.reason)} (${step.accepted ? "kept" : "rejected"})`));
     });
     if (repairs.length) disclosure("Patch holdout checks", (body) => repairs.forEach((repair) => {
@@ -158,6 +165,23 @@
       list(body, comparison.limitations || []);
     });
     if (data.replay_instructions) disclosure("Replay instructions", (body) => body.appendChild(node("pre", "", data.replay_instructions)));
+    if (data.checkpoint_diagnostics) disclosure("Recorded numerical checkpoints", (body) => {
+      const diagnostic = data.checkpoint_diagnostics;
+      paragraph(body, diagnostic.status === "observed" ? `First observed difference: ${diagnostic.first_observed_difference || "none at the recorded checkpoints"}. This does not establish a cause.` : "Aligned native traces with matching instrumentation digests are required; this record cannot establish checkpoint localization.");
+      list(body, (diagnostic.checkpoints || []).map((row) => `${row.checkpoint}: ${row.old.dtype} → ${row.new.dtype}; exact values ${JSON.stringify(row.old.value)} → ${JSON.stringify(row.new.value)}`));
+      list(body, diagnostic.limitations || []);
+    });
+    if (data.search_provenance) disclosure("Search strategy and candidate record", (body) => {
+      const search = data.search_provenance;
+      paragraph(body, `${titleCase(search.strategy)} · seed ${search.seed} · ${search.attempted} attempted, ${search.valid} valid, ${search.invalid} rejected · ${titleCase(search.stop_reason)}`);
+      list(body, search.limitations || []);
+      body.appendChild(node("pre", "", JSON.stringify(search.candidates, null, 2)));
+    });
+    const regression = byId("result-regression");
+    if (regression && data.run_mode === "pinned_workers" && data.replay_material && witness) {
+      regression.href = `/api/investigations/${encodeURIComponent(id)}/regression.zip`;
+      regression.hidden = false;
+    }
     const limitations = data.limitations || [];
     if (limitations.length) disclosure("Scope and limitations", (body) => list(body, limitations));
     byId("result-boundary").textContent = limitations[0] || "This investigation is bounded by its input search, environments, and stated checks. A passing patch is not a general correctness guarantee.";

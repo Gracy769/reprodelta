@@ -50,13 +50,16 @@
 .result-repair h3{font-size:18px;letter-spacing:-.025em;margin:0}
 .result-repair-status{font:11px var(--font-mono);text-transform:uppercase;color:#52695a}
 .result-repair p{margin:9px 0 0;font-size:14px;color:#4b5b50;line-height:1.55}
+.result-details .result-action{color:#315541;border-color:#789782;margin-bottom:22px}
+.result-details .result-action:hover{color:#fff}
+.result-details .result-action[hidden]{display:none}
 .result-disclosure{border-top:1px solid #b6c8ba}
 .result-disclosure:last-child{border-bottom:1px solid #b6c8ba}
 .result-disclosure summary{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:17px 0;font-size:15px;font-weight:650;cursor:pointer;list-style:none}
 .result-disclosure summary::-webkit-details-marker{display:none}
 .result-disclosure summary::after{content:"+";font:24px/1 var(--font-mono);color:#087c2a}
 .result-disclosure[open] summary::after{content:"−"}
-.result-disclosure-body{padding:0 0 24px;color:#425449;font-size:14px;line-height:1.65}
+.result-disclosure-body{padding:0 0 24px;color:#425449;font-size:14px;line-height:1.65;overflow-wrap:anywhere;min-width:0}
 .result-disclosure-body p{margin:0 0 12px}
 .result-disclosure-body ul{padding-left:19px;margin:0}
 .result-disclosure-body li{margin:5px 0}

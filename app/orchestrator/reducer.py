@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -47,6 +48,9 @@ class ReductionResult(BaseModel):
     steps: list[ReductionStep]
     size_before: int
     size_after: int
+    complexity_before: int | None = None
+    complexity_after: int | None = None
+    minimality_scope: str = "Local simplification under the tested transforms; not global minimality"
 
 
 # ---------------------------------------------------------------------------
@@ -92,6 +96,7 @@ def reduce_witness(
     contract: ContractBody,
     runner: RunnerAdapter,
     max_steps: int = 20,
+    strategy: Literal["neutral", "numeric"] = "neutral",
 ) -> ReductionResult:
     """
     Attempt to simplify *witness_input* by replacing individual signal elements
@@ -107,6 +112,11 @@ def reduce_witness(
     attempted steps.
     """
     NEUTRAL = 1.0
+    if strategy not in {"neutral", "numeric"}:
+        raise ValueError("Unsupported reduction strategy")
+
+    def complexity(values):
+        return len(json.dumps(values, separators=(",", ":")))
 
     # Work with the signal list; fall back gracefully if "signal" key missing.
     current = dict(witness_input)
@@ -114,6 +124,7 @@ def reduce_witness(
     current_signal: list = list(current[signal_key])
 
     size_before = len(current_signal)
+    complexity_before = complexity(current_signal)
     steps: list[ReductionStep] = []
     step_id = 0
 
@@ -174,6 +185,26 @@ def reduce_witness(
             )
         step_id += 1
 
+    if strategy == "numeric":
+        for index in range(len(current_signal)):
+            value = current_signal[index]
+            for replacement in dict.fromkeys((0.0, 1.0, -1.0, float(round(value)), value / 2)):
+                if step_id >= max_steps:
+                    break
+                trial = list(current_signal)
+                trial[index] = replacement
+                if complexity(trial) >= complexity(current_signal):
+                    continue
+                previous = {signal_key: list(current_signal)}
+                candidate = {signal_key: trial}
+                accepted = _conclusion_changes(candidate, contract, runner)
+                steps.append(ReductionStep(step_id=step_id, original_input=previous,
+                    reduced_input=candidate, reduction_type="numeric_simplify", accepted=accepted,
+                    reason="Simpler numeric representation preserves the valid witness" if accepted else
+                           "Simplification rejected: validity or witness relationship not preserved"))
+                step_id += 1
+                if accepted:
+                    current_signal = trial
     final_witness = {signal_key: list(current_signal)}
     final_sha256 = _hash_input(final_witness)
 
@@ -183,4 +214,6 @@ def reduce_witness(
         steps=steps,
         size_before=size_before,
         size_after=len(current_signal),
+        complexity_before=complexity_before,
+        complexity_after=complexity(current_signal),
     )

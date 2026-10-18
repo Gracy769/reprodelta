@@ -1,5 +1,23 @@
 # Testing and evaluation plan
 
+## Compatible extensions verification (18 October 2026)
+
+`tests/integration/test_compatible_upgrades.py` covers unchanged default hashes,
+executable relationships, fail-closed predicate text, adaptive feedback and
+budgets, numeric reduction, measurement-changing repairs, independent reference
+coverage, owned export, archive integrity and native replay. Native tests use
+the existing two-interpreter environment variables. `test_result_upgrades.cjs`
+covers historical records, inert text, explicit scope and native-only export.
+The browser verification completed a full pinned-worker investigation at local
+run `b63a42ab-e0e5-4777-ac6b-b50696d6b407`; observed ratios were
+0.5000000149011616 and 0.5. Both the ordinary good candidate and executed model
+diff passed compatibility checks, while the overfit was rejected. Checkpoint and
+measurement disclosures rendered. Visual review corrected a grid placement and
+numeric wrapping issue. This local verification is separate from Railway rollout.
+The committed compatible-search evaluation records 104 native executions,
+explicit provenance and raw two-seed denominators. See `compatible-upgrades.md`
+for limitations; no independent scientific ground truth is asserted.
+
 ## Demo workflow verification (15 October 2026)
 
 The deployed guest demo completed through the browser at investigation

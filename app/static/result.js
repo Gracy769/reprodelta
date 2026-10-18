@@ -121,7 +121,7 @@
     if (data.model_patch_result) {
       const model = data.model_patch_result;
       const passed = model.verdict === "repair_passes_stated_checks";
-      addRepair(passed ? "is-pass" : model.verdict === "invalid_patch" ? "is-fail" : "", "Model proposed diff", model.verdict === "invalid_patch" ? "The proposed diff was rejected as invalid. No patch was applied or executed." : passed ? "The proposed diff passed its recorded checks. Inspect the verification record before considering it for your code." : `Verification result: ${titleCase(model.verdict)}. This is not an accepted repair.`);
+      addRepair(passed ? "is-pass" : ["invalid_patch", "repair_fails_stated_checks"].includes(model.verdict) ? "is-fail" : "", "Model proposed diff", model.verdict === "invalid_patch" ? "The proposed diff was rejected as invalid. No patch was applied or executed." : passed ? "The proposed diff passed its recorded checks. Inspect the verification record before considering it for your code." : `Verification result: ${titleCase(model.verdict)}. This is not an accepted repair.`);
     }
     if (data.model_patch_result?.measurement_checks?.length) disclosure("Repair measurement preservation", (body) => {
       const model = data.model_patch_result;

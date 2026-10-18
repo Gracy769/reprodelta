@@ -44,6 +44,7 @@ test('checkpoint and repair scopes remain explicit and source text stays inert',
   assert.match(result.text, /not scientific correctness/);
   assert.match(result.text, /seed 9/);
   assert.match(result.text, /<img src=x/);
+  assert.match(result.elements.get('result-repairs').children[0].className, /is-fail/);
 });
 
 test('regression link is restricted to eligible pinned reports', async () => {

@@ -42,7 +42,7 @@ class SearchConfig(BaseModel):
 
     max_candidates: int = 50
     seed: int = 42
-    search_strategy: Literal["sweep", "random"] = "sweep"
+    search_strategy: Literal["sweep", "random", "adaptive"] = "sweep"
 
 
 class CandidateRecord(BaseModel):
@@ -153,7 +153,7 @@ class SearchController:
         self,
         investigation_id: str,
         seed: int = 42,
-        search_strategy: Literal["sweep", "random"] = "sweep",
+        search_strategy: Literal["sweep", "random", "adaptive"] = "sweep",
     ) -> SearchProgress:
         """
         Run the sweep search and return a SearchProgress describing the outcome.
@@ -161,7 +161,12 @@ class SearchController:
         Stops as soon as a witness is found, the candidate list is exhausted,
         or the budget (max_candidates) is reached.
         """
-        if search_strategy == "sweep":
+        records: list[CandidateRecord] = []
+        if search_strategy == "adaptive":
+            from app.orchestrator.adaptive import adaptive_candidates
+
+            candidates_to_try = adaptive_candidates(self.contract, seed, self.budget.max_candidates, records)
+        elif search_strategy == "sweep":
             candidates_to_try = _sweep_candidates()
         elif search_strategy == "random":
             rng = random.Random(seed)
@@ -185,7 +190,6 @@ class SearchController:
         conclusion_changed_count = 0
         budget_remaining = self.budget.max_candidates
         witness: CandidateRecord | None = None
-        records: list[CandidateRecord] = []
         status: Literal["searching", "found_witness", "exhausted", "failed"] = "searching"
 
         for input_json in candidates_to_try:

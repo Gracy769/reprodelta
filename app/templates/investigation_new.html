@@ -156,6 +156,9 @@
 
 <section class="demo-start" aria-labelledby="demo-start-title">
   <div><span class="eyebrow">READY TO RUN</span><h2 id="demo-start-title">Start the paired investigation</h2><p>This approves the pinned demo contract, starts both environments, and opens a live progress page. This run uses the curated Signal Classifier, not a repository selected in your workspace.</p></div>
+  <label for="investigation-strategy">Search strategy</label>
+  <select id="investigation-strategy"><option value="sweep">Known-boundary demonstration (default)</option><option value="random">Seeded random valid inputs</option><option value="adaptive">Adaptive measured-boundary search (experimental)</option></select>
+  <p>All strategies use the approved domain and execution budget. Adaptive search does not know the fixture witness and may find no changed outcome.</p>
   <div class="demo-start-action"><button type="button" class="btn btn-primary" id="start-btn" data-project-id="{{ project_id }}">Start live investigation ↗</button><small>Real pinned workers · mock model proposals · no billable model call</small><span id="start-spinner" role="status" style="display:none;">Starting…</span><p id="start-error" role="alert" style="display:none;"></p></div>
 </section>
 

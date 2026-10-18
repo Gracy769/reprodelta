@@ -47,7 +47,9 @@
         if (existing.status !== "draft") pendingId = null;
       }
       if (!pendingId) {
-        const inv = await post("/api/investigations", {project_id: projectId, model_mode: "mock", max_candidates: 50, max_runs: 400});
+        const selected = document.getElementById("investigation-strategy")?.value;
+        const strategy = ["sweep", "random", "adaptive"].includes(selected) ? selected : "sweep";
+        const inv = await post("/api/investigations", {project_id: projectId, model_mode: "mock", search_strategy: strategy, max_candidates: 50, max_runs: 400});
         pendingId = inv.id;
       }
       await post(`/api/investigations/${pendingId}/start`);

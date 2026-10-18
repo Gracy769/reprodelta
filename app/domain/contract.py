@@ -21,6 +21,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from app.domain.constraints import CrossConstraint
+
 
 class InputField(BaseModel):
     model_config = ConfigDict(frozen=True)
@@ -38,7 +40,7 @@ class InputSchema(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     fields: list[InputField]
-    cross_constraints: list[str] | None = None
+    cross_constraints: list[str | CrossConstraint] | None = None
 
 
 class OutputSelector(BaseModel):

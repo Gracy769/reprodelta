@@ -78,8 +78,11 @@ def generate_report(evidence: InvestigationEvidence) -> dict:
     run_mode = _detect_run_mode(evidence)
     simulated = run_mode == "local_simulation"
 
+    from app.orchestrator.regression_export import replay_material
+
     return {
         "schema_version": _SCHEMA_VERSION,
+        "scientific_extensions_version": "1",
         "export_timestamp": datetime.now(UTC).isoformat(),
         # --- metadata ---
         "investigation_id": evidence.investigation_id,
@@ -92,6 +95,7 @@ def generate_report(evidence: InvestigationEvidence) -> dict:
         # --- run mode ---
         "run_mode": run_mode,
         "simulated_mode": simulated,
+        "replay_material": replay_material(evidence) if run_mode == "pinned_workers" else None,
         "environment_versions": _collect_environment_versions(evidence),
         # --- controls ---
         "controls": [c.model_dump(mode="json") for c in evidence.controls],
@@ -122,6 +126,8 @@ def generate_report(evidence: InvestigationEvidence) -> dict:
         if evidence.model_patch_result
         else None,
         "stage_failures": evidence.stage_failures,
+        "checkpoint_diagnostics": evidence.checkpoint_diagnostics,
+        "search_provenance": evidence.search_provenance,
         "patch_results": [
             r.model_dump(mode="json")  # type: ignore[union-attr]
             for r in evidence.patch_results

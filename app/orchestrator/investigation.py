@@ -24,6 +24,7 @@ from datetime import UTC, datetime
 from app.config import get_settings
 from app.domain.comparison import evaluate_output
 from app.domain.contract import ContractBody, hash_contract
+from app.domain.diagnostics import search_summary
 from app.domain.evidence import (
     ControlEvidence,
     InvestigationEvidence,
@@ -306,11 +307,15 @@ class InvestigationRunner:
         intervention_result: InterventionRunResult | None = None
         patch_results: list[VerificationResult] = []
         model_patch_result = None
+        checkpoint_diagnostics = None
 
         if progress.witness is not None:
             cand = progress.witness
             pr = cand.pair_result
             assert pr is not None  # guaranteed when witness is set
+            from app.domain.diagnostics import localize_checkpoints
+
+            checkpoint_diagnostics = localize_checkpoints(pr.old_run.outputs, pr.new_run.outputs)
 
             self._emit(investigation_id, "witness_found", {
                 "input_sha256": cand.input_sha256,
@@ -326,6 +331,7 @@ class InvestigationRunner:
                 ratio=pr.comparison.get("old_ratio"),
                 intermediate_dtype=_extract_dtype(pr.old_run.outputs),
                 status=pr.old_run.status,
+                base_project_sha256=pr.old_run.base_project_sha256,
             )
             new_run_ev = RunEvidence(
                 run_id=pr.new_run.run_id,
@@ -335,6 +341,7 @@ class InvestigationRunner:
                 ratio=pr.comparison.get("new_ratio"),
                 intermediate_dtype=_extract_dtype(pr.new_run.outputs),
                 status=pr.new_run.status,
+                base_project_sha256=pr.new_run.base_project_sha256,
             )
 
             witness_evidence = WitnessEvidence(
@@ -350,7 +357,8 @@ class InvestigationRunner:
             # 3. Reduction
             # ------------------------------------------------------------------
             try:
-                reduction = reduce_witness(cand.input_json, self.contract, self.runner)
+                reduction = reduce_witness(cand.input_json, self.contract, self.runner,
+                                           strategy="numeric" if progress.search_strategy == "adaptive" else "neutral")
             except Exception as exc:  # noqa: BLE001
                 record_failure("reduction", exc)
                 raise
@@ -540,6 +548,8 @@ class InvestigationRunner:
             patch_results=patch_results,
             model_patch_result=model_patch_result,
             frozen_holdouts=sealed_holdouts,
+            checkpoint_diagnostics=checkpoint_diagnostics,
+            search_provenance=search_summary(progress),
             budget_usage=ledger.usage,
             demonstration_comparison=demonstration_comparison,
             stage_failures=stage_failures,

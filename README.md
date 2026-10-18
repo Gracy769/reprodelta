@@ -17,6 +17,13 @@ repair against frozen independent cases.
 
 ## Correctness checks
 
+Compatible scientific workflow extensions add executable input predicates,
+measurement-preserving model-diff checks, native numerical checkpoint diagnostics,
+opt-in adaptive search, portable recorded-regression tests and multi-seed
+evaluation. The curated demo remains the default; arbitrary repository execution
+is still unsupported. See [scope, usage and limits](docs/compatible-upgrades.md)
+and the [reviewed plan](docs/compatible-upgrades-plan.md).
+
 Paired output decisions are evaluated from the measured ratio using the approved
 contract. Exact ties use its tie policy (`inconclusive` for this fixture), while
 raw worker labels remain in paired output evidence. Numeric tolerances classify

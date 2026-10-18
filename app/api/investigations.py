@@ -33,7 +33,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from app.api.investigation_access import approval_key, investigation_owner, owner_context
 from app.config import get_settings
-from app.domain.contract import FIXTURE_CONTRACT, hash_contract
+from app.domain.contract import FIXTURE_CONTRACT, ContractBody, hash_contract
 from app.domain.types import BudgetConfig
 from app.domain.validator import validate_input
 from app.orchestrator import admission
@@ -119,7 +119,7 @@ class CreateInvestigationRequest(BaseModel):
     project_id: uuid.UUID
     description: str = ""
     model_mode: Literal["configured", "mock"] = "configured"
-    search_strategy: Literal["sweep", "random"] = "sweep"
+    search_strategy: Literal["sweep", "random", "adaptive"] = "sweep"
     search_seed: int = Field(default=42, ge=0, le=2**32-1)
     max_candidates: int = Field(default=50, ge=1, le=1000)
     max_runs: int = Field(default=400, ge=1, le=4000)
@@ -138,6 +138,40 @@ class CreateInvestigationRequest(BaseModel):
 
 class RunPairRequest(BaseModel):
     input_json: dict
+
+
+class ValidateContractRequest(BaseModel):
+    contract: ContractBody
+    input_json: dict
+
+
+@router.get("/investigations/{investigation_id}/regression.zip")
+async def regression_bundle(investigation_id: str):
+    from fastapi.responses import Response
+
+    from app.orchestrator.regression_export import build_regression_bundle
+
+    record = _get_investigation_or_404(investigation_id)
+    if record["status"] != "completed":
+        raise HTTPException(409, "Complete the investigation before exporting")
+    try:
+        content = build_regression_bundle(get_store().get_report(investigation_id) or {})
+    except (ValueError, KeyError, TypeError) as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return Response(content, media_type="application/zip", headers={
+        "Content-Disposition": f'attachment; filename="reprodelta-{uuid.UUID(investigation_id)}-regression.zip"',
+        "X-Content-SHA256": hashlib.sha256(content).hexdigest(),
+    })
+
+
+@router.post("/contracts/validate")
+async def validate_contract_input(body: ValidateContractRequest) -> dict:
+    """Validate declared inputs without approving or executing a project."""
+    if len(json.dumps(body.input_json)) > 128_000:
+        raise HTTPException(413, "Contract sample exceeds 128 KB")
+    result = validate_input(body.contract, body.input_json)
+    return {**result.model_dump(), "contract_hash": hash_contract(body.contract),
+            "execution_scope": "Validation only; hosted execution remains curated-only"}
 
 
 class VerifyPatchRequest(BaseModel):

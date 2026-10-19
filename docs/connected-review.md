@@ -1,6 +1,6 @@
 # Connected dependency review and supported replay
 
-The workspace's **Run investigation** action first produces a private diff review,
+The workspace's **Review change** action produces a private diff review,
 never an execution verdict. It fetches the exact base/head commits, paginates
 changed files (up to the host's 3,000-file GitHub limit), and reads at most ten
 supported manifests of at most 128 KB each at those commits. Missing, oversized,
@@ -32,19 +32,23 @@ The separately approved replay is deliberately narrow:
    `numpy==2.0.2` at the head. Missing, ambiguous, optional, conditional or
    unresolved pins fail closed; a declaration guarded by an environment marker
    cannot authorize a replay on its own.
-3. The user reviews and explicitly approves the existing eight-sample float32 contract,
+3. A read-only eligibility check first validates the exact supported source and
+   both environment pins. Unsupported changes do not display a fixed contract.
+   Saved reviews require a fresh analysis before eligibility is checked.
+4. The user reviews and explicitly approves the existing eight-sample float32 contract,
    threshold/tie policy and execution/model budget. The submitted contract hash
    must match the current supported contract, and the owner-scoped approval must
    exist before the paired-run endpoint creates an investigation.
-4. The deployment must use pinned HTTP workers. Start verifies `/ready` before
+   Sweep, seeded random and experimental adaptive search are selectable before start.
+5. The deployment must use pinned HTTP workers. Start verifies `/ready` before
    launching any execution, and normal manifests enforce the trusted project
    hash as well as repair manifests. Local simulation cannot start
    this connected replay. Remote code is never imported or executed; only the
    trusted source-identical numerical kernel runs in the existing workers.
-5. A verified bearer session is bridged to a signed, HttpOnly, SameSite=Strict
+6. A verified bearer session is bridged to a signed, HttpOnly, SameSite=Strict
    30-minute workbench cookie so report navigation keeps the same owner. Returning
    to the workspace renews it; sign-out clears it.
-6. The investigation's append-only `source_binding` event and exported report
+7. The investigation's append-only `source_binding` event and exported report
    retain both commit SHAs, canonical source hashes, dependency path, versions
    and explicit scope. No conclusion covers other files or the full PR.
 

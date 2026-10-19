@@ -30,7 +30,7 @@ async def test_account_pages_expose_real_forms_and_assets():
     assert 'autocomplete="current-password"' in signin.text
     assert "Connect GitHub" in workspace.text
     assert workspace.headers["cache-control"] == "no-store"
-    assert "Repository code is not executed" in workspace.text
+    assert "This read-only review does not execute repository code" in workspace.text
     assert '/assets/workspace.js?v=' in workspace.text
     assert '/assets/nav-session.js?v=' in workspace.text
     assert '/assets/auth.js?v=' in signin.text

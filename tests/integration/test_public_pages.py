@@ -44,7 +44,7 @@ async def test_investigation_start_is_explicit_and_demo_page_is_removed():
         home = await client.get("/")
     assert 'id="start-investigation-btn"' in workspace.text
     assert 'id="chosen-change"' in workspace.text
-    assert "Run investigation" in workspace.text
+    assert "Review change" in workspace.text
     assert removed.status_code == 404
     assert "/demo/investigation" not in home.text
 

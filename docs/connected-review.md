@@ -1,6 +1,6 @@
 # Connected dependency review and supported replay
 
-The workspace's **Analyze changed files** action produces a private diff review,
+The workspace's **Run investigation** action first produces a private diff review,
 never an execution verdict. It fetches the exact base/head commits, paginates
 changed files (up to the host's 3,000-file GitHub limit), and reads at most ten
 supported manifests of at most 128 KB each at those commits. Missing, oversized,
@@ -32,9 +32,10 @@ The separately approved replay is deliberately narrow:
    `numpy==2.0.2` at the head. Missing, ambiguous, optional, conditional or
    unresolved pins fail closed; a declaration guarded by an environment marker
    cannot authorize a replay on its own.
-3. The user reviews and approves the existing eight-sample float32 contract,
+3. The user reviews and explicitly approves the existing eight-sample float32 contract,
    threshold/tie policy and execution/model budget. The submitted contract hash
-   must match the current supported contract.
+   must match the current supported contract, and the owner-scoped approval must
+   exist before the paired-run endpoint creates an investigation.
 4. The deployment must use pinned HTTP workers. Start verifies `/ready` before
    launching any execution, and normal manifests enforce the trusted project
    hash as well as repair manifests. Local simulation cannot start

@@ -138,7 +138,7 @@ class InvestigationRunner:
         events are not persisted.
     """
 
-    PROJECT_NAME = "Signal Classifier (NumPy 1.26 → 2.0 demo)"
+    PROJECT_NAME = "Signal Classifier (NumPy 1.26 → 2.0)"
     SCOPE = "fixture/project/pipeline.py — NumPy NEP-50 scalar promotion"
 
     # The "canonical" control input — equal halves, should be repeatable.

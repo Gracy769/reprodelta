@@ -123,7 +123,7 @@
 
 <p id="status-msg" role="status" aria-live="polite">Starting investigation…</p>
 <a id="progress-signin" href="/signin?next=/investigations/{{ investigation_id }}" hidden>Sign in again to resume this investigation</a>
-<a id="progress-restart" href="/demo/investigation" hidden>Return to the demo to start a new investigation</a>
+<a id="progress-restart" href="/workspace" hidden>Return to your workspace to start a new investigation</a>
 <div id="complete-links" style="display:none;margin-top:var(--sp-4);">
   <a id="evidence-link" href="#"
      style="display:inline-block;padding:var(--sp-2) var(--sp-4);background:var(--accent);color:#fff;text-decoration:none;border-radius:4px;font-size:14px;font-weight:600;margin-right:var(--sp-3);">
@@ -250,7 +250,7 @@
           document.getElementById("progress-restart").hidden = false;
         } else if (status === "draft") {
           clearInterval(timer);
-          setText("status-msg", "This investigation has not started. Return to the demo to retry starting it.");
+          setText("status-msg", "This investigation has not started. Return to your workspace to retry.");
           document.getElementById("progress-restart").hidden = false;
         }
       })

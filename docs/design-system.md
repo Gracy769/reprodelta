@@ -1,6 +1,6 @@
 # Design system and product interaction
 
-**Status:** implemented visual direction for the curated demo; later workflow features below remain proposed where the app does not yet implement them. The interface is an evidence workbench for engineers and researchers; it must let a reviewer see what was observed, what was inferred, and what remains unknown.
+**Status:** implemented visual direction for the evidence workbench; later workflow features below remain proposed where the app does not yet implement them. The interface must let a reviewer see what was observed, what was inferred, and what remains unknown.
 
 ## Information architecture
 

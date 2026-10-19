@@ -41,6 +41,15 @@ test('review exposes incomplete evidence, revision, actions and inert source tex
   assert(nodes.some(n => n.textContent?.includes('No repository code was executed')));
 });
 
+test('fresh review opens contract approval without a second configure click', async () => {
+  const ctx=boot(async () => ({ok:true,json:async () => ({contract_hash:'c'.repeat(64)})}));
+  ctx.reviewTest.renderReview({...result,freshReview:true},change);
+  await new Promise(setImmediate);
+  const nodes=all(ctx.elements.get('review-result-body'));
+  assert(nodes.some(n => n.textContent === 'Review the paired-run contract'));
+  assert(nodes.some(n => n.textContent?.includes('Approve contract and run investigation')));
+});
+
 test('paired replay carries approved contract, immutable revision and selected manifest', async () => {
   const requests=[];
   const ctx=boot(async (url,options) => {
@@ -53,10 +62,27 @@ test('paired replay carries approved contract, immutable revision and selected m
   const manifest=all(form).find(n => n.tagName === 'select'); manifest.value='requirements.txt';
   const checkbox=all(form).find(n => n.type === 'checkbox'); checkbox.checked=true;
   await form.listeners.submit({preventDefault(){}});
+  const approval=requests.find(r => r.url.endsWith('/contract/approve'));
   const request=requests.find(r => r.url.endsWith('/paired-replay'));
+  assert.equal(approval.options.method,'POST');
+  assert(requests.indexOf(approval)<requests.indexOf(request));
   assert.equal(request.options.method,'POST');
   assert.deepEqual(JSON.parse(request.options.body),{repository:'lab/project',number:7,expected_head_sha:'b'.repeat(40),dependency_path:'requirements.txt',contract_hash:'c'.repeat(64)});
   assert.equal(ctx.location.href,'/investigations/job-id');
+});
+
+test('paired replay cannot start until the contract is approved', async () => {
+  const requests=[];
+  const ctx=boot(async (url,options) => {
+    requests.push({url,options});
+    return {ok:true,json:async () => ({contract_hash:'c'.repeat(64)})};
+  });
+  const parent=new Element();
+  await ctx.reviewTest.configureReplay(result,change,parent);
+  const form=parent.children.find(n => n.tagName === 'form');
+  await form.listeners.submit({preventDefault(){}});
+  assert(all(form).some(n => n.textContent?.includes('Review and approve')));
+  assert(!requests.some(r => r.url.endsWith('/paired-replay')));
 });
 
 test('missing manifest explains setup gap and cannot start paired replay', async () => {

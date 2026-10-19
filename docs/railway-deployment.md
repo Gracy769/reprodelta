@@ -21,10 +21,10 @@ Set these variables on `reprodelta-web`:
 | `NEBIUS_MODEL_ID` | `nvidia/Nemotron-3-Ultra-550b-a55b`, the exact ID returned by the Nebius models endpoint |
 | `NEBIUS_CALL_COST_CEILING_USD` | Required for live calls; set a positive per-call reservation after verifying current model pricing. The default `0` blocks billable calls. |
 
-Guest runs of the curated demo always use labeled mock model proposals, even when a
-Nebius key is configured. Authenticated investigations use the live provider only
-after a positive cost reservation has been configured. This keeps the public demo
-usable without allowing anonymous traffic to spend the key.
+The standalone public investigation page has been removed. Connected paired
+investigations require a signed-in source account, explicit contract approval,
+and the supported source and NumPy pins. Live model calls require a positive
+cost reservation.
 
 For the current Ultra model, Railway reserves `$0.05` per live call, against the
 default `$0.10` investigation budget. Nebius [lists Ultra at $1 per million input
@@ -49,7 +49,7 @@ reprodelta-web --ci`. Automatic redeployment from GitHub commits has not yet
 been confirmed in this Railway workspace.
 
 Before considering a deployment complete, check the Railway deployment status,
-`/health`, the home page, `/demo/investigation`, and the GitHub sign-in callback.
+`/health`, `/ready`, the home page, `/workspace`, and the GitHub sign-in callback.
 The latter requires the OAuth client variables and updated callback above.
 
 ## Operator verification after merging the hardening PR

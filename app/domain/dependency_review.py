@@ -157,4 +157,4 @@ def build_review(provider: str, repository: str, number: int, base_sha: str, hea
             "next_actions": ["Inspect the linked dependency declarations and resolve exact old/new environments.",
                              "Declare the scientific output and decision rule, including ties and tolerances.",
                              "Configure a supported paired replay; otherwise run the project’s tests in both resolved environments."],
-            "next_step": "Configure paired replay for the supported numerical kernel, or inspect the curated demo."}
+            "next_step": "Review the supported paired-run contract for this change, if its numerical kernel and dependency pins qualify."}

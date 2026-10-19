@@ -1,4 +1,4 @@
-"""Durable store for the hosted curated demo.
+"""Durable store for the hosted supported investigation.
 
 This intentionally uses a small deployment-specific schema. The broader
 research schema in ``models.py`` is not yet wired into the investigation API.

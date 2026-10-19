@@ -11,7 +11,6 @@ from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from app.config import get_settings
-from app.domain.contract import FIXTURE_CONTRACT, hash_contract
 
 TEMPLATES_DIR = pathlib.Path(__file__).parent.parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -28,7 +27,6 @@ templates.env.globals["asset_url"] = asset_url
 
 router = APIRouter()
 
-DEMO_PROJECT_ID = "00000000-0000-0000-0000-000000000001"
 PUBLIC_ORIGIN = "https://reprodelta-web-production.up.railway.app"
 
 
@@ -50,7 +48,6 @@ async def sitemap() -> Response:
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
         f"<url><loc>{PUBLIC_ORIGIN}/</loc></url>"
-        f"<url><loc>{PUBLIC_ORIGIN}/demo/investigation</loc></url>"
         "</urlset>"
     )
     return Response(body, media_type="application/xml", headers={"Cache-Control": "public, max-age=3600"})
@@ -79,20 +76,6 @@ async def investigation_new(request: Request) -> HTMLResponse:
         "gitlab_oauth_enabled": bool(settings.gitlab_oauth_client_id and settings.gitlab_oauth_client_secret),
         "new_investigation": True,
     })
-
-
-@router.get("/demo/investigation", response_class=HTMLResponse, include_in_schema=False)
-async def demo_investigation(request: Request) -> HTMLResponse:
-    """Render the isolated, curated NumPy demonstration."""
-    return templates.TemplateResponse(
-        request,
-        "investigation_new.html",
-        {
-            "project_id": DEMO_PROJECT_ID,
-            "contract": FIXTURE_CONTRACT,
-            "contract_hash": hash_contract(FIXTURE_CONTRACT),
-        },
-    )
 
 
 @router.get("/investigations/{investigation_id}", response_class=HTMLResponse, include_in_schema=False)

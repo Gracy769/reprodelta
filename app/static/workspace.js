@@ -213,12 +213,9 @@
     body.append(text("h3", "What to do next"), actions);
     const next = document.createElement("div"); next.className = "review-next";
     next.append(text("p", `${result.scope || "A bounded diff review."} No repository code was executed. This is not a reproduced regression.`, "review-scope"));
-    const demo = document.createElement("a"); demo.href = "/demo/investigation"; demo.textContent = "See a real paired replay ↗";
-    next.append(demo); body.append(next);
-    const configure = text("button", "Configure supported paired replay", "review-button review-button-secondary");
-    configure.type = "button";
-    configure.addEventListener("click", () => configureReplay(result, change, next, configure));
-    next.append(configure);
+    body.append(next);
+    if (result.freshReview) configureReplay(result, change, next).catch((error) => status(error.message));
+    else next.append(text("p", "This saved review may describe an older revision. Run investigation again to check the current change before approving a paired run."));
     $("review-result-meta").textContent = `${change.provider.toUpperCase()} · ${change.repoKey} · ${change.provider === "github" ? "PR" : "MR"} #${change.number}`;
   }
   async function loadRecentReviews() {
@@ -241,31 +238,53 @@
       });
     } catch (error) { empty(list, `Saved reviews unavailable: ${error.message}`); }
   }
-  async function configureReplay(result, change, parent, trigger) {
-    trigger.disabled = true;
+  async function configureReplay(result, change, parent) {
+    const loading = text("p", "Checking the supported contract and dependency manifest…");
+    parent.append(loading);
     try {
       const response = await timedFetch("/api/projects/00000000-0000-0000-0000-000000000001/contract", {headers: {Authorization: `Bearer ${state.jwt}`}});
       const approved = await response.json();
       if (!response.ok) throw new Error(approved.detail || "Supported contract unavailable");
+      if (state.selectedChange && (state.selectedChange.provider !== change.provider || state.selectedChange.repoKey !== change.repoKey || state.selectedChange.number !== change.number)) return;
+      loading.remove();
       const form = document.createElement("form");
-      form.append(text("p", "Supported scope: the exact fixture/project/pipeline.py kernel at both commits, with an explicit NumPy 1.26.4 to 2.0.2 pin. Other project code and dependency changes are excluded."));
-      form.append(text("p", "Contract: 8 finite float32 signal values in [-10, 10]; ratio > 0.5, exact ties inconclusive. Up to 400 executions, 600 seconds and 2 model calls; model cost cap $0.10. Only curated data reaches the configured model provider."));
+      form.className = "review-contract";
+      form.append(text("h3", "Review the paired-run contract"));
+      form.append(text("p", "Only the exact supported numerical kernel at both commits can run, with NumPy pinned to 1.26.4 and 2.0.2. Other repository code is excluded."));
+      const contract = approved.contract || {};
+      const field = contract.input_schema?.fields?.[0] || {};
+      const details = document.createElement("dl"); details.className = "review-contract-details";
+      const rule = contract.conclusion || {}, policy = contract.comparison || {}, limits = contract.resource_limits || {};
+      [["Input", `${field.name || "signal"} · ${field.dtype || "float32"}[${field.shape?.[0] ?? 8}] · ${field.min_value ?? -10} to ${field.max_value ?? 10}`],
+        ["Decision", `${contract.output_selector?.field_name || "ratio"} ${rule.operator || "gt"} ${rule.threshold ?? 0.5}; tie: ${rule.tie_behavior || "inconclusive"}`],
+        ["Tolerance", `absolute ${policy.atol ?? 0}; relative ${policy.rtol ?? 0}`],
+        ["Limits", `Up to 400 executions · ${limits.max_wall_seconds ?? 600}s · 2 model calls · $0.10 maximum model cost`],
+        ["Contract SHA-256", approved.contract_hash]].forEach(([name, value]) => details.append(text("dt", name), text("dd", value)));
+      form.append(details);
+      form.append(text("p", "A supported run uses pinned workers. The configured model may receive curated evidence within the stated cost limit. Agreement across versions is not proof of scientific correctness."));
       const path = document.createElement("select"); path.required = true; path.setAttribute("aria-label", "Dependency manifest containing the NumPy pins");
       (result.dependency_files || []).forEach((file) => {const option = text("option", file); option.value = file; path.append(option);});
-      if (!path.options.length) { form.append(text("p", "No supported dependency manifest was found. A pinned manifest and validated numerical adapter are required before replay.")); parent.append(form); return; }
+      if (!path.options.length) { form.append(text("p", "No supported dependency manifest was found. A pinned manifest and validated numerical adapter are required before a paired run. The diff review above is still available.")); parent.append(form); return; }
+      const pathLabel = text("label", "Dependency manifest"); pathLabel.append(path);
       const label = document.createElement("label"), checkbox = document.createElement("input"); checkbox.type = "checkbox"; checkbox.required = true;
       label.append(checkbox, document.createTextNode(" I approve this exact contract, scope and budget."));
-      const submit = text("button", "Run approved paired investigation", "review-button review-button-primary"); submit.type = "submit";
+      const submit = text("button", "Approve contract and run investigation ↗", "review-button review-button-primary"); submit.type = "submit";
       const message = text("p", ""); message.setAttribute("role", "status");
-      form.append(path, label, submit, message); parent.append(form);
+      form.append(pathLabel, label, submit, message); parent.append(form);
       form.addEventListener("submit", async (event) => {
-        event.preventDefault(); submit.disabled = true; message.textContent = "Verifying immutable source and environment pins…";
+        event.preventDefault();
+        if (!checkbox.checked) { message.textContent = "Review and approve the contract before starting."; return; }
+        submit.disabled = true; message.textContent = "Recording approval and verifying immutable source and environment pins…";
         try {
+          const approval = await timedFetch("/api/projects/00000000-0000-0000-0000-000000000001/contract/approve", {
+            method: "POST", credentials: "same-origin", headers: {Authorization: `Bearer ${state.jwt}`},
+          });
+          if (!approval.ok) { const problem = await approval.json().catch(() => ({})); throw new Error(problem.detail || "Contract approval failed"); }
           const job = await api(`/${change.provider}/paired-replay`, {method: "POST", body: JSON.stringify({repository: change.repoKey, number: change.number, expected_head_sha: result.head_sha, dependency_path: path.value, contract_hash: approved.contract_hash})});
           location.href = `/investigations/${encodeURIComponent(job.investigation_id)}`;
         } catch (error) { message.textContent = error.message; submit.disabled = false; }
       });
-    } catch (error) { status(error.message); trigger.disabled = false; }
+    } catch (error) { loading.textContent = `The paired-run contract could not be loaded: ${error.message}`; }
   }
   function selectChange(change) {
     if (!state.connections.some((connection) => connection.provider === change.provider)) {
@@ -286,8 +305,8 @@
     if (sourceUrl) $("chosen-source-link").href = sourceUrl;
     const button = $("start-investigation-btn");
     button.disabled = false;
-    $("start-investigation-label").textContent = "Analyze changed files";
-    $("change-link-help").textContent = "Change selected. Analyze the changed files below.";
+    $("start-investigation-label").textContent = "Run investigation";
+    $("change-link-help").textContent = "Change selected. Run investigation to inspect the diff, then review the contract before paired execution.";
     $("change-link-help").classList.remove("is-error");
     $("chosen-change").scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "center" });
     button.focus({ preventScroll: true });
@@ -309,7 +328,7 @@
     try {
       const result = await api(`/${change.provider}/advice?repository=${encodeURIComponent(change.repoKey)}&number=${change.number}`);
       if (nonce !== state.reviewNonce) return;
-      renderReview(result, change);
+      renderReview({...result, freshReview: true}, change);
       loadRecentReviews();
       $("change-link-help").textContent = "Diff observations are ready below.";
       $("change-link-help").classList.remove("is-error");
@@ -319,7 +338,7 @@
     } finally {
       if (nonce === state.reviewNonce) {
         button.disabled = false;
-        $("start-investigation-label").textContent = "Analyze latest revision";
+        $("start-investigation-label").textContent = "Run investigation again";
       }
     }
   }

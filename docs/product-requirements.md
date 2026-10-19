@@ -79,9 +79,9 @@ read-only, file-backed review. The result states its
 file limit and that no repository code was executed. The UI must not imply that
 this review reproduced a dependency regression.
 
-**Navigation update, 14 October 2026:** The curated demo exposes its executable
-Start live investigation action near the top. Optional one-input exploration
-uses a single labelled, validated signal field rather than eight table cells.
+**Navigation update, 19 October 2026:** The standalone investigation page is
+removed. Selecting a PR or MR leads through a diff review to an explicit
+supported contract approval and paired run when source and environment pins match.
 Unknown browser routes show a branded 404 page; unknown API routes retain JSON
 errors. `robots.txt` and `sitemap.xml` list only public pages. Server secrets
 remain server-side; Firebase's web configuration is a public client identifier.

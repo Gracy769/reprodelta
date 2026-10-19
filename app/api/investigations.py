@@ -54,7 +54,7 @@ DEMO_PROJECT_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 
 _DEMO_PROJECT = {
     "id": str(DEMO_PROJECT_ID),
-    "name": "Signal Classifier (NumPy 1.26 → 2.0 demo)",
+    "name": "Signal Classifier (NumPy 1.26 → 2.0)",
     "description": (
         "Curated fixture demonstrating a NumPy NEP-50 scalar promotion change "
         "that flips a classification near the threshold."

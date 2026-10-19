@@ -256,4 +256,4 @@ async def test_new_investigation_is_the_connected_workspace(app_with_local_runne
     assert "A clearer next step." in response.text
     assert "Connect your code host." in response.text
     assert "Signal Classifier" not in response.text
-    assert "Run investigation" in response.text
+    assert "Review change" in response.text

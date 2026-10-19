@@ -147,6 +147,12 @@ def build_review(provider: str, repository: str, number: int, base_sha: str, hea
         evidence.append({"title": "Numerical code or assertions need inspection", "evidence": ", ".join(scientific[:5]),
                          "url": source_url(provider, repository, head_sha, scientific[0]),
                          "action": "Identify the declared scientific output; keyword matches are a hypothesis, not causal evidence."})
+    next_actions = ["Inspect the linked dependency declarations and resolve exact old/new environments.",
+                    "Declare the scientific output and decision rule, including ties and tolerances."]
+    if manifests:
+        next_actions.append("Check paired-run support for the selected manifest; if unsupported, run the project's own tests in both environments.")
+    else:
+        next_actions.append("No runnable environment was established here. Run the project's own tests; add a validated adapter and pinned environments for a paired investigation.")
     return {"schema_version": "2", "mode": "metadata_review_only", "evidence_level": "Diff review",
             "executed_repository_code": False, "provider": provider, "repository": repository, "number": number,
             "base_sha": base_sha, "head_sha": head_sha, "complete": complete,
@@ -154,7 +160,5 @@ def build_review(provider: str, repository: str, number: int, base_sha: str, hea
             "changed_file_count_checked": len(files), "dependency_files": [m["path"] for m in manifests],
             "dependency_changes": changes, "numpy_mentioned": any("numpy" in f.get("patch", "").lower() for f in files),
             "findings": evidence, "limitations": sorted(set(limitations)),
-            "next_actions": ["Inspect the linked dependency declarations and resolve exact old/new environments.",
-                             "Declare the scientific output and decision rule, including ties and tolerances.",
-                             "Configure a supported paired replay; otherwise run the project’s tests in both resolved environments."],
-            "next_step": "Review the supported paired-run contract for this change, if its numerical kernel and dependency pins qualify."}
+            "next_actions": next_actions,
+            "next_step": "Check the supported-run requirements before any contract is offered."}

@@ -80,8 +80,10 @@ file limit and that no repository code was executed. The UI must not imply that
 this review reproduced a dependency regression.
 
 **Navigation update, 19 October 2026:** The standalone investigation page is
-removed. Selecting a PR or MR leads through a diff review to an explicit
-supported contract approval and paired run when source and environment pins match.
+removed. Selecting a PR or MR leads through a diff review and separate run
+eligibility check. Only changes with the exact supported source and environment
+pins display a contract and paired-run start action. Other changes show why
+execution is unavailable; a saved review never offers an unchecked run.
 Unknown browser routes show a branded 404 page; unknown API routes retain JSON
 errors. `robots.txt` and `sitemap.xml` list only public pages. Server secrets
 remain server-side; Firebase's web configuration is a public client identifier.

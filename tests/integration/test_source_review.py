@@ -145,6 +145,32 @@ async def test_connected_replay_establishes_immutable_supported_scope():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("supported", [True, False])
+async def test_run_eligibility_precedes_contract_for_selected_revision(monkeypatch, supported):
+    source = Path("fixture/project/pipeline.py").read_text(encoding="utf-8")
+
+    async def get(provider, token, path, params=None):
+        if path.endswith("/7"):
+            return {"base": {"sha": BASE}, "head": {"sha": HEAD}}
+        if path.endswith("pipeline.py"):
+            return encoded(source if supported else "print('different project')")
+        return encoded("numpy==1.26.4" if params["ref"] == BASE else "numpy==2.0.2")
+
+    monkeypatch.setattr(connections, "_host_get", get)
+    monkeypatch.setattr(connections, "_saved_token", lambda *args: "test-token")
+    monkeypatch.setattr(connections, "get_settings", lambda: Settings(runner_mode="worker_http"))
+    result = await connections.paired_replay_eligibility("github", connections.PairedReplayEligibilityRequest(
+        repository="lab/project", number=7, expected_head_sha=HEAD,
+        dependency_path="requirements.txt"), "github:test-user")
+    assert result["eligible"] is supported
+    if supported:
+        assert result["base_sha"] == BASE and result["head_sha"] == HEAD
+        assert result["numpy_versions"] == {"base": "1.26.4", "head": "2.0.2"}
+    else:
+        assert "exact supported numerical kernel" in result["reason"]
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("status,headers,wanted", [(403, {"x-ratelimit-remaining": "0"}, 429), (403, {}, 403), (401, {}, 401)])
 async def test_source_errors_distinguish_rate_access_and_expiry(monkeypatch, status, headers, wanted):
     class Client:
@@ -275,13 +301,15 @@ async def test_connected_replay_starts_engine_and_exports_owner_and_source(monke
             owner_context.reset(owner_token)
         result = await connections.paired_replay("github", connections.PairedReplayRequest(
             repository="lab/project", number=7, expected_head_sha=HEAD,
-            dependency_path="requirements.txt", contract_hash=hash_contract(FIXTURE_CONTRACT)), Response(), "github:test-user")
+            dependency_path="requirements.txt", contract_hash=hash_contract(FIXTURE_CONTRACT),
+            search_strategy="random"), Response(), "github:test-user")
         job = result["investigation_id"]
         for _ in range(200):
             if store.get_investigation(job)["status"] != "running":
                 break
             await asyncio.sleep(.01)
         assert store.get_investigation(job)["owner_id"] == "github:test-user"
+        assert store.get_investigation(job)["budget_json"]["search_strategy"] == "random"
         assert store.get_investigation(job)["status"] == "completed"
         report = store.get_report(job)
         assert report["source_binding"]["head_sha"] == HEAD

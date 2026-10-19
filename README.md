@@ -36,7 +36,7 @@ The curated evaluator supports the `ratio` measurement / `conclusion` selector;
 other selectors and non-finite decision measurements fail explicitly.
 
 Run the Python suite with `python -m pytest tests -q`. The rendering regression
-checks use Node's built-in test runner: `node --test tests/frontend/test_demo_results.cjs`.
+checks use Node's built-in test runner: `node --test tests/frontend/*.cjs`.
 These checks do not verify a live Nebius call or Docker deployment.
 
 ## Accounts and source connections
@@ -44,14 +44,14 @@ These checks do not verify a live Nebius call or Docker deployment.
 `/workspace` (also served at `/investigations/new` for existing links) accepts
 a GitHub pull request or GitLab merge request URL, offers recent open changes
 from up to eight recently updated connected projects, and provides repository
-search as a fallback. **Analyze changed files** reads paginated file metadata and
+search as a fallback. **Review change** reads paginated file metadata and
 supported manifests at immutable base/head commits. It shows observed package
 constraint changes, source evidence, missing information and three next actions.
 Reviews persist privately by owner and commit in Postgres; stale revisions fail
 explicitly. Rate limits and permission failures are distinct.
 
-**Configure supported paired replay** separately approves the contract and budget.
-It starts the existing engine only when both commits match the trusted numerical
+**Check supported paired replay** verifies the exact source and dependency pins
+before displaying the contract or accepting approval. It starts the existing engine only when both commits match the trusted numerical
 kernel and the selected manifest pins NumPy 1.26.4 to 2.0.2. Other repositories
 receive a setup explanation; no general user-code execution is exposed. See
 [connected review and replay](docs/connected-review.md). The former standalone
@@ -92,9 +92,10 @@ open http://localhost:8000
 **Investigation flow:**
 
 1. Open `http://localhost:8000/workspace` and sign in with a connected source.
-2. Select or paste a PR/MR, then click **Run investigation** to inspect its diff.
-3. If the change matches the supported kernel and NumPy pins, review and approve
-   the displayed contract before starting the paired run.
+2. Select or paste a PR/MR, then click **Review change** to inspect its diff.
+3. The workspace checks the numerical kernel and NumPy pins. If eligible, review
+   the exact commits, contract, budget and search strategy, then approve and start
+   the paired run. If ineligible, it shows the reason without offering approval.
 4. Watch live progress: controls → search → reduction → intervention → repair.
 5. Inspect the evidence page — witness, model explanation, intervention result,
    and the predefined fixture repair checks

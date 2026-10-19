@@ -13,7 +13,7 @@ import re
 import uuid
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
-from typing import Annotated
+from typing import Annotated, Literal
 from urllib.parse import quote
 
 import httpx
@@ -487,13 +487,43 @@ async def change_advice(provider: str, repository: str, number: int,
     return result
 
 
-class PairedReplayRequest(BaseModel):
+class PairedReplayEligibilityRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     repository: str = Field(max_length=255)
     number: int = Field(ge=1)
     expected_head_sha: str = Field(pattern=r"^[0-9a-f]{40,64}$")
     dependency_path: str = Field(max_length=512)
+
+
+class PairedReplayRequest(PairedReplayEligibilityRequest):
     contract_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    search_strategy: Literal["sweep", "random", "adaptive"] = "sweep"
+
+
+@router.post("/{provider}/paired-replay/eligibility")
+async def paired_replay_eligibility(provider: str, body: PairedReplayEligibilityRequest,
+                                    owner_id: Annotated[str, Depends(current_user)]):
+    """Check source and environment pins before offering a run contract."""
+    from app.api.source_analysis import prepare_replay
+
+    _provider(provider)
+    if get_settings().runner_mode != "worker_http":
+        return {"eligible": False, "reason": "Pinned workers are not configured for connected runs."}
+    repository = _github_repository(body.repository) if provider == "github" else _gitlab_project(body.repository)
+    token = await asyncio.to_thread(_saved_token, owner_id, provider)
+    try:
+        async with asyncio.timeout(60):
+            binding = await prepare_replay(_host_get, provider, token, repository, body.number,
+                                           body.expected_head_sha, body.dependency_path)
+    except TimeoutError as exc:
+        raise HTTPException(504, "Run eligibility check timed out; retry this change") from exc
+    except HTTPException as exc:
+        if exc.status_code == 422:
+            return {"eligible": False, "reason": exc.detail}
+        raise
+    return {"eligible": True, "scope": binding["scope"],
+            "base_sha": binding["base_sha"], "head_sha": binding["head_sha"],
+            "dependency_path": binding["dependency_path"], "numpy_versions": binding["numpy_versions"]}
 
 
 @router.post("/{provider}/paired-replay", status_code=202)
@@ -526,6 +556,7 @@ async def paired_replay(provider: str, body: PairedReplayRequest, response: Resp
         record = await investigations.create_investigation(investigations.CreateInvestigationRequest(
             project_id=investigations.DEMO_PROJECT_ID,
             description="Approved supported-kernel replay of connected change",
+            search_strategy=body.search_strategy,
         ))
         investigations.get_store().append_event(record["id"], "source", "source_binding", binding)
         await investigations.start_investigation(record["id"], investigations.get_runner())

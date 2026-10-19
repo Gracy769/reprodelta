@@ -81,6 +81,15 @@ main:has(.review-page){background:#f7f8f4;padding-top:0}
 .review-result-summary{padding:0 0 25px;border-bottom:1px solid #cfdbd1}
 .review-result-summary strong{display:block;font-size:24px;letter-spacing:-.04em;margin-bottom:9px}
 .review-result-summary p{font-size:15px;line-height:1.6;color:#405544;margin:0}
+.review-next .review-run-gate{display:grid;flex-basis:100%;gap:14px;margin:24px 0 10px;padding:25px 28px;background:#edf5eb;border:1px solid #a8c9ac;border-left:4px solid #137738}
+.review-run-gate h3{font-size:22px;letter-spacing:-.04em;margin:0}
+.review-next .review-run-gate>p{font:14px/1.55 var(--font-sans);color:#405b46;margin:0;max-width:none}
+.review-run-gate .review-run-unavailable{padding:15px 17px;background:#fff;border:1px solid #d1ddd1;color:#375642}
+.review-run-gate>label{display:grid;gap:8px;font-size:13px;font-weight:700;max-width:600px}
+.review-run-gate>label select{width:100%;padding:12px;border:1px solid #a8bda9;background:#fff;font:inherit}
+.review-run-gate>.review-button{justify-self:start}
+.review-run-gate .review-contract{margin-top:7px;border-top:1px solid #aec6af;padding-top:23px}
+.review-run-gate .review-contract>label{display:grid;gap:8px}
 .review-finding{display:grid;grid-template-columns:40px 1fr;gap:16px;padding:24px 0;border-bottom:1px solid #d5e1d6}
 .review-finding-index{font:12px var(--font-mono);color:#19713a}
 .review-finding h3{font-size:19px;letter-spacing:-.035em;margin:0 0 8px}

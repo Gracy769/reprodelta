@@ -60,7 +60,7 @@ authorized by this implementation phase.
 6. Add regression bundle builder/replayer and owned endpoint. Bind every source,
    input, contract and observation to digests; test tampering and fresh replay.
 7. Add evaluation CLI with several seeds and explicit provenance/status. Do not
-   run expensive comparisons in every ordinary demo investigation.
+   run expensive comparisons in every ordinary supported investigation.
 8. Display diagnostics, repair measurement checks, search provenance and export
    eligibility in existing evidence/report pages. Use textContent for external
    content; omit new sections for historical reports lacking fields.

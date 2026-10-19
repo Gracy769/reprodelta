@@ -247,14 +247,13 @@ async def test_investigations_new_is_html(app_with_local_runner):
     assert "text/html" in response.headers["content-type"]
 
 
-async def test_demo_and_new_investigation_are_separate(app_with_local_runner):
+async def test_new_investigation_is_the_connected_workspace(app_with_local_runner):
     async with AsyncClient(
         transport=ASGITransport(app=app_with_local_runner), base_url="http://test"
     ) as client:
         response = await client.get("/investigations/new")
-        demo = await client.get("/demo/investigation")
     assert "One change." in response.text
     assert "A clearer next step." in response.text
     assert "Connect your code host." in response.text
     assert "Signal Classifier" not in response.text
-    assert "Signal Classifier" in demo.text
+    assert "Run investigation" in response.text

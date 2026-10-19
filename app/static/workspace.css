@@ -89,6 +89,12 @@ main:has(.review-page){background:#f7f8f4;padding-top:0}
 .review-next{padding:24px 0 0;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:20px}
 .review-next form{flex-basis:100%;display:grid;gap:16px;max-width:760px}
 .review-next form p{max-width:100%}
+.review-next .review-contract{border-top:1px solid #cbd9cd;padding-top:24px;margin-top:4px}
+.review-contract h3{font-size:22px;letter-spacing:-.04em;margin:0}
+.review-contract-details{display:grid;grid-template-columns:minmax(115px,165px) minmax(0,1fr);margin:0;border-top:1px solid #d9e4da}
+.review-contract-details dt,.review-contract-details dd{border-bottom:1px solid #d9e4da;padding:10px 0;margin:0;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+.review-contract-details dt{color:#607665;font-weight:700}
+.review-contract-details dd{font-family:var(--font-mono);color:#1d3a27}
 .review-next form select{width:100%;padding:12px;font:inherit}
 .review-next form label{display:flex;align-items:flex-start;gap:8px;font-size:14px;line-height:1.6}
 .review-next form input[type=checkbox]{width:auto;flex:none;margin-top:5px}

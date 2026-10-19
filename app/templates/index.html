@@ -8,8 +8,8 @@
       <span class="home-kicker"><span class="home-kicker-line" aria-hidden="true"></span> A SMALL CHANGE CAN MOVE THE ANSWER</span>
       <h1 id="home-title"><span class="home-title-line">The code still runs.</span><span class="home-title-line home-title-accent">The result <em>moves.</em></span></h1>
       <p class="home-intro">A library update can change a scientific conclusion without throwing an error. ReproDelta makes that difference visible, testable, and easier to explain.</p>
-      <div class="home-actions"><a class="home-button home-button-primary" href="/demo/investigation">Explore the live demo <span aria-hidden="true">↗</span></a><a class="home-button home-button-secondary" href="/workspace">Review your PR or MR <span aria-hidden="true">↗</span></a></div>
-      <p class="home-hero-note">The demo replays a pinned NumPy fixture. A repository review reads its diff and suggests what to check next.</p>
+      <div class="home-actions"><a class="home-button home-button-primary" href="/workspace">Investigate a PR or MR <span aria-hidden="true">↗</span></a></div>
+      <p class="home-hero-note">Start with a change link. We review its diff before offering a paired run where the supported contract and environment pins match.</p>
     </div>
     <div class="home-visual" aria-label="A signal is classified differently after a NumPy upgrade">
       <div class="home-visual-inner">
@@ -22,11 +22,11 @@
     </div>
   </section>
 
-  <section class="home-proof home-reveal" aria-labelledby="proof-title"><span class="home-section-number">01 / THE DEMONSTRATION</span><div><h2 id="proof-title">One input is enough to ask a better question.</h2><p>The curated test finds an eight-value signal where NumPy 1.26 and 2.0 reach different classifications. It records the exact input, checks repeatability, probes the mechanism, and tests candidate fixes against held-out cases.</p><a class="home-text-link" href="/demo/investigation">See every step of the replay <span aria-hidden="true">↗</span></a></div></section>
+  <section class="home-proof home-reveal" aria-labelledby="proof-title"><span class="home-section-number">01 / THE EVIDENCE</span><div><h2 id="proof-title">One input is enough to ask a better question.</h2><p>A supported paired investigation runs the same input in pinned NumPy environments, checks repeatability, probes the mechanism, and tests candidate fixes against held-out cases.</p><a class="home-text-link" href="/workspace">Start with your change <span aria-hidden="true">↗</span></a></div></section>
 
   <section class="home-method home-reveal" aria-labelledby="method-title"><div class="home-method-head"><span class="home-section-number">02 / THE METHOD</span><h2 id="method-title">From suspicion to evidence.</h2></div><div class="home-method-grid"><article><span>01</span><h3>Hold the input still</h3><p>Run the same valid case in both versions, with repeatability checks before comparing them.</p></article><article><span>02</span><h3>Locate the difference</h3><p>Reduce the witness and inspect the measured values and intermediate types.</p></article><article><span>03</span><h3>Test the explanation</h3><p>Change one suspected mechanism, then check whether a repair survives independent cases.</p></article></div></section>
 
-  <section class="home-repo home-reveal" aria-labelledby="repo-title"><div><span class="home-section-number">03 / YOUR REPOSITORY</span><h2 id="repo-title">Have a change to review?</h2><p>Paste a GitHub pull request or GitLab merge request. ReproDelta reads its changed files, highlights relevant dependency evidence, and gives you specific follow-up checks. This review does not run your repository or claim a reproduced regression.</p><a class="home-button home-button-dark" href="/workspace">Open the review workspace <span aria-hidden="true">↗</span></a></div><div class="home-repo-aside"><span>YOU BRING</span><strong>One change link.</strong><span>YOU GET</span><strong>A focused diff review.</strong><span>FOR A REPLAY</span><strong>Use the curated demo.</strong></div></section>
+  <section class="home-repo home-reveal" aria-labelledby="repo-title"><div><span class="home-section-number">03 / YOUR REPOSITORY</span><h2 id="repo-title">Have a change to review?</h2><p>Paste a GitHub pull request or GitLab merge request. ReproDelta reads its changed files, highlights relevant dependency evidence, and gives you specific follow-up checks. Only changes matching the supported pinned workflow can proceed to a paired run.</p><a class="home-button home-button-dark" href="/workspace">Open the review workspace <span aria-hidden="true">↗</span></a></div><div class="home-repo-aside"><span>YOU BRING</span><strong>One change link.</strong><span>FIRST STEP</span><strong>A focused diff review.</strong><span>IF SUPPORTED</span><strong>Approve and run a paired investigation.</strong></div></section>
 </div>
 <script src="{{ asset_url('home-motion.js') }}" defer></script>
 {% endblock %}

@@ -1,6 +1,6 @@
 # Compatible scientific workflow extensions
 
-These extensions retain the curated demo and its approved contract. The separate
+These extensions retain the curated numerical fixture and its approved contract. The separate
 project runner was deferred by the user. Unsupported connected repositories still
 cannot execute. No new deployment service, OAuth write permission or model charge
 is needed. The reviewed implementation plan is `compatible-upgrades-plan.md`.

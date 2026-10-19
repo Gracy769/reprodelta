@@ -261,6 +261,18 @@ async def test_connected_replay_starts_engine_and_exports_owner_and_source(monke
     store = MemoryInvestigationStore()
     investigations.set_store(store)
     try:
+        from app.api.investigation_access import owner_context
+
+        owner_token = owner_context.set("github:test-user")
+        try:
+            with pytest.raises(HTTPException) as unapproved:
+                await connections.paired_replay("github", connections.PairedReplayRequest(
+                    repository="lab/project", number=7, expected_head_sha=HEAD,
+                    dependency_path="requirements.txt", contract_hash=hash_contract(FIXTURE_CONTRACT)), Response(), "github:test-user")
+            assert unapproved.value.status_code == 409
+            await investigations.approve_contract(investigations.DEMO_PROJECT_ID)
+        finally:
+            owner_context.reset(owner_token)
         result = await connections.paired_replay("github", connections.PairedReplayRequest(
             repository="lab/project", number=7, expected_head_sha=HEAD,
             dependency_path="requirements.txt", contract_hash=hash_contract(FIXTURE_CONTRACT)), Response(), "github:test-user")

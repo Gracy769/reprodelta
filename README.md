@@ -20,7 +20,7 @@ repair against frozen independent cases.
 Compatible scientific workflow extensions add executable input predicates,
 measurement-preserving model-diff checks, native numerical checkpoint diagnostics,
 opt-in adaptive search, portable recorded-regression tests and multi-seed
-evaluation. The curated demo remains the default; arbitrary repository execution
+evaluation. The curated numerical workflow remains the supported run; arbitrary repository execution
 is still unsupported. See [scope, usage and limits](docs/compatible-upgrades.md)
 and the [reviewed plan](docs/compatible-upgrades-plan.md).
 
@@ -54,8 +54,8 @@ explicitly. Rate limits and permission failures are distinct.
 It starts the existing engine only when both commits match the trusted numerical
 kernel and the selected manifest pins NumPy 1.26.4 to 2.0.2. Other repositories
 receive a setup explanation; no general user-code execution is exposed. See
-[connected review and replay](docs/connected-review.md). The curated demo remains
-at `/demo/investigation`.
+[connected review and replay](docs/connected-review.md). The former standalone
+investigation page has been removed; start from `/workspace`.
 
 First-party GitHub and GitLab OAuth use a short-lived state challenge, an
 HttpOnly session cookie, and server-side encrypted token storage in Postgres.
@@ -89,30 +89,21 @@ docker compose up --build
 open http://localhost:8000
 ```
 
-**Demo flow:**
+**Investigation flow:**
 
-1. Open `http://localhost:8000/demo/investigation`
-2. Click **Start live investigation**; the pinned contract is approved automatically
-3. Watch live progress: controls → search → reduction → intervention → repair
-4. Inspect the evidence page — witness, model explanation, intervention result,
+1. Open `http://localhost:8000/workspace` and sign in with a connected source.
+2. Select or paste a PR/MR, then click **Run investigation** to inspect its diff.
+3. If the change matches the supported kernel and NumPy pins, review and approve
+   the displayed contract before starting the paired run.
+4. Watch live progress: controls → search → reduction → intervention → repair.
+5. Inspect the evidence page — witness, model explanation, intervention result,
    and the predefined fixture repair checks
-5. Download the evidence report (JSON bundle + text summary)
+6. Download the evidence report (JSON bundle + text summary).
 
-The public demo explicitly requests `model_mode: "mock"`, including for signed-in
-users. Numerical executions and repair verification still use the real pinned
-workers in hosted mode; model proposals are deterministic and labeled mock.
-The normal API default remains `configured` for deliberately configured live
-model investigations. The demo does not depend on a billable model key or cost
-ceiling. A stale login now shows a sign-in recovery link instead of an opaque
-approval error.
-
-The boundary preset uses the verified witness; the unchanged preset stays away
-from the decision threshold. Starting again after a temporary capacity failure
-reuses the existing draft, and a lost start response checks the job status before
-retrying. The progress timeline includes all 96 benchmark pairs after repair,
-so that stage no longer appears idle. Custom-signal explorations allow ten
-pairs; an explicit new-exploration button recovers after exhaustion while the
-existing per-investigation and daily admission limits remain enforced.
+Connected paired runs use the configured model mode and the existing bounded
+budget. The selected PR is checked against immutable revisions and supported
+source and environment pins before the trusted fixture can execute. A stale
+login offers a sign-in recovery path.
 
 ## Local development (no Docker)
 
@@ -223,7 +214,7 @@ To verify Docker locally:
 ```sh
 cp .env.example .env
 docker compose up --build
-# Open http://localhost:8000 and run the demo investigation
+# Open http://localhost:8000/workspace and select a supported PR/MR
 # Verify the witness run shows intermediate_dtype=float64 on old worker
 # and intermediate_dtype=float32 on new worker
 ```

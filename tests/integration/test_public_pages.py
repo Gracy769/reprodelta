@@ -32,23 +32,21 @@ async def test_public_site_metadata_lists_only_public_pages():
     assert "Disallow: /workspace" in robots.text
     assert "Sitemap: https://reprodelta-web-production.up.railway.app/sitemap.xml" in robots.text
     assert "application/xml" in sitemap.headers["content-type"]
-    assert "https://reprodelta-web-production.up.railway.app/demo/investigation" in sitemap.text
+    assert "https://reprodelta-web-production.up.railway.app/demo/investigation" not in sitemap.text
     assert "/workspace" not in sitemap.text
 
 
 @pytest.mark.asyncio
-async def test_investigation_start_is_explicit_and_demo_has_no_signal_table():
+async def test_investigation_start_is_explicit_and_demo_page_is_removed():
     async with AsyncClient(transport=ASGITransport(app=create_app()), base_url="http://test") as client:
         workspace = await client.get("/workspace")
-        demo = await client.get("/demo/investigation")
+        removed = await client.get("/demo/investigation")
+        home = await client.get("/")
     assert 'id="start-investigation-btn"' in workspace.text
     assert 'id="chosen-change"' in workspace.text
-    assert "Start live investigation" in demo.text
-    assert "Try your own eight-value signal" in demo.text
-    assert 'id="signal-inputs"' not in demo.text
-    assert '/assets/demo.js?v=' in demo.text
-    assert 'data-signal-preset="1, 1, 1, 1, 1, 1, 1, 1.0000001192092896"' in demo.text
-    assert 'no billable model call' in demo.text
+    assert "Run investigation" in workspace.text
+    assert removed.status_code == 404
+    assert "/demo/investigation" not in home.text
 
 
 @pytest.mark.asyncio
@@ -68,7 +66,7 @@ async def test_server_secrets_do_not_render_in_public_pages(monkeypatch):
     monkeypatch.setattr(account_pages, "get_settings", lambda: settings)
     monkeypatch.setattr(pages, "get_settings", lambda: settings)
     async with AsyncClient(transport=ASGITransport(app=create_app()), base_url="http://test") as client:
-        pages_to_check = [await client.get(path) for path in ("/", "/signin", "/signup", "/workspace", "/demo/investigation")]
+        pages_to_check = [await client.get(path) for path in ("/", "/signin", "/signup", "/workspace")]
     for response in pages_to_check:
         assert response.status_code == 200
         assert "DO_NOT_RENDER_" not in response.text

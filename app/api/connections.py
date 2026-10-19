@@ -500,7 +500,7 @@ class PairedReplayRequest(BaseModel):
 async def paired_replay(provider: str, body: PairedReplayRequest, response: Response,
                         owner_id: Annotated[str, Depends(current_user)]):
     from app.api import investigations
-    from app.api.investigation_access import owner_context, set_workbench_cookie
+    from app.api.investigation_access import approval_key, owner_context, set_workbench_cookie
     from app.api.source_analysis import prepare_replay
     from app.domain.contract import FIXTURE_CONTRACT, hash_contract
     _provider(provider)
@@ -520,7 +520,9 @@ async def paired_replay(provider: str, body: PairedReplayRequest, response: Resp
     set_workbench_cookie(response, owner_id)
     context = owner_context.set(owner_id)
     try:
-        await investigations.approve_contract(investigations.DEMO_PROJECT_ID)
+        approval = investigations.get_store().get_approval(approval_key(str(investigations.DEMO_PROJECT_ID))) or {}
+        if approval.get("contract_hash") != body.contract_hash:
+            raise HTTPException(409, "Approve the supported contract before starting the paired investigation")
         record = await investigations.create_investigation(investigations.CreateInvestigationRequest(
             project_id=investigations.DEMO_PROJECT_ID,
             description="Approved supported-kernel replay of connected change",

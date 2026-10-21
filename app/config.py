@@ -62,6 +62,8 @@ class Settings(BaseSettings):
     global_daily_investigations: int = Field(default=200, ge=1, le=10000)
     profile_approver_subjects: str = ""
     e2b_project_runs_enabled: bool = False
+    e2b_sandbox_usd_per_second: float = Field(default=0.0, ge=0.0)
+    e2b_project_run_cost_ceiling_usd: float = Field(default=0.0, ge=0.0, le=100.0)
 
     @field_validator("log_level")
     @classmethod

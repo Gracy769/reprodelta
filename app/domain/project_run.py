@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import uuid
 from typing import Literal
 
@@ -26,6 +27,8 @@ class ProjectRunSpec(BaseModel):
     new_environment_lock_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     max_wall_seconds: int = Field(default=900, ge=1, le=900)
     max_sandbox_seconds: int = Field(default=1800, ge=1, le=1800)
+    sandbox_usd_per_second: float = Field(default=0.0, ge=0.0)
+    max_cost_usd: float = Field(default=0.0, ge=0.0, le=100.0)
 
     @model_validator(mode="after")
     def distinct_revisions(self):
@@ -35,6 +38,13 @@ class ProjectRunSpec(BaseModel):
             raise ValueError("GitHub repositories must use owner/name")
         if any(part in {"", ".", ".."} for part in self.repository.split("/")):
             raise ValueError("Repository path is invalid")
+        if not math.isfinite(self.sandbox_usd_per_second) or not math.isfinite(self.max_cost_usd):
+            raise ValueError("Cost rate and ceiling must be finite")
+        if self.sandbox_usd_per_second and (
+            self.max_cost_usd <= 0
+            or self.max_sandbox_seconds * self.sandbox_usd_per_second > self.max_cost_usd
+        ):
+            raise ValueError("Sandbox seconds exceed the approved cost ceiling")
         return self
 
     @property

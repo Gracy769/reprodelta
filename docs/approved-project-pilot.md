@@ -1,9 +1,10 @@
 # Approved-project pilot
 
-This is the first implementation slice of the approved-project roadmap. The
+This is the internal implementation of the approved-project pilot. The
 existing curated NumPy investigation remains the only production execution
-path. `E2B_PROJECT_RUNS_ENABLED` defaults to `false`; profile records and
-eligibility checks cannot start an E2B run.
+path. `E2B_PROJECT_RUNS_ENABLED` defaults to `false`; the project-run start
+endpoint returns 503 until the release gate is passed and the operator enables
+it on both the API and the separate worker service.
 
 ## Current pilot boundary
 
@@ -29,16 +30,23 @@ eligibility checks cannot start an E2B run.
   and destroys the sandbox after success or failure. The standalone
   `scripts/e2b_smoke.py` checks a short local command and blocked public
   internet. It never uploads a repository or service credential.
+- `/api/project-runs/profiles/{id}/changes/{number}/plan` shows the exact
+  revision, contract, prepared environments, source transfer notice and
+  configured cost ceiling. The owner must acknowledge those exact values in
+  `POST /api/project-runs`; status and cancellation are owner-scoped. The
+  worker rechecks all immutable inputs after claim and records only a bounded
+  one-sample result. A single sample is not a general regression verdict.
 
 ## Release gate before enabling project runs
 
 1. Build and verify prepared old/new E2B templates with exact lock digests.
 2. Add preapproval sample validation, source snapshot persistence by digest,
    immutable run records and explicit private-source transfer notice.
-3. Move starts to a leased Postgres worker with idempotency, cancellation,
-   heartbeat and restart recovery. The internal queue schema and transitions
-   are in place; the worker, integration checks and cost accounting remain.
-   See [durable jobs](durable-project-jobs.md).
+3. Verify the leased Postgres queue and worker in an isolated database and
+   deploy the separate Railway worker. Set a verified
+   `E2B_SANDBOX_USD_PER_SECOND` and `E2B_PROJECT_RUN_COST_CEILING_USD` before
+   enabling starts. Test cancellation, heartbeat and restart recovery against
+   actual sandboxes. See [durable jobs](durable-project-jobs.md).
 4. Wire the five-stage browser flow and evidence ladder. Keep unsupported
    changes labelled “Diff review only.”
 5. Pass malicious-source, network, timeout, cleanup, tenant isolation and

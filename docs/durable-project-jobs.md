@@ -1,10 +1,10 @@
 # Durable approved-project jobs
 
-This queue is an internal foundation for the approved-project pilot. A separate
-worker process now exists in `Dockerfile.project-worker`, but no API start
-endpoint or Railway worker service is deployed. `E2B_PROJECT_RUNS_ENABLED`
-remains `false`. The curated investigation runner and its report URLs are
-unchanged.
+This queue and a separate worker process in `Dockerfile.project-worker` are
+available for the approved-project pilot. The owner-facing start, plan, status
+and cancellation endpoints exist, but no Railway worker service is deployed.
+`E2B_PROJECT_RUNS_ENABLED` remains `false`. The curated investigation runner
+and its report URLs are unchanged.
 
 ## Immutable job record
 
@@ -38,6 +38,6 @@ stop and destroy both sandboxes before marking it cancelled.
   profile, source digest, environment digests, transfer consent, and budget
   after claim. The worker implementation does these checks and heartbeats,
   but it still needs the isolated Postgres test and a live service setup.
-- Persist bounded evidence and actual sandbox seconds, then implement owner
-  status/progress endpoints and the five-stage browser flow. Keep setup errors
-  separate from a tested negative finding.
+- Verify the bounded one-sample evidence and measured sandbox lifetime against
+  live E2B. Implement the five-stage browser flow and comprehensive search.
+  Keep setup errors separate from a tested negative finding.

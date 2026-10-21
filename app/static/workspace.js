@@ -95,7 +95,7 @@
     const failed = lists.find((entry) => entry.status === "rejected");
     if (failed) status(`Some repositories could not be loaded: ${failed.reason.message}`);
     renderRepos();
-    await Promise.all([loadQueue(), loadRecentReviews(), loadRecentProjectRuns()]);
+    await Promise.all([loadQueue(), loadRecentReviews(), loadRecentProjectRuns(), loadProfiles()]);
   }
   function changeButton(change, repository, compact = false) {
     const button = document.createElement("button");
@@ -272,6 +272,62 @@
         list.append(button);
       });
     } catch (error) { empty(list, `Saved runs unavailable: ${error.message}`); }
+  }
+  async function loadProfiles() {
+    const list = $("profile-list");
+    try {
+      const data = await projectApi("/project-profiles");
+      clear(list);
+      if (!data.profiles?.length) { empty(list, "No project profiles yet. Save a draft above to begin operator review."); return; }
+      data.profiles.forEach((profile) => {
+        const card = text("div", "", "profile-list-item");
+        card.append(text("strong", profile.draft_json?.name || profile.repository));
+        card.append(text("small", `${profile.repository} · version ${profile.version} · ${profile.status}`));
+        if (profile.status !== "approved") card.append(text("p", "A draft cannot execute. An operator must validate the sample and prepare both pinned environments."));
+        list.append(card);
+      });
+    } catch (error) { empty(list, `Project profiles unavailable: ${error.message}`); }
+  }
+  function setupProfileForm() {
+    const form = $("profile-form");
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const message = $("profile-form-status");
+      const submit = form.querySelector("button[type=submit]");
+      submit.disabled = true;
+      try {
+        const values = Object.fromEntries(new FormData(form));
+        if (!state.connections.some((source) => source.provider === values.provider)) throw new Error(`Connect ${values.provider} in source settings first.`);
+        let sample;
+        try { sample = JSON.parse(values.sample_value); } catch { throw new Error("Sample must be a JSON number or numeric array."); }
+        if (!(typeof sample === "number" && Number.isFinite(sample)) &&
+            !(Array.isArray(sample) && sample.length >= 1 && sample.length <= 1000 && sample.every((value) => typeof value === "number" && Number.isFinite(value)))) {
+          throw new Error("Sample must be one finite number or a one-dimensional numeric array of 1–1,000 values.");
+        }
+        const minimum = Number(values.min_value), maximum = Number(values.max_value), threshold = Number(values.threshold);
+        if (![minimum, maximum, threshold].every(Number.isFinite) || minimum > maximum) throw new Error("Input bounds and threshold must be finite; minimum cannot exceed maximum.");
+        const draft = {
+          provider: values.provider, repository: values.repository.trim(), name: values.name.trim(),
+          adapter_module: values.adapter_module.trim(), adapter_function: values.adapter_function.trim(),
+          dependency_path: values.dependency_path.trim(), sample_input: {[values.input_name.trim()]: sample},
+          source_transfer_consent: values.source_transfer_consent === "on",
+          contract: {
+            schema_version: "1", input_schema: {fields: [{name: values.input_name.trim(), dtype: values.input_dtype,
+              shape: Array.isArray(sample) ? [sample.length] : [], min_value: minimum, max_value: maximum,
+              allow_nan: false, allow_inf: false}], cross_constraints: []},
+            output_selector: {field_name: values.output_name.trim()},
+            conclusion: {operator: values.operator, threshold, tie_behavior: "inconclusive"},
+            comparison: {atol: 1e-7, rtol: 1e-5, nan_equal: false, inf_equal: true, dtype_must_match: false},
+            resource_limits: {max_wall_seconds: 30, max_memory_mb: 512, max_cpu_seconds: 25},
+            assumptions: [], review_provenance: "owner_draft",
+          },
+        };
+        const saved = await projectApi("/project-profiles", {method: "POST", body: JSON.stringify(draft)});
+        message.textContent = `Draft ${saved.id} saved. It cannot run until an operator validates the sample and approves the prepared environments.`;
+        await loadProfiles();
+      } catch (error) { message.textContent = error.message; }
+      finally { submit.disabled = false; }
+    });
   }
   async function configureRunOptions(result, change, parent) {
     try {
@@ -581,6 +637,7 @@
       }
       $("workspace-loading").hidden = true;
       $("workspace-content").hidden = false;
+      setupProfileForm();
       await api("/session/investigation", {method: "POST"});
       await loadConnections();
     } catch (error) {

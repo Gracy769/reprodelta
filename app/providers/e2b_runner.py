@@ -114,6 +114,7 @@ def execute_environment(
     if sandbox_factory is None and not os.environ.get("E2B_API_KEY"):
         raise RuntimeError("E2B_API_KEY is not configured")
     factory = sandbox_factory or _sandbox_factory()
+    started = time.monotonic()
     sandbox = factory.create(
         template=template_id,
         timeout=SANDBOX_TIMEOUT_SECONDS,
@@ -121,7 +122,6 @@ def execute_environment(
         allow_internet_access=False,
         envs={},
     )
-    started = time.monotonic()
     try:
         def check_abort() -> None:
             if should_abort is not None and should_abort():
@@ -182,15 +182,7 @@ def execute_environment(
         output = json.loads(command.stdout)
         if not isinstance(output, dict) or not isinstance(output.get("result"), dict):
             raise RuntimeError("Sandbox returned an invalid result")
-        return EnvironmentResult(
-            version=expected_numpy,
-            sandbox_id=sandbox.sandbox_id,
-            duration_seconds=time.monotonic() - started,
-            source_sha256=source_sha256,
-            input_sha256=hashlib.sha256(input_bytes).hexdigest(),
-            output=output,
-            stderr=command.stderr[:4_096],
-        )
+        stderr = command.stderr[:4_096]
     finally:
         try:
             sandbox.kill()
@@ -198,3 +190,12 @@ def execute_environment(
             raise RuntimeError(
                 "Sandbox cleanup failed; investigation requires operator review"
             ) from None
+    return EnvironmentResult(
+        version=expected_numpy,
+        sandbox_id=sandbox.sandbox_id,
+        duration_seconds=time.monotonic() - started,
+        source_sha256=source_sha256,
+        input_sha256=hashlib.sha256(input_bytes).hexdigest(),
+        output=output,
+        stderr=stderr,
+    )

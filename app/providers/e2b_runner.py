@@ -93,6 +93,7 @@ def execute_environment(
     template_id: str,
     expected_numpy: str,
     sandbox_factory: Callable | None = None,
+    should_abort: Callable[[], bool] | None = None,
 ) -> EnvironmentResult:
     """Run one immutable snapshot in one prepared environment, then destroy it."""
     source_sha256 = validate_snapshot(files)
@@ -122,6 +123,11 @@ def execute_environment(
     )
     started = time.monotonic()
     try:
+        def check_abort() -> None:
+            if should_abort is not None and should_abort():
+                raise RuntimeError("Approved run was cancelled or its worker lease was lost")
+
+        check_abort()
         # The filesystem API does not promise to create parent directories.
         directories = {"/home/user/reprodelta-source"}
         for name in files:
@@ -130,8 +136,10 @@ def execute_environment(
                 directories.add(f"/home/user/reprodelta-source/{parent}")
                 parent = parent.parent
         for directory in sorted(directories, key=lambda value: (value.count("/"), value)):
+            check_abort()
             sandbox.files.make_dir(directory)
         for name, content in files.items():
+            check_abort()
             sandbox.files.write(f"/home/user/reprodelta-source/{name}", content)
         launcher = Path(__file__).resolve().parents[2] / "runner" / "e2b_project.py"
         sandbox.files.write("/home/user/reprodelta-project-run.py", launcher.read_bytes())
@@ -146,6 +154,7 @@ def execute_environment(
             ).encode("utf-8"),
         )
         # Version metadata comes from the prepared environment, never project output.
+        check_abort()
         try:
             version_run = sandbox.commands.run(
                 "python -I -c 'import numpy; print(numpy.__version__)'",
@@ -155,6 +164,7 @@ def execute_environment(
             raise RuntimeError("Approved environment could not be verified") from None
         if version_run.exit_code != 0 or version_run.stdout.strip() != expected_numpy:
             raise RuntimeError("Sandbox NumPy version does not match the approved environment")
+        check_abort()
         try:
             command = sandbox.commands.run(
                 "python -I -B /home/user/reprodelta-project-run.py "
@@ -166,6 +176,7 @@ def execute_environment(
             raise RuntimeError("Approved adapter failed inside the sandbox") from None
         if command.exit_code != 0:
             raise RuntimeError("Approved adapter failed inside the sandbox")
+        check_abort()
         if len(command.stdout.encode("utf-8")) > MAX_OUTPUT_BYTES:
             raise RuntimeError("Sandbox output exceeds 128 KB")
         output = json.loads(command.stdout)

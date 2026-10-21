@@ -94,3 +94,19 @@ def test_e2b_failed_adapter_still_kills():
             sandbox_factory=_Factory(sandbox),
         )
     assert sandbox.killed
+
+
+def test_cancellation_after_sandbox_creation_always_kills():
+    sandbox = _Sandbox()
+    with pytest.raises(RuntimeError, match="cancelled or its worker lease was lost"):
+        execute_environment(
+            files={"adapter.py": b"pass"},
+            input_json={},
+            adapter=ProjectAdapter(module="adapter", function="run"),
+            template_id="approved-numpy-old",
+            expected_numpy="1.26.4",
+            sandbox_factory=_Factory(sandbox),
+            should_abort=lambda: True,
+        )
+    assert sandbox.killed
+    assert sandbox.uploads == {}

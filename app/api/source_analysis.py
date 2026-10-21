@@ -96,7 +96,7 @@ async def immutable_snapshot(get, provider: str, token: str, repository: str, sh
         kind, mode = entry.get("type"), entry.get("mode")
         if kind == "tree":
             continue
-        if kind != "blob" or mode not in {"100644", "100755", None}:
+        if kind != "blob" or mode not in {"100644", "100755"}:
             raise HTTPException(422, "Source tree contains a symlink, submodule, or unsupported entry")
         path, blob_sha = entry.get("path"), entry.get("sha" if provider == "github" else "id")
         size = entry.get("size")

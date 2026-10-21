@@ -10,6 +10,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.domain.contract import ContractBody, hash_contract
+from app.domain.dependency_review import is_manifest
 from app.domain.validator import validate_input
 from app.providers.e2b_runner import ProjectAdapter
 
@@ -43,6 +44,8 @@ class ProjectProfileDraft(BaseModel):
             or any(part in {"", ".", ".."} for part in self.dependency_path.split("/"))
         ):
             raise ValueError("Dependency path must be a safe relative path")
+        if not is_manifest(self.dependency_path):
+            raise ValueError("Dependency path must be a supported Python manifest")
         if self.contract.output_selector.field_name == "conclusion":
             raise ValueError("Project profiles must select a numeric output field")
         if not (1 <= len(self.contract.input_schema.fields) <= 8):

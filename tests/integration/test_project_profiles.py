@@ -48,6 +48,14 @@ def test_profile_draft_has_stable_digest_and_rejects_unsafe_paths():
         pass
     else:
         raise AssertionError("Traversal path was accepted")
+    try:
+        ProjectProfileDraft.model_validate(
+            {**draft.model_dump(), "dependency_path": "README.md"}
+        )
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Unsupported manifest was accepted")
 
 
 class _Profiles:

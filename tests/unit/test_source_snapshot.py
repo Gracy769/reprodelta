@@ -66,3 +66,14 @@ async def test_snapshot_rejects_truncated_tree_and_blob_mismatch():
 
     with pytest.raises(HTTPException, match="does not match"):
         await immutable_snapshot(mismatched, "github", "token", "owner/repo", "a" * 40)
+
+
+@pytest.mark.asyncio
+async def test_snapshot_rejects_missing_file_mode():
+    async def get(provider, token, path, params=None):
+        return {"truncated": False, "tree": [
+            {"type": "blob", "path": "linked.py", "sha": "b" * 40, "size": 1},
+        ]}
+
+    with pytest.raises(HTTPException, match="symlink"):
+        await immutable_snapshot(get, "github", "token", "owner/repo", "a" * 40)

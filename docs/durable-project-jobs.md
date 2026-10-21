@@ -20,7 +20,8 @@ running validations. Owner investigation lists exclude validation jobs.
 source snapshot digest, contract hash, and old/new environment lock digests.
 The same owner and idempotency key can create only one job; a second request
 with different inputs fails. The queue stores this manifest in Postgres before
-any worker can claim it.
+any worker can claim it. A completed result is stored as bounded JSON with a
+canonical SHA-256 digest. Historical jobs without the digest remain readable.
 
 ## State transitions
 

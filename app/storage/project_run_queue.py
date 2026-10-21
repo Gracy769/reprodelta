@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import uuid
@@ -32,6 +33,7 @@ class ProjectRunQueue:
                 CHECK (status IN ('queued','running','completed','failed','cancelled')),
             lease_token UUID, lease_expires_at TIMESTAMPTZ,
             cancel_requested_at TIMESTAMPTZ, result_json JSONB,
+            result_sha256 TEXT,
             error_code TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
             started_at TIMESTAMPTZ, finished_at TIMESTAMPTZ,
             updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -39,6 +41,8 @@ class ProjectRunQueue:
         )""")
         conn.execute("""ALTER TABLE project_run_jobs ADD COLUMN IF NOT EXISTS
             job_kind TEXT NOT NULL DEFAULT 'investigation'""")
+        conn.execute("""ALTER TABLE project_run_jobs ADD COLUMN IF NOT EXISTS
+            result_sha256 TEXT""")
         conn.execute("""CREATE INDEX IF NOT EXISTS project_run_jobs_queue_idx
             ON project_run_jobs(created_at, id) WHERE status='queued'""")
         conn.execute("""CREATE INDEX IF NOT EXISTS project_run_jobs_owner_idx
@@ -207,13 +211,19 @@ class ProjectRunQueue:
             raise ValueError("Failed jobs require a stable error code")
         if error_code is not None and not re.fullmatch(r"[a-z_]{1,64}", error_code):
             raise ValueError("Error code must be a bounded identifier")
-        if result is not None and len(json.dumps(result, allow_nan=False)) > 262_144:
-            raise ValueError("Job result exceeds 256 KB")
+        result_digest = None
+        if result is not None:
+            encoded = json.dumps(
+                result, sort_keys=True, separators=(",", ":"), allow_nan=False
+            ).encode()
+            if len(encoded) > 262_144:
+                raise ValueError("Job result exceeds 256 KB")
+            result_digest = hashlib.sha256(encoded).hexdigest()
         with self._connect() as conn:
             self._ensure(conn)
             row = conn.execute(
                 """UPDATE project_run_jobs SET status=%s,
-                result_json=%s, error_code=%s, lease_token=NULL,
+                result_json=%s, result_sha256=%s, error_code=%s, lease_token=NULL,
                 lease_expires_at=NULL, finished_at=now(), updated_at=now()
                 WHERE id=%s AND lease_token=%s AND status='running'
                     AND lease_expires_at>now()
@@ -222,6 +232,7 @@ class ProjectRunQueue:
                 (
                     status,
                     Jsonb(result) if result is not None else None,
+                    result_digest,
                     error_code,
                     job_id,
                     lease_token,

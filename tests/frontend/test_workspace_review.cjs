@@ -20,8 +20,8 @@ function boot(fetch) {
   const elements = new Map();
   const document = {getElementById(id) {if(!elements.has(id)) elements.set(id,new Element()); return elements.get(id);},
     createElement(tag) {return new Element(tag);}, createTextNode(text) {const node = new Element('text'); node.textContent=text; return node;}, querySelectorAll() {return [];}};
-  const context = {document, fetch, URL, AbortController, location: {}, window: {setTimeout,clearTimeout, matchMedia: () => ({matches:true})}};
-  vm.runInNewContext(shipped.replace('  start();', '  globalThis.reviewTest = {renderReview, configureReplay, state};'), context);
+  const context = {document, fetch, URL, AbortController, crypto: {randomUUID: () => 'fixed-idempotency-key'}, location: {}, window: {setTimeout,clearTimeout, matchMedia: () => ({matches:true})}};
+  vm.runInNewContext(shipped.replace('  start();', '  globalThis.reviewTest = {renderReview, configureReplay, configureApprovedRun, state};'), context);
   return {...context, elements};
 }
 function all(node) {return [node,...node.children.flatMap(all)];}
@@ -53,7 +53,9 @@ test('fresh eligible review opens the contract without a second configure click'
   const ctx=boot(async (url) => ({ok:true,json:async () => url.endsWith('/eligibility')
     ? {eligible:true,base_sha:'a'.repeat(40),head_sha:'b'.repeat(40),numpy_versions:{base:'1.26.4',head:'2.0.2'}}
     : {contract_hash:'c'.repeat(64)}}));
+  ctx.reviewTest.state.selectedChange=change;
   ctx.reviewTest.renderReview({...result,freshReview:true},change);
+  await new Promise(setImmediate);
   await new Promise(setImmediate);
   const nodes=all(ctx.elements.get('review-result-body'));
   assert(nodes.some(n => n.textContent === 'Review this paired-run contract'));
@@ -117,4 +119,39 @@ test('missing manifest explains setup gap and cannot start paired replay', async
   await ctx.reviewTest.configureReplay({...result,dependency_files:[]},change,parent);
   assert(all(parent).some(n => n.textContent?.includes('No supported dependency manifest')));
   assert(!all(parent).some(n => n.type === 'submit'));
+});
+
+test('approved project run requires exact plan acknowledgement', async () => {
+  const requests=[];
+  const profileId='11111111-1111-4111-8111-111111111111';
+  const plan={eligible:true, rate_configured:true, execution_enabled:true,
+    repository:'lab/project',base_sha:'a'.repeat(40),head_sha:'b'.repeat(40),
+    contract_hash:'c'.repeat(64), max_sandbox_seconds:1800,max_wall_seconds:900,
+    cost_ceiling_usd:0.2, source_scope:'same source', source_transfer_notice:'Source sent to E2B',
+    old_environment:{numpy_version:'1.26.4'},new_environment:{numpy_version:'2.0.2'}};
+  const ctx=boot(async (url,options) => {requests.push({url,options}); return {ok:true,json:async () =>
+    url.includes('/plan') ? plan : url.endsWith('/project-runs') ? {id:'job-1',status:'queued'}
+    : {status:'completed',result_json:{changed_conclusion:true,old:{ratio:0.4,conclusion:'below_threshold'},
+      new:{ratio:0.6,conclusion:'above_threshold'},sandbox_seconds:2,estimated_sandbox_cost_usd:0.0002,input_sha256:'d'.repeat(64)}}};});
+  ctx.reviewTest.state.jwt='test-token';
+  ctx.reviewTest.state.selectedChange=change;
+  const parent=new Element();
+  ctx.reviewTest.configureApprovedRun(change,[{id:profileId,version:1,repository:'lab/project',draft_json:{name:'Numeric decision'}}],parent);
+  const select=all(parent).find(n => n.tagName==='select'); select.value=profileId;
+  const check=all(parent).find(n => n.textContent==='Check this run ↗');
+  await check.listeners.click();
+  const form=all(parent).find(n => n.tagName==='form');
+  const consent=all(form).find(n => n.type==='checkbox');
+  await form.listeners.submit({preventDefault(){}});
+  assert(!requests.some(r => r.options?.method==='POST'));
+  consent.checked=true;
+  await form.listeners.submit({preventDefault(){}});
+  const start=requests.find(r => r.url.endsWith('/project-runs') && r.options?.method==='POST');
+  assert(start);
+  const body=JSON.parse(start.options.body);
+  assert.equal(body.expected_head_sha,plan.head_sha);
+  assert.equal(body.approved_contract_hash,plan.contract_hash);
+  assert.equal(body.approved_cost_ceiling_usd,plan.cost_ceiling_usd);
+  assert.equal(body.source_transfer_approved,true);
+  assert(all(parent).some(n => n.textContent?.includes('outcome changed for this sample')));
 });

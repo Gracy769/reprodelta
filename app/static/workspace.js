@@ -277,8 +277,9 @@
     try {
       const data = await projectApi("/project-profiles");
       if (state.selectedChange?.repoKey !== change.repoKey || state.selectedChange?.number !== change.number) return;
+      const reviewedRepository = result.repository || change.repoKey;
       const profiles = (data.profiles || []).filter((profile) =>
-        profile.status === "approved" && profile.provider === change.provider && profile.repository === change.repoKey);
+        profile.status === "approved" && profile.provider === change.provider && profile.repository === reviewedRepository);
       if (profiles.length) {
         configureApprovedRun(change, profiles, parent);
         return;

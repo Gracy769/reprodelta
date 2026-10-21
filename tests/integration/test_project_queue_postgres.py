@@ -5,6 +5,8 @@ starts with reprodelta_test. Each run creates and drops only its own schema.
 """
 
 import base64
+import hashlib
+import json
 import os
 import uuid
 
@@ -121,6 +123,11 @@ def test_postgres_approval_requires_matching_completed_validation(local_queue):
     }
     assert queue.finish(uuid.UUID(claimed["id"]), uuid.UUID(claimed["lease_token"]),
                         status="completed", result=result)
+    saved_job = queue.get("github:owner", uuid.UUID(claimed["id"]), kind="profile_validation")
+    expected_digest = hashlib.sha256(json.dumps(
+        result, sort_keys=True, separators=(",", ":")
+    ).encode()).hexdigest()
+    assert saved_job["result_sha256"] == expected_digest
     approved = store.approve(
         "github:owner", uuid.UUID(profile["id"]), "github:approver", approval)
     assert approved["status"] == "approved"

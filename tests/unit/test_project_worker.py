@@ -70,8 +70,10 @@ def test_approved_sample_records_observations_not_a_general_verdict(monkeypatch)
         sample_input={"signal": [1.0] * 8}, contract=contract,
     )
     approval = SimpleNamespace(
-        old=SimpleNamespace(template_id="old", numpy_version="1.26.4"),
-        new=SimpleNamespace(template_id="new", numpy_version="2.0.2"),
+        old=SimpleNamespace(template_id="old", numpy_version="1.26.4",
+                            lock_sha256=spec.old_environment_lock_sha256),
+        new=SimpleNamespace(template_id="new", numpy_version="2.0.2",
+                            lock_sha256=spec.new_environment_lock_sha256),
     )
     monkeypatch.setattr(
         project_worker, "get_settings", lambda: SimpleNamespace(e2b_project_runs_enabled=True)
@@ -91,6 +93,10 @@ def test_approved_sample_records_observations_not_a_general_verdict(monkeypatch)
     def execute(**kwargs):
         assert kwargs["should_abort"]() is False
         assert 1 <= kwargs["timeout_seconds"] <= 900
+        assert kwargs["expected_lock_sha256"] == (
+            spec.old_environment_lock_sha256 if kwargs["expected_numpy"] == "1.26.4"
+            else spec.new_environment_lock_sha256
+        )
         version = kwargs["expected_numpy"]
         return EnvironmentResult(
             version=version, sandbox_id=version.replace(".", ""), duration_seconds=1,

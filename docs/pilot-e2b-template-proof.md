@@ -17,6 +17,16 @@ ratio 0.5. Observed complete sandbox lifetimes were 7.92 and 6.69 seconds.
 This proves the fixed template path only; it does not validate a private
 project or the complete queue and cancellation behavior.
 
+The live `scripts/probe_e2b_runtime.py` check also ran a synthetic adapter in
+the old template. None of the Railway service credential names were present
+inside the sandbox, and an outbound TLS/HTTP request to a public IP received
+no application response. The sandbox was destroyed after 8.64 seconds.
+[E2B's network documentation](https://docs.e2b.dev/network/internet-access)
+explains why a TCP `connect()` can appear to succeed even when the firewall
+blocks delivery; the probe therefore requires a TLS handshake and HTTP bytes.
+This remains a sampled behavioral check, not proof of every possible network
+destination or protocol.
+
 The [E2B pricing guide](https://e2b.dev/pricing) listed default 2 vCPU at
 $0.000028/s and default 4 GiB RAM at $0.000018/s when checked on 2026-10-21.
 The combined reference rate is **$0.000046 per sandbox second**. An 1,800

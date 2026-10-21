@@ -9,9 +9,10 @@ and its report URLs are unchanged.
 Operator-requested profile validation now uses the same leased table with a
 separate `profile_validation` kind and an immutable profile/source/template
 manifest. Validation is disabled by default through
-`E2B_PROFILE_VALIDATION_ENABLED=false`; a worker implementation and approval
-gate are still required before it can be enabled. Owner run lists exclude
-validation jobs.
+`E2B_PROFILE_VALIDATION_ENABLED=false`. The separate worker executes the
+owner-approved sample in both prepared environments and profile approval
+requires the matching completed validation ID. Owners can cancel queued or
+running validations. Owner investigation lists exclude validation jobs.
 
 ## Immutable job record
 
@@ -39,12 +40,17 @@ stop and destroy both sandboxes before marking it cancelled.
 
 ## Before a start endpoint is exposed
 
-- Verify the queue SQL against an isolated Postgres test database and exercise
-  concurrent claim, lease expiry, cancellation and restart recovery.
+- Queue SQL, lease expiry, cancellation, owner isolation, restart visibility,
+  idempotency and the profile approval gate have been exercised against an
+  isolated local PostgreSQL 18 database. The guarded integration tests in
+  `tests/integration/test_project_queue_postgres.py` run only when
+  `REPRODELTA_TEST_DATABASE_URL` points to a localhost database whose name
+  starts with `reprodelta_test`; they create and remove a unique test schema.
+  A live Railway worker and concurrent claim stress test remain release gates.
 - Add a separate Railway worker. It must recheck the PR revision, approved
   profile, source digest, environment digests, transfer consent, and budget
   after claim. The worker implementation does these checks and heartbeats,
-  but it still needs the isolated Postgres test and a live service setup.
+  but it still needs a live service setup.
 - Verify the bounded one-sample evidence and measured sandbox lifetime against
   live E2B. Implement the five-stage browser flow and comprehensive search.
   Keep setup errors separate from a tested negative finding.

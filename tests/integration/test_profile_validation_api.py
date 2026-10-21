@@ -29,12 +29,26 @@ class Profiles:
 class Queue:
     def __init__(self):
         self.submitted = None
+        self.job = None
 
     def submit_validation(self, owner, key, spec):
         self.submitted = (owner, key, spec)
-        return {"id": str(uuid.uuid4()), "owner_id": owner, "lease_token": None,
-                "idempotency_key": key, "job_kind": "profile_validation",
-                "status": "queued", "spec_json": spec.model_dump(mode="json")}
+        self.job = {"id": str(uuid.uuid4()), "owner_id": owner, "lease_token": None,
+                    "idempotency_key": key, "job_kind": "profile_validation",
+                    "status": "queued", "spec_json": spec.model_dump(mode="json")}
+        return self.job
+
+    def get(self, owner, job_id, *, kind):
+        if (self.job and owner == self.job["owner_id"]
+                and str(job_id) == self.job["id"] and kind == "profile_validation"):
+            return self.job
+        return None
+
+    def cancel(self, owner, job_id, *, kind):
+        job = self.get(owner, job_id, kind=kind)
+        if job is not None and job["status"] == "queued":
+            job["status"] = "cancelled"
+        return job
 
 
 def _body():
@@ -89,5 +103,31 @@ def test_validation_rejects_unreviewed_environment_lock(monkeypatch):
         )
         assert response.status_code == 409
         assert queue.submitted is None
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_owner_can_cancel_only_own_profile_validation(monkeypatch):
+    profiles, queue = Profiles(), Queue()
+    app.dependency_overrides[project_profiles.get_profile_store] = lambda: profiles
+    app.dependency_overrides[project_profiles.get_validation_queue] = lambda: queue
+    app.dependency_overrides[current_user] = lambda: "github:approver"
+    monkeypatch.setattr(project_profiles, "get_settings", lambda: Settings(
+        e2b_profile_validation_enabled=True, profile_approver_subjects="github:approver",
+        e2b_sandbox_usd_per_second=0.000046, e2b_project_run_cost_ceiling_usd=0.1,
+    ))
+    try:
+        client = TestClient(app)
+        base = f"/api/project-profiles/{profiles.row['id']}/validations"
+        job_id = client.post(base, json=_body()).json()["id"]
+        app.dependency_overrides[current_user] = lambda: "github:stranger"
+        assert client.delete(f"{base}/{job_id}").status_code == 404
+        assert queue.job["status"] == "queued"
+        app.dependency_overrides[current_user] = lambda: "github:owner"
+        response = client.delete(f"{base}/{job_id}")
+        assert response.status_code == 200
+        assert response.json()["status"] == "cancelled"
+        assert "owner_id" not in response.json()
+        assert client.get(f"{base}/{job_id}").json()["status"] == "cancelled"
     finally:
         app.dependency_overrides.clear()

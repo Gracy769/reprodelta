@@ -88,6 +88,17 @@ main:has(.review-page){background:#f7f8f4;padding-top:0}
 .review-run-gate>label{display:grid;gap:8px;font-size:13px;font-weight:700;max-width:600px}
 .review-run-gate>label select{width:100%;padding:12px;border:1px solid #a8bda9;background:#fff;font:inherit}
 .review-run-gate>.review-button{justify-self:start}
+.approved-run .approved-stages{display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0;margin:5px 0 12px}
+.approved-stages li{padding:7px 10px;background:#fff;border:1px solid #c3d6c4;color:#30543a;font:11px/1.35 var(--font-mono)}
+.approved-run select{min-width:min(100%,420px);padding:11px;border:1px solid #a8bda9;background:#fff}
+.approved-plan{display:grid;gap:16px;background:#fff;border:1px solid #c0d3c1;padding:22px;margin-top:8px}
+.approved-plan h4,.approved-finding h4{font-size:21px;letter-spacing:-.035em;margin:0}
+.approved-plan>p,.approved-finding p{font-size:13px;line-height:1.55;color:#49604d;margin:0}
+.approved-plan form{display:grid;gap:14px;margin-top:4px}
+.approved-plan form label{display:flex;gap:9px;align-items:start;font-size:13px;line-height:1.5}
+.approved-plan form input{margin-top:3px}
+.approved-plan form button{justify-self:start}
+.approved-finding{display:grid;gap:9px;border-top:1px solid #c3d6c4;padding-top:18px}
 .review-run-gate .review-contract{margin-top:7px;border-top:1px solid #aec6af;padding-top:23px}
 .review-run-gate .review-contract>label{display:grid;gap:8px}
 .review-finding{display:grid;grid-template-columns:40px 1fr;gap:16px;padding:24px 0;border-bottom:1px solid #d5e1d6}

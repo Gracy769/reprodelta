@@ -46,6 +46,18 @@
     if (!response.ok) throw new Error(data.detail || "The source request failed.");
     return data;
   }
+  async function projectApi(path, options = {}) {
+    const response = await timedFetch("/api" + path, {
+      ...options,
+      headers: { Authorization: `Bearer ${state.jwt}`, "Content-Type": "application/json", ...(options.headers || {}) },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const detail = data.detail;
+      throw new Error(typeof detail === "string" ? detail : detail?.reasons?.join(" ") || "The project request failed.");
+    }
+    return data;
+  }
   function safeSourceUrl(value, provider) {
     try {
       const url = new URL(value);
@@ -83,7 +95,7 @@
     const failed = lists.find((entry) => entry.status === "rejected");
     if (failed) status(`Some repositories could not be loaded: ${failed.reason.message}`);
     renderRepos();
-    await Promise.all([loadQueue(), loadRecentReviews()]);
+    await Promise.all([loadQueue(), loadRecentReviews(), loadRecentProjectRuns()]);
   }
   function changeButton(change, repository, compact = false) {
     const button = document.createElement("button");
@@ -196,7 +208,7 @@
     body.append(summary);
     const next = document.createElement("div"); next.className = "review-next";
     body.append(next);
-    if (result.freshReview) configureReplay(result, change, next).catch((error) => status(error.message));
+    if (result.freshReview) configureRunOptions(result, change, next).catch((error) => status(error.message));
     else next.append(text("p", "This saved review records an older commit. Review the current PR again before checking whether it can run."));
     (result.findings || []).forEach((finding, index) => {
       const item = document.createElement("article"); item.className = "review-finding";
@@ -237,6 +249,150 @@
         }); list.append(button);
       });
     } catch (error) { empty(list, `Saved reviews unavailable: ${error.message}`); }
+  }
+  async function loadRecentProjectRuns() {
+    const list = $("recent-project-runs");
+    try {
+      const data = await projectApi("/project-runs");
+      clear(list);
+      if (!data.runs?.length) { empty(list, "No approved project runs yet."); return; }
+      data.runs.forEach((job) => {
+        const spec = job.spec_json || {};
+        const button = text("button", `${spec.repository || "Project"} #${spec.change_number || "?"} · ${job.status} · ${(spec.head_sha || "").slice(0, 12)}`, "review-change-item");
+        button.type = "button";
+        button.addEventListener("click", () => {
+          const slot = $("saved-project-run"); clear(slot); slot.hidden = false;
+          const card = text("div", "", "approved-plan");
+          card.append(text("h4", `Saved run · ${spec.repository || "project"} #${spec.change_number || "?"}`));
+          const message = text("p", "Loading the saved run…");
+          card.append(message); slot.append(card);
+          slot.scrollIntoView({behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "center"});
+          watchApprovedRun(job.id, message, card).catch((error) => { message.textContent = error.message; });
+        });
+        list.append(button);
+      });
+    } catch (error) { empty(list, `Saved runs unavailable: ${error.message}`); }
+  }
+  async function configureRunOptions(result, change, parent) {
+    try {
+      const data = await projectApi("/project-profiles");
+      if (state.selectedChange?.repoKey !== change.repoKey || state.selectedChange?.number !== change.number) return;
+      const reviewedRepository = result.repository || change.repoKey;
+      const profiles = (data.profiles || []).filter((profile) =>
+        profile.status === "approved" && profile.provider === change.provider && profile.repository === reviewedRepository);
+      if (profiles.length) {
+        configureApprovedRun(change, profiles, parent);
+        return;
+      }
+    } catch (error) {
+      status(`Approved project profiles could not be loaded: ${error.message}`);
+    }
+    await configureReplay(result, change, parent);
+  }
+  function configureApprovedRun(change, profiles, parent) {
+    const panel = document.createElement("section");
+    panel.className = "review-run-gate approved-run";
+    panel.append(text("h3", "Run an approved project investigation"));
+    const stages = text("ol", "", "approved-stages");
+    ["Choose change", "Check run support", "Review contract and cost", "Run", "Read finding"]
+      .forEach((label, index) => stages.append(text("li", `${index + 1}. ${label}`)));
+    panel.append(stages);
+    const profileLabel = text("label", "Approved project profile");
+    const select = document.createElement("select");
+    profiles.forEach((profile) => {
+      const option = text("option", `${profile.draft_json?.name || profile.repository} · version ${profile.version}`);
+      option.value = profile.id; select.append(option);
+    });
+    profileLabel.append(select);
+    const checkButton = text("button", "Check this run ↗", "review-button review-button-primary");
+    checkButton.type = "button";
+    const message = text("p", "Review the exact change before spending sandbox time.");
+    message.setAttribute("role", "status");
+    const details = document.createElement("div");
+    panel.append(profileLabel, checkButton, message, details);
+    parent.append(panel);
+    select.addEventListener("change", () => { clear(details); message.textContent = "Check the selected profile again."; });
+    checkButton.addEventListener("click", async () => {
+      checkButton.disabled = true;
+      clear(details);
+      message.textContent = "Checking the current commits, dependency pins and approved profile…";
+      try {
+        const plan = await projectApi(`/project-runs/profiles/${encodeURIComponent(select.value)}/changes/${change.number}/plan`);
+        if (state.selectedChange?.repoKey !== change.repoKey || state.selectedChange?.number !== change.number) return;
+        if (!plan.eligible) {
+          message.textContent = "Diff review only: " + plan.reasons.join(" ");
+          return;
+        }
+        message.textContent = "This revision matches the approved project profile. Review the limits below.";
+        const card = text("div", "", "approved-plan");
+        card.append(text("h4", "Exact run plan"));
+        const fields = document.createElement("dl"); fields.className = "review-contract-details";
+        [["Source", `${plan.repository} · ${plan.base_sha.slice(0, 12)} → ${plan.head_sha.slice(0, 12)}`],
+          ["Environment", `NumPy ${plan.old_environment.numpy_version} → ${plan.new_environment.numpy_version}`],
+          ["Code", plan.source_scope], ["Contract SHA-256", plan.contract_hash],
+          ["Sandbox time", `${plan.max_sandbox_seconds || 0}s total · ${plan.max_wall_seconds}s wall limit`],
+          ["Cost ceiling", plan.rate_configured ? `Up to $${plan.cost_ceiling_usd.toFixed(4)} estimated sandbox cost` : "Not configured"]]
+          .forEach(([name, value]) => fields.append(text("dt", name), text("dd", value)));
+        card.append(fields, text("p", plan.source_transfer_notice));
+        if (!plan.rate_configured || !plan.execution_enabled) {
+          card.append(text("p", "Project execution is not enabled yet. The diff review above is still available.", "review-run-unavailable"));
+          details.append(card); return;
+        }
+        const form = document.createElement("form");
+        const consent = document.createElement("input"); consent.type = "checkbox"; consent.required = true;
+        const label = document.createElement("label");
+        label.append(consent, document.createTextNode(" I approve this source transfer, exact commits, contract and cost ceiling."));
+        const start = text("button", "Start bounded investigation ↗", "review-button review-button-primary"); start.type = "submit";
+        const runState = text("p", ""); runState.setAttribute("role", "status");
+        form.append(label, start, runState); card.append(form); details.append(card);
+        form.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          if (!consent.checked) return;
+          start.disabled = true; runState.textContent = "Recording approval and queuing this exact revision…";
+          try {
+            const job = await projectApi("/project-runs", { method: "POST", body: JSON.stringify({
+              profile_id: select.value, change_number: change.number,
+              expected_base_sha: plan.base_sha, expected_head_sha: plan.head_sha,
+              approved_contract_hash: plan.contract_hash,
+              approved_cost_ceiling_usd: plan.cost_ceiling_usd,
+              source_transfer_approved: true, idempotency_key: crypto.randomUUID(),
+            }) });
+            start.hidden = true; consent.disabled = true;
+            await watchApprovedRun(job.id, runState, card);
+          } catch (error) { runState.textContent = error.message; start.disabled = false; }
+        });
+      } catch (error) { message.textContent = error.message; }
+      finally { checkButton.disabled = false; }
+    });
+  }
+  async function watchApprovedRun(jobId, message, card) {
+    const cancel = text("button", "Cancel run", "review-button review-button-secondary"); cancel.type = "button";
+    card.append(cancel);
+    cancel.addEventListener("click", async () => {
+      cancel.disabled = true;
+      try { await projectApi(`/project-runs/${jobId}/cancel`, {method: "POST"}); message.textContent = "Cancellation requested. Waiting for sandbox cleanup…"; }
+      catch (error) { message.textContent = error.message; cancel.disabled = false; }
+    });
+    for (let attempt = 0; attempt < 300; attempt += 1) {
+      const job = await projectApi(`/project-runs/${jobId}`);
+      if (job.status === "completed") {
+        cancel.remove();
+        const finding = job.result_json || {};
+        message.textContent = "The approved sample completed. This does not establish a general regression.";
+        const result = text("div", "", "approved-finding");
+        result.append(text("h4", finding.changed_conclusion ? "The declared outcome changed for this sample" : "No outcome change for this sample"));
+        result.append(text("p", `Before: ${finding.old?.ratio} (${finding.old?.conclusion}) · After: ${finding.new?.ratio} (${finding.new?.conclusion})`));
+        result.append(text("p", `${finding.sandbox_seconds}s of sandbox time · approximately $${finding.estimated_sandbox_cost_usd} · input SHA-256 ${finding.input_sha256}`));
+        card.append(result); return;
+      }
+      if (["failed", "cancelled"].includes(job.status)) {
+        cancel.remove(); message.textContent = job.status === "cancelled" ? "Run cancelled." : `Run failed: ${job.error_code || "unknown error"}. No scientific verdict was recorded.`;
+        return;
+      }
+      message.textContent = job.cancel_requested_at ? "Cancellation requested; waiting for cleanup…" : `Run ${job.status}. You can leave this page and return to the saved run.`;
+      await new Promise((resolve) => window.setTimeout(resolve, 3000));
+    }
+    message.textContent = "This run is taking longer than expected. Its saved status remains available in your project runs.";
   }
   async function configureReplay(result, change, parent) {
     const panel = document.createElement("section"); panel.className = "review-run-gate";

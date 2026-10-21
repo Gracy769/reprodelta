@@ -77,6 +77,16 @@ class ProjectRunQueue:
             ).fetchone()
             return self._row(row)
 
+    def list(self, owner_id: str) -> list[dict]:
+        with self._connect() as conn:
+            self._ensure(conn)
+            rows = conn.execute(
+                """SELECT * FROM project_run_jobs WHERE owner_id=%s
+                ORDER BY created_at DESC LIMIT 50""",
+                (owner_id,),
+            ).fetchall()
+            return [self._row(row) for row in rows]
+
     def claim(self) -> dict | None:
         """Atomically claim one job, allowing one running per owner and two global."""
         with self._connect() as conn:

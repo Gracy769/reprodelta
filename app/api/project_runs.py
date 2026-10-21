@@ -196,6 +196,15 @@ async def start_run(
     return _public_job(job)
 
 
+@router.get("")
+async def list_runs(
+    owner_id: Annotated[str, Depends(current_user)],
+    queue: Annotated[ProjectRunQueue, Depends(get_run_queue)],
+):
+    jobs = await asyncio.to_thread(queue.list, owner_id)
+    return {"runs": [_public_job(job) for job in jobs]}
+
+
 @router.get("/{job_id}")
 async def get_run(
     job_id: uuid.UUID,

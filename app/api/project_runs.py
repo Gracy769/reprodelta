@@ -95,8 +95,11 @@ async def _plan(
     ceiling = settings.e2b_project_run_cost_ceiling_usd
     rate_ready = math.isfinite(rate) and math.isfinite(ceiling) and rate > 0 and ceiling > 0
     max_sandbox_seconds = min(1800, math.floor(ceiling / rate)) if rate_ready else 0
-    if max_sandbox_seconds < 1:
+    # Two version checks and two bounded adapter calls need enough room to
+    # complete; a smaller ceiling is not an executable plan.
+    if max_sandbox_seconds < 120:
         rate_ready = False
+        max_sandbox_seconds = 0
     plan = {
         **eligibility,
         "repository": repository,

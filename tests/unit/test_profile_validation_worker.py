@@ -66,7 +66,8 @@ def test_validation_runs_both_prepared_environments_then_approval_matches(monkey
 
     assert project_worker.run_validation_job(
         job, queue, SimpleNamespace(get=lambda owner, profile_id: profile),
-        execute=execute, fetch_source=source)
+        execute=execute, fetch_source=source,
+        store_snapshot=lambda owner, files, digest: files)
     status, result, error = queue.final
     assert (status, error, calls) == ("completed", None, ["1.26.4", "2.0.2"])
     assert result["sample_validated"] and result["changed_conclusion"]

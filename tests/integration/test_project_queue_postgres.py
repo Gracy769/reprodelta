@@ -4,6 +4,7 @@ Set REPRODELTA_TEST_DATABASE_URL to a localhost PostgreSQL database whose name
 starts with reprodelta_test. Each run creates and drops only its own schema.
 """
 
+import base64
 import os
 import uuid
 
@@ -16,6 +17,7 @@ from app.domain.profile_validation import ProfileValidationSpec, pilot_lock_dige
 from app.domain.project_profile import PreparedEnvironment, ProfileApproval
 from app.storage.project_profiles import ProjectProfileStore
 from app.storage.project_run_queue import ProjectRunQueue
+from app.storage.project_snapshots import ProjectSnapshotStore
 from tests.integration.test_project_profiles import _draft
 from tests.unit.test_project_run_queue import _spec
 
@@ -123,3 +125,22 @@ def test_postgres_approval_requires_matching_completed_validation(local_queue):
         "github:owner", uuid.UUID(profile["id"]), "github:approver", approval)
     assert approved["status"] == "approved"
     assert approved["approval_json"]["validation_job_id"] == submitted["id"]
+
+
+def test_postgres_snapshots_are_encrypted_owner_scoped_and_expire(local_queue):
+    _, dsn = local_queue
+    key = base64.urlsafe_b64encode(b"t" * 32).decode()
+    store = ProjectSnapshotStore(dsn, key)
+    files = {"package/adapter.py": b"private-marker-do-not-store-in-plaintext\n"}
+    digest = store.save("github:owner", files)
+    assert store.get("github:owner", digest) == files
+    assert store.get("github:other", digest) is None
+    with psycopg.connect(dsn) as conn:
+        row = conn.execute("""SELECT nonce, ciphertext FROM project_source_snapshots
+            WHERE owner_id=%s AND source_sha256=%s""", ("github:owner", digest)).fetchone()
+        assert b"private-marker" not in bytes(row[1])
+        assert bytes(row[0]) != bytes(row[1])[:12]
+        conn.execute("""UPDATE project_source_snapshots SET expires_at=now()-interval '1 second'
+            WHERE owner_id=%s AND source_sha256=%s""", ("github:owner", digest))
+    assert store.get("github:owner", digest) is None
+    assert store.purge_expired() == 1

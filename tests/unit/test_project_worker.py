@@ -106,7 +106,8 @@ def test_approved_sample_records_observations_not_a_general_verdict(monkeypatch)
         )
 
     assert project_worker.run_claimed_job(
-        job, queue, None, execute=execute, fetch_source=source
+        job, queue, None, execute=execute, fetch_source=source,
+        store_snapshot=lambda owner, files, digest: files,
     )
     status, result, error = queue.final
     assert (status, error) == ("completed", None)

@@ -4,7 +4,12 @@ import json
 
 import pytest
 
-from app.providers.e2b_runner import ProjectAdapter, execute_environment, validate_snapshot
+from app.providers.e2b_runner import (
+    ProjectAdapter,
+    execute_environment,
+    execute_environment_batch,
+    validate_snapshot,
+)
 
 
 class _CommandResult:
@@ -24,6 +29,7 @@ class _Sandbox:
         self.lock_digest = lock_digest
         self.files = self
         self.commands = self
+        self.run_inputs = []
 
     def write(self, path, content):
         self.uploads[path] = content
@@ -38,7 +44,9 @@ class _Sandbox:
             return _CommandResult(self.lock_digest + "\n")
         if self.fail_run:
             return _CommandResult("", exit_code=1)
-        return _CommandResult(json.dumps({"result": {"ratio": 0.5}}))
+        payload = json.loads(self.uploads["/home/user/reprodelta-input.json"])
+        self.run_inputs.append(payload)
+        return _CommandResult(json.dumps({"result": {"ratio": payload.get("x", 0.5)}}))
 
     def kill(self):
         self.killed = True
@@ -48,8 +56,10 @@ class _Factory:
     def __init__(self, sandbox):
         self.sandbox = sandbox
         self.options = None
+        self.create_count = 0
 
     def create(self, **options):
+        self.create_count += 1
         self.options = options
         return self.sandbox
 
@@ -138,4 +148,51 @@ def test_unapproved_template_never_receives_source_snapshot():
             expected_lock_sha256="a" * 64, sandbox_factory=_Factory(sandbox),
         )
     assert sandbox.uploads == {}
+    assert sandbox.killed
+
+
+def test_batch_reuses_one_offline_sandbox_for_bounded_inputs():
+    sandbox = _Sandbox()
+    factory = _Factory(sandbox)
+    result = execute_environment_batch(
+        files={"adapter.py": b"def run(data): return data"},
+        inputs_json=[{"x": 0.25}, {"x": 0.75}],
+        adapter=ProjectAdapter(module="adapter", function="run"),
+        template_id="approved-numpy-old", expected_numpy="1.26.4",
+        expected_lock_sha256="a" * 64, sandbox_factory=factory,
+    )
+    assert factory.create_count == 1
+    assert factory.options["allow_internet_access"] is False
+    assert factory.options["envs"] == {}
+    assert sandbox.run_inputs == [{"x": 0.25}, {"x": 0.75}]
+    assert [item["result"]["ratio"] for item in result.outputs] == [0.25, 0.75]
+    assert len(result.input_sha256) == 2
+    assert sandbox.killed
+
+
+def test_batch_rejects_too_many_inputs_before_sandbox_creation():
+    factory = _Factory(_Sandbox())
+    with pytest.raises(ValueError, match="1–32"):
+        execute_environment_batch(
+            files={"adapter.py": b"pass"}, inputs_json=[{}] * 33,
+            adapter=ProjectAdapter(module="adapter", function="run"),
+            template_id="approved-numpy-old", expected_numpy="1.26.4",
+            sandbox_factory=factory,
+        )
+    assert factory.create_count == 0
+
+
+def test_batch_cancellation_stops_before_next_input_and_kills_sandbox():
+    sandbox = _Sandbox()
+    factory = _Factory(sandbox)
+    with pytest.raises(RuntimeError, match="cancelled"):
+        execute_environment_batch(
+            files={"adapter.py": b"def run(data): return data"},
+            inputs_json=[{"x": 0.25}, {"x": 0.75}],
+            adapter=ProjectAdapter(module="adapter", function="run"),
+            template_id="approved-numpy-old", expected_numpy="1.26.4",
+            expected_lock_sha256="a" * 64, sandbox_factory=factory,
+            should_abort=lambda: len(sandbox.run_inputs) == 1,
+        )
+    assert sandbox.run_inputs == [{"x": 0.25}]
     assert sandbox.killed

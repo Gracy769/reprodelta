@@ -42,9 +42,11 @@ it on both the API and the separate worker service.
   one-sample result. A single sample is not a general regression verdict.
 - `project_candidates.candidate_inputs` can prepare up to 32 unique, contract-
   checked numeric scalar or one-dimensional array inputs by sweep or seeded
-  random search. It does not execute them. The project worker remains one-sample
-  until a multi-input sandbox session and shared execution/cost ledger are
-  implemented and verified; no broader search result is claimed yet.
+  random search. The E2B adapter can execute a bounded batch in one offline
+  sandbox per environment, verifying the template before uploading source and
+  destroying it on exit. The project worker still invokes the one-sample path
+  until a shared execution/cost ledger is wired and verified; no broader search
+  result is claimed yet.
 
 ## Release gate before enabling project runs
 

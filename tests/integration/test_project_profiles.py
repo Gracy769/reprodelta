@@ -58,6 +58,25 @@ def test_profile_draft_has_stable_digest_and_rejects_unsafe_paths():
         raise AssertionError("Unsupported manifest was accepted")
 
 
+def test_profile_rejects_ambiguous_or_unbounded_sample_fields():
+    draft = _draft().model_dump(mode="json")
+    invalid = {**draft, "sample_input": {"x": 0.5, "unexpected": 1}}
+    try:
+        ProjectProfileDraft.model_validate(invalid)
+    except ValueError as exc:
+        assert "exactly the declared fields" in str(exc)
+    else:
+        raise AssertionError("Undeclared sample field was accepted")
+    invalid = {**draft, "contract": {**draft["contract"],
+        "output_selector": {"field_name": "../unexpected"}}}
+    try:
+        ProjectProfileDraft.model_validate(invalid)
+    except ValueError as exc:
+        assert "Python-style name" in str(exc)
+    else:
+        raise AssertionError("Unsafe output selector was accepted")
+
+
 class _Profiles:
     def __init__(self):
         self.row = None

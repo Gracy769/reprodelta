@@ -8,8 +8,9 @@ from __future__ import annotations
 import hashlib
 import os
 
-from app.providers.e2b_runner import ProjectAdapter, execute_environment
 from build_e2b_templates import VERSIONS, lock_bytes
+
+from app.providers.e2b_runner import ProjectAdapter, execute_environment
 
 PILOT_TEMPLATES = {
     "1.26.4": "o0g0xd5k79nqzrgfk8bo",

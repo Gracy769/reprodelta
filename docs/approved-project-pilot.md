@@ -26,7 +26,8 @@ it on both the API and the separate worker service.
   oversized files and Git blob mismatches. The source token remains in the web
   process and is never copied into the sandbox.
 - The E2B adapter creates one secure sandbox with internet disabled, uploads
-  only bounded source and input bytes, verifies the installed NumPy version,
+  only bounded source and input bytes, verifies the installed NumPy version and
+  approved template lock digest before any source upload,
   and destroys the sandbox after success or failure. The standalone
   `scripts/e2b_smoke.py` checks a short local command and blocked public
   internet. It never uploads a repository or service credential.
@@ -40,6 +41,9 @@ it on both the API and the separate worker service.
 ## Release gate before enabling project runs
 
 1. Build and verify prepared old/new E2B templates with exact lock digests.
+   `python scripts/build_e2b_templates.py` previews the fixed NumPy lock
+   digests; `--build` creates the two E2B images after operator review. The
+   resulting template IDs and hashes must be recorded in profile approval.
 2. Add preapproval sample validation, source snapshot persistence by digest,
    immutable run records and explicit private-source transfer notice.
 3. Verify the leased Postgres queue and worker in an isolated database and

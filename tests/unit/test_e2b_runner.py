@@ -17,10 +17,11 @@ class _CommandResult:
 class _Sandbox:
     sandbox_id = "sandbox-test"
 
-    def __init__(self, *, fail_run=False):
+    def __init__(self, *, fail_run=False, lock_digest="a" * 64):
         self.uploads = {}
         self.killed = False
         self.fail_run = fail_run
+        self.lock_digest = lock_digest
         self.files = self
         self.commands = self
 
@@ -33,6 +34,8 @@ class _Sandbox:
     def run(self, command, timeout):
         if "numpy.__version__" in command:
             return _CommandResult("1.26.4\n")
+        if "reprodelta-environment.lock" in command:
+            return _CommandResult(self.lock_digest + "\n")
         if self.fail_run:
             return _CommandResult("", exit_code=1)
         return _CommandResult(json.dumps({"result": {"ratio": 0.5}}))
@@ -122,4 +125,17 @@ def test_sandbox_timeout_uses_remaining_budget():
         sandbox_factory=factory, timeout_seconds=7,
     )
     assert factory.options["timeout"] == 7
+    assert sandbox.killed
+
+
+def test_unapproved_template_never_receives_source_snapshot():
+    sandbox = _Sandbox(lock_digest="b" * 64)
+    with pytest.raises(RuntimeError, match="lock digest"):
+        execute_environment(
+            files={"private/adapter.py": b"private source"}, input_json={},
+            adapter=ProjectAdapter(module="private.adapter", function="run"),
+            template_id="approved-numpy-old", expected_numpy="1.26.4",
+            expected_lock_sha256="a" * 64, sandbox_factory=_Factory(sandbox),
+        )
+    assert sandbox.uploads == {}
     assert sandbox.killed

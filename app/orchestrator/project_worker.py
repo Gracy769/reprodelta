@@ -162,6 +162,7 @@ def run_claimed_job(
                 adapter=adapter,
                 template_id=environment.template_id,
                 expected_numpy=environment.numpy_version,
+                expected_lock_sha256=environment.lock_sha256,
                 should_abort=cancelled,
                 timeout_seconds=remaining,
             )

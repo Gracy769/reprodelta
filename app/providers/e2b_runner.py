@@ -92,6 +92,7 @@ def execute_environment(
     adapter: ProjectAdapter,
     template_id: str,
     expected_numpy: str,
+    expected_lock_sha256: str | None = None,
     sandbox_factory: Callable | None = None,
     should_abort: Callable[[], bool] | None = None,
     timeout_seconds: int = SANDBOX_TIMEOUT_SECONDS,
@@ -112,6 +113,8 @@ def execute_environment(
         raise ValueError("An approved E2B template ID is required")
     if not re.fullmatch(r"[0-9]+(?:\.[0-9]+){1,3}", expected_numpy):
         raise ValueError("Expected NumPy version must be exact")
+    if expected_lock_sha256 is not None and not re.fullmatch(r"[0-9a-f]{64}", expected_lock_sha256):
+        raise ValueError("Expected environment lock digest is invalid")
     if not isinstance(timeout_seconds, int) or not 1 <= timeout_seconds <= SANDBOX_TIMEOUT_SECONDS:
         raise ValueError("Sandbox timeout must be within the 15-minute pilot limit")
     if sandbox_factory is None and not os.environ.get("E2B_API_KEY"):
@@ -130,6 +133,30 @@ def execute_environment(
             if should_abort is not None and should_abort():
                 raise RuntimeError("Approved run was cancelled or its worker lease was lost")
 
+        check_abort()
+        # Verify the prepared image before transferring any private source.
+        try:
+            version_run = sandbox.commands.run(
+                "python -I -c 'import numpy; print(numpy.__version__)'",
+                timeout=30,
+            )
+        except Exception:
+            raise RuntimeError("Approved environment could not be verified") from None
+        if version_run.exit_code != 0 or version_run.stdout.strip() != expected_numpy:
+            raise RuntimeError("Sandbox NumPy version does not match the approved environment")
+        if expected_lock_sha256 is not None:
+            check_abort()
+            try:
+                lock_run = sandbox.commands.run(
+                    "python -I -c 'import hashlib; from pathlib import Path; "
+                    "print(hashlib.sha256(Path(\"/home/user/reprodelta-environment.lock\")"
+                    ".read_bytes()).hexdigest())'",
+                    timeout=10,
+                )
+            except Exception:
+                raise RuntimeError("Approved environment lock could not be verified") from None
+            if lock_run.exit_code != 0 or lock_run.stdout.strip() != expected_lock_sha256:
+                raise RuntimeError("Sandbox lock digest does not match the approved environment")
         check_abort()
         # The filesystem API does not promise to create parent directories.
         directories = {"/home/user/reprodelta-source"}
@@ -156,17 +183,6 @@ def execute_environment(
                 }
             ).encode("utf-8"),
         )
-        # Version metadata comes from the prepared environment, never project output.
-        check_abort()
-        try:
-            version_run = sandbox.commands.run(
-                "python -I -c 'import numpy; print(numpy.__version__)'",
-                timeout=30,
-            )
-        except Exception:
-            raise RuntimeError("Approved environment could not be verified") from None
-        if version_run.exit_code != 0 or version_run.stdout.strip() != expected_numpy:
-            raise RuntimeError("Sandbox NumPy version does not match the approved environment")
         check_abort()
         try:
             command = sandbox.commands.run(

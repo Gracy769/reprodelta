@@ -108,7 +108,21 @@ main:has(.review-page){background:#f7f8f4;padding-top:0}
 .approved-plan form label{display:flex;gap:9px;align-items:start;font-size:13px;line-height:1.5}
 .approved-plan form input{margin-top:3px}
 .approved-plan form button{justify-self:start}
-.approved-finding{display:grid;gap:9px;border-top:1px solid #c3d6c4;padding-top:18px}
+.approved-finding{display:grid;gap:16px;border-top:1px solid #c3d6c4;padding-top:23px}
+.approved-finding>.review-kicker{color:#147538}
+.approved-comparison{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.approved-observation{display:grid;gap:5px;min-width:0;padding:19px;background:#f3f7f1;border:1px solid #d0ded0}
+.approved-observation small{font:11px/1.3 var(--font-mono);text-transform:uppercase;color:#54735a}
+.approved-observation strong{font-size:clamp(25px,3vw,39px);line-height:1.1;letter-spacing:-.04em;color:#102b1d;overflow-wrap:anywhere}
+.approved-observation span{font-size:13px;color:#29543a}
+.approved-observation code{font:11px/1.4 var(--font-mono);color:#68816e;overflow-wrap:anywhere}
+.approved-evidence-ladder{list-style:none;margin:0;padding:0;border-top:1px solid #d4e0d4}
+.approved-evidence-ladder li{display:grid;grid-template-columns:36px minmax(130px,180px) 1fr;gap:12px;padding:14px 0;border-bottom:1px solid #d4e0d4;align-items:start}
+.approved-evidence-ladder li span{font:11px/1.5 var(--font-mono);color:#16823b}
+.approved-evidence-ladder li strong{font-size:13px;color:#132c1c}
+.approved-evidence-ladder li p{font-size:13px;line-height:1.5;color:#536758;overflow-wrap:anywhere}
+.approved-result-digest{font:11px/1.5 var(--font-mono)!important;overflow-wrap:anywhere}
+@media(max-width:680px){.approved-comparison{grid-template-columns:1fr}.approved-evidence-ladder li{grid-template-columns:30px 1fr}.approved-evidence-ladder li p{grid-column:2}}
 .review-run-gate .review-contract{margin-top:7px;border-top:1px solid #aec6af;padding-top:23px}
 .review-run-gate .review-contract>label{display:grid;gap:8px}
 .review-finding{display:grid;grid-template-columns:40px 1fr;gap:16px;padding:24px 0;border-bottom:1px solid #d5e1d6}

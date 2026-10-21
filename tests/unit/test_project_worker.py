@@ -23,6 +23,8 @@ def _job():
         contract_hash="e" * 64,
         old_environment_lock_sha256="f" * 64,
         new_environment_lock_sha256="0" * 64,
+        sandbox_usd_per_second=0.0001,
+        max_cost_usd=0.2,
     )
     return {"id": str(uuid.uuid4()), "lease_token": str(uuid.uuid4()),
             "owner_id": "github:123", "spec_json": spec.model_dump(mode="json")}
@@ -88,6 +90,7 @@ def test_approved_sample_records_observations_not_a_general_verdict(monkeypatch)
 
     def execute(**kwargs):
         assert kwargs["should_abort"]() is False
+        assert 1 <= kwargs["timeout_seconds"] <= 900
         version = kwargs["expected_numpy"]
         return EnvironmentResult(
             version=version, sandbox_id=version.replace(".", ""), duration_seconds=1,

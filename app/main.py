@@ -20,6 +20,7 @@ from app.api.investigations import router as investigations_router
 from app.api.pages import router as pages_router
 from app.api.pages import templates
 from app.api.project_profiles import router as project_profiles_router
+from app.api.project_runs import router as project_runs_router
 from app.api.source_oauth import router as source_oauth_router
 from app.config import get_settings
 
@@ -78,7 +79,7 @@ def create_app() -> FastAPI:
         response.headers["Referrer-Policy"] = "same-origin"
         if response.headers.get("content-type", "").startswith("text/html"):
             response.headers["Cache-Control"] = "no-store"
-        if request.url.path.startswith(("/api/connections", "/api/investigations")):
+        if request.url.path.startswith(("/api/connections", "/api/investigations", "/api/project-runs")):
             response.headers["Cache-Control"] = "no-store"
         return response
 
@@ -91,6 +92,7 @@ def create_app() -> FastAPI:
     app.include_router(firebase_auth_router)
     app.include_router(connections_router)
     app.include_router(project_profiles_router)
+    app.include_router(project_runs_router)
 
     @app.get("/docs", response_class=HTMLResponse, include_in_schema=False)
     async def custom_swagger_ui_html(request: Request) -> HTMLResponse:

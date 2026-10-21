@@ -94,6 +94,7 @@ def execute_environment(
     expected_numpy: str,
     sandbox_factory: Callable | None = None,
     should_abort: Callable[[], bool] | None = None,
+    timeout_seconds: int = SANDBOX_TIMEOUT_SECONDS,
 ) -> EnvironmentResult:
     """Run one immutable snapshot in one prepared environment, then destroy it."""
     source_sha256 = validate_snapshot(files)
@@ -111,13 +112,15 @@ def execute_environment(
         raise ValueError("An approved E2B template ID is required")
     if not re.fullmatch(r"[0-9]+(?:\.[0-9]+){1,3}", expected_numpy):
         raise ValueError("Expected NumPy version must be exact")
+    if not isinstance(timeout_seconds, int) or not 1 <= timeout_seconds <= SANDBOX_TIMEOUT_SECONDS:
+        raise ValueError("Sandbox timeout must be within the 15-minute pilot limit")
     if sandbox_factory is None and not os.environ.get("E2B_API_KEY"):
         raise RuntimeError("E2B_API_KEY is not configured")
     factory = sandbox_factory or _sandbox_factory()
     started = time.monotonic()
     sandbox = factory.create(
         template=template_id,
-        timeout=SANDBOX_TIMEOUT_SECONDS,
+        timeout=timeout_seconds,
         secure=True,
         allow_internet_access=False,
         envs={},

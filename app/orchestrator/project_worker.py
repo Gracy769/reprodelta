@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import os
 import threading
 import time
@@ -127,6 +128,8 @@ def run_claimed_job(
 
         if not get_settings().e2b_project_runs_enabled:
             raise RunRejected("execution_disabled")
+        if spec.sandbox_usd_per_second <= 0 or spec.max_cost_usd <= 0:
+            raise RunRejected("cost_unconfigured")
         if cancelled():
             raise RunRejected("cancelled")
         profile, draft, approval = _approved_inputs(spec, job["owner_id"], profiles)
@@ -140,7 +143,18 @@ def run_claimed_job(
         for environment in (approval.old, approval.new):
             if cancelled():
                 raise RunRejected("cancelled")
-            if time.monotonic() - started >= spec.max_wall_seconds:
+            elapsed = time.monotonic() - started
+            spent_seconds = sum(item.duration_seconds for item in results)
+            remaining = min(
+                900,
+                math.floor(spec.max_wall_seconds - elapsed),
+                math.floor(spec.max_sandbox_seconds - spent_seconds),
+                math.floor(
+                    (spec.max_cost_usd - spent_seconds * spec.sandbox_usd_per_second)
+                    / spec.sandbox_usd_per_second
+                ),
+            )
+            if remaining < 1:
                 raise RunRejected("wall_budget_exhausted")
             observed = execute(
                 files=files,
@@ -149,12 +163,18 @@ def run_claimed_job(
                 template_id=environment.template_id,
                 expected_numpy=environment.numpy_version,
                 should_abort=cancelled,
+                timeout_seconds=remaining,
             )
             if observed.source_sha256 != spec.source_sha256:
                 raise RunRejected("snapshot_changed")
             results.append(observed)
             if sum(item.duration_seconds for item in results) > spec.max_sandbox_seconds:
                 raise RunRejected("sandbox_budget_exhausted")
+            if (
+                sum(item.duration_seconds for item in results) * spec.sandbox_usd_per_second
+                > spec.max_cost_usd
+            ):
+                raise RunRejected("cost_budget_exhausted")
         if cancelled():
             raise RunRejected("cancelled")
         if time.monotonic() - started > spec.max_wall_seconds:
@@ -178,6 +198,10 @@ def run_claimed_job(
                 spec.old_environment_lock_sha256, spec.new_environment_lock_sha256
             ],
             "sandbox_seconds": round(sum(item.duration_seconds for item in results), 3),
+            "estimated_sandbox_cost_usd": round(
+                sum(item.duration_seconds for item in results) * spec.sandbox_usd_per_second, 6
+            ),
+            "approved_cost_ceiling_usd": spec.max_cost_usd,
             "sandbox_ids": [item.sandbox_id for item in results],
         }
         return queue.finish(job_id, lease, status="completed", result=finding)

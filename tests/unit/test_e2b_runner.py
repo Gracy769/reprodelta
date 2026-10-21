@@ -110,3 +110,16 @@ def test_cancellation_after_sandbox_creation_always_kills():
         )
     assert sandbox.killed
     assert sandbox.uploads == {}
+
+
+def test_sandbox_timeout_uses_remaining_budget():
+    sandbox = _Sandbox()
+    factory = _Factory(sandbox)
+    execute_environment(
+        files={"adapter.py": b"pass"}, input_json={},
+        adapter=ProjectAdapter(module="adapter", function="run"),
+        template_id="approved-numpy-old", expected_numpy="1.26.4",
+        sandbox_factory=factory, timeout_seconds=7,
+    )
+    assert factory.options["timeout"] == 7
+    assert sandbox.killed

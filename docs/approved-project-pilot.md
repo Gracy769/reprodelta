@@ -44,6 +44,8 @@ it on both the API and the separate worker service.
    `python scripts/build_e2b_templates.py` previews the fixed NumPy lock
    digests; `--build` creates the two E2B images after operator review. The
    resulting template IDs and hashes must be recorded in profile approval.
+   The fixed template build and synthetic live proof are recorded in
+   [pilot E2B template proof](pilot-e2b-template-proof.md).
 2. Add preapproval sample validation, source snapshot persistence by digest,
    immutable run records and explicit private-source transfer notice.
 3. Verify the leased Postgres queue and worker in an isolated database and

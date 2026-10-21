@@ -10,6 +10,7 @@ import psycopg
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
+from app.domain.profile_validation import ProfileValidationSpec
 from app.domain.project_run import ProjectRunSpec
 from app.storage.project_profiles import _dsn
 
@@ -26,6 +27,7 @@ class ProjectRunQueue:
         conn.execute("""CREATE TABLE IF NOT EXISTS project_run_jobs (
             id UUID PRIMARY KEY, owner_id TEXT NOT NULL,
             idempotency_key TEXT NOT NULL, spec_json JSONB NOT NULL,
+            job_kind TEXT NOT NULL DEFAULT 'investigation',
             spec_sha256 TEXT NOT NULL, status TEXT NOT NULL
                 CHECK (status IN ('queued','running','completed','failed','cancelled')),
             lease_token UUID, lease_expires_at TIMESTAMPTZ,
@@ -35,6 +37,8 @@ class ProjectRunQueue:
             updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
             UNIQUE(owner_id, idempotency_key)
         )""")
+        conn.execute("""ALTER TABLE project_run_jobs ADD COLUMN IF NOT EXISTS
+            job_kind TEXT NOT NULL DEFAULT 'investigation'""")
         conn.execute("""CREATE INDEX IF NOT EXISTS project_run_jobs_queue_idx
             ON project_run_jobs(created_at, id) WHERE status='queued'""")
         conn.execute("""CREATE INDEX IF NOT EXISTS project_run_jobs_owner_idx
@@ -50,7 +54,10 @@ class ProjectRunQueue:
             "lease_token": str(row["lease_token"]) if row["lease_token"] else None,
         }
 
-    def submit(self, owner_id: str, key: str, spec: ProjectRunSpec) -> dict:
+    def _submit(
+        self, owner_id: str, key: str,
+        spec: ProjectRunSpec | ProfileValidationSpec, kind: str,
+    ) -> dict:
         if not owner_id or not re.fullmatch(r"[A-Za-z0-9_.:-]{8,128}", key):
             raise ValueError("An owner and an 8–128 character idempotency key are required")
         if len(json.dumps(spec.model_dump(mode="json"))) > 16_384:
@@ -59,21 +66,31 @@ class ProjectRunQueue:
             self._ensure(conn)
             row = conn.execute(
                 """INSERT INTO project_run_jobs
-                (id, owner_id, idempotency_key, spec_json, spec_sha256, status)
-                VALUES (%s,%s,%s,%s,%s,'queued')
+                (id, owner_id, idempotency_key, spec_json, spec_sha256, job_kind, status)
+                VALUES (%s,%s,%s,%s,%s,%s,'queued')
                 ON CONFLICT(owner_id, idempotency_key) DO UPDATE
                 SET idempotency_key=EXCLUDED.idempotency_key RETURNING *""",
-                (uuid.uuid4(), owner_id, key, Jsonb(spec.model_dump(mode="json")), spec.digest),
+                (uuid.uuid4(), owner_id, key, Jsonb(spec.model_dump(mode="json")), spec.digest,
+                 kind),
             ).fetchone()
-            if row["spec_sha256"] != spec.digest:
+            if row["spec_sha256"] != spec.digest or row["job_kind"] != kind:
                 raise ValueError("Idempotency key was already used for a different run")
             return self._row(row)
 
-    def get(self, owner_id: str, job_id: uuid.UUID) -> dict | None:
+    def submit(self, owner_id: str, key: str, spec: ProjectRunSpec) -> dict:
+        return self._submit(owner_id, key, spec, "investigation")
+
+    def submit_validation(self, owner_id: str, key: str, spec: ProfileValidationSpec) -> dict:
+        return self._submit(owner_id, key, spec, "profile_validation")
+
+    def get(
+        self, owner_id: str, job_id: uuid.UUID, *, kind: str = "investigation"
+    ) -> dict | None:
         with self._connect() as conn:
             self._ensure(conn)
             row = conn.execute(
-                "SELECT * FROM project_run_jobs WHERE id=%s AND owner_id=%s", (job_id, owner_id)
+                "SELECT * FROM project_run_jobs WHERE id=%s AND owner_id=%s AND job_kind=%s",
+                (job_id, owner_id, kind),
             ).fetchone()
             return self._row(row)
 
@@ -81,14 +98,18 @@ class ProjectRunQueue:
         with self._connect() as conn:
             self._ensure(conn)
             rows = conn.execute(
-                """SELECT * FROM project_run_jobs WHERE owner_id=%s
+                """SELECT * FROM project_run_jobs WHERE owner_id=%s AND job_kind='investigation'
                 ORDER BY created_at DESC LIMIT 50""",
                 (owner_id,),
             ).fetchall()
             return [self._row(row) for row in rows]
 
-    def claim(self) -> dict | None:
+    def claim(self, allowed_kinds: tuple[str, ...] = ("investigation",)) -> dict | None:
         """Atomically claim one job, allowing one running per owner and two global."""
+        if not allowed_kinds or any(
+            kind not in {"investigation", "profile_validation"} for kind in allowed_kinds
+        ):
+            raise ValueError("At least one supported job kind is required")
         with self._connect() as conn:
             self._ensure(conn)
             conn.execute("SELECT pg_advisory_xact_lock(hashtext('reprodelta-project-queue-v1'))")
@@ -101,10 +122,12 @@ class ProjectRunQueue:
             if active >= 2:
                 return None
             row = conn.execute("""SELECT q.id FROM project_run_jobs q
-                WHERE q.status='queued' AND NOT EXISTS (
+                WHERE q.status='queued' AND q.job_kind=ANY(%s) AND NOT EXISTS (
                     SELECT 1 FROM project_run_jobs r
                     WHERE r.owner_id=q.owner_id AND r.status='running')
-                ORDER BY q.created_at, q.id FOR UPDATE OF q SKIP LOCKED LIMIT 1""").fetchone()
+                ORDER BY q.created_at, q.id FOR UPDATE OF q SKIP LOCKED LIMIT 1""",
+                (list(allowed_kinds),),
+            ).fetchone()
             if row is None:
                 return None
             token = uuid.uuid4()
@@ -141,7 +164,9 @@ class ProjectRunQueue:
             ).fetchone()
             return row is None or row["requested"]
 
-    def cancel(self, owner_id: str, job_id: uuid.UUID) -> dict | None:
+    def cancel(
+        self, owner_id: str, job_id: uuid.UUID, *, kind: str = "investigation"
+    ) -> dict | None:
         with self._connect() as conn:
             self._ensure(conn)
             row = conn.execute(
@@ -151,13 +176,15 @@ class ProjectRunQueue:
                     ELSE cancel_requested_at END,
                 finished_at=CASE WHEN status='queued' THEN now() ELSE finished_at END,
                 updated_at=now()
-                WHERE id=%s AND owner_id=%s AND status IN ('queued','running')
+                WHERE id=%s AND owner_id=%s AND job_kind=%s
+                    AND status IN ('queued','running')
                 RETURNING *""",
-                (job_id, owner_id),
+                (job_id, owner_id, kind),
             ).fetchone()
             if row is None:
                 row = conn.execute(
-                    "SELECT * FROM project_run_jobs WHERE id=%s AND owner_id=%s", (job_id, owner_id)
+                    "SELECT * FROM project_run_jobs WHERE id=%s AND owner_id=%s AND job_kind=%s",
+                    (job_id, owner_id, kind),
                 ).fetchone()
             return self._row(row)
 

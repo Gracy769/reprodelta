@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import math
 import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.connections import (
     _github_repository,
@@ -18,15 +20,45 @@ from app.api.connections import (
 )
 from app.api.source_analysis import analyze
 from app.config import get_settings
+from app.domain.profile_validation import ProfileValidationSpec
 from app.domain.project_eligibility import check_eligibility
-from app.domain.project_profile import ProfileApproval, ProjectProfileDraft
+from app.domain.project_profile import PreparedEnvironment, ProfileApproval, ProjectProfileDraft
 from app.storage.project_profiles import ProjectProfileStore
+from app.storage.project_run_queue import ProjectRunQueue
 
 router = APIRouter(prefix="/api/project-profiles", tags=["project profiles"])
 
 
 def get_profile_store() -> ProjectProfileStore:
     return ProjectProfileStore(get_settings().database_url)
+
+
+def get_validation_queue() -> ProjectRunQueue:
+    return ProjectRunQueue(get_settings().database_url)
+
+
+class ValidationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_sha: str = Field(pattern=r"^[0-9a-f]{40,64}$")
+    old: PreparedEnvironment
+    new: PreparedEnvironment
+    idempotency_key: str = Field(min_length=8, max_length=128)
+
+
+def _approvers() -> set[str]:
+    return {
+        value.strip()
+        for value in get_settings().profile_approver_subjects.split(",")
+        if value.strip()
+    }
+
+
+def _public_validation(job: dict) -> dict:
+    return {
+        key: value for key, value in job.items()
+        if key not in {"owner_id", "lease_token", "lease_expires_at", "idempotency_key"}
+    }
 
 
 @router.post("", status_code=201)
@@ -93,12 +125,7 @@ async def approve_profile(
     approver: Annotated[str, Depends(current_user)],
     store: Annotated[ProjectProfileStore, Depends(get_profile_store)],
 ):
-    allowed = {
-        value.strip()
-        for value in get_settings().profile_approver_subjects.split(",")
-        if value.strip()
-    }
-    if approver not in allowed:
+    if approver not in _approvers():
         raise HTTPException(403, "Only a configured project approver may approve execution")
     profile = await asyncio.to_thread(store.get_any, profile_id)
     if profile is None:
@@ -114,3 +141,66 @@ async def approve_profile(
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     return result
+
+
+@router.post("/{profile_id}/validations", status_code=202)
+async def request_validation(
+    profile_id: uuid.UUID,
+    body: ValidationRequest,
+    approver: Annotated[str, Depends(current_user)],
+    profiles: Annotated[ProjectProfileStore, Depends(get_profile_store)],
+    queue: Annotated[ProjectRunQueue, Depends(get_validation_queue)],
+):
+    settings = get_settings()
+    if approver not in _approvers():
+        raise HTTPException(403, "Only a configured project approver may validate execution")
+    if not settings.e2b_profile_validation_enabled:
+        raise HTTPException(503, "Approved-project sample validation is not enabled")
+    profile = await asyncio.to_thread(profiles.get_any, profile_id)
+    if profile is None:
+        raise HTTPException(404, "Profile not found")
+    if profile["status"] != "draft":
+        raise HTTPException(409, "Only a draft profile can be validated")
+    draft = ProjectProfileDraft.model_validate(profile["draft_json"])
+    if not draft.source_transfer_consent or draft.digest != profile["profile_digest"]:
+        raise HTTPException(409, "Owner consent or immutable profile digest is missing")
+    rate = settings.e2b_sandbox_usd_per_second
+    ceiling = settings.e2b_project_run_cost_ceiling_usd
+    if not math.isfinite(rate) or not math.isfinite(ceiling) or rate <= 0 or ceiling <= 0:
+        raise HTTPException(503, "A verified sandbox rate and cost ceiling are required")
+    allowed_seconds = min(600, math.floor(ceiling / rate))
+    if allowed_seconds < 120:
+        raise HTTPException(503, "Cost ceiling is too small for paired sample validation")
+    try:
+        spec = ProfileValidationSpec(
+            profile_id=profile_id, provider=draft.provider, repository=draft.repository,
+            source_sha=body.source_sha, profile_digest=draft.digest,
+            contract_hash=draft.contract_hash, old=body.old, new=body.new,
+            max_sandbox_seconds=allowed_seconds,
+            sandbox_usd_per_second=rate, max_cost_usd=ceiling,
+        )
+        job = await asyncio.to_thread(
+            queue.submit_validation, profile["owner_id"], body.idempotency_key, spec
+        )
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return _public_validation(job)
+
+
+@router.get("/{profile_id}/validations/{job_id}")
+async def validation_status(
+    profile_id: uuid.UUID,
+    job_id: uuid.UUID,
+    user_id: Annotated[str, Depends(current_user)],
+    profiles: Annotated[ProjectProfileStore, Depends(get_profile_store)],
+    queue: Annotated[ProjectRunQueue, Depends(get_validation_queue)],
+):
+    profile = await asyncio.to_thread(profiles.get_any, profile_id)
+    if profile is None or (user_id != profile["owner_id"] and user_id not in _approvers()):
+        raise HTTPException(404, "Validation not found")
+    job = await asyncio.to_thread(
+        queue.get, profile["owner_id"], job_id, kind="profile_validation"
+    )
+    if job is None or job["spec_json"].get("profile_id") != str(profile_id):
+        raise HTTPException(404, "Validation not found")
+    return _public_validation(job)

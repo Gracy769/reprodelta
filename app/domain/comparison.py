@@ -31,14 +31,16 @@ interpreting an unrelated measurement.
     result = outputs.get("result", outputs)
     if not isinstance(result, dict):
         raise ValueError("Worker result must be an object")
-    if contract.output_selector.field_name != "conclusion":
-        raise ValueError("Unsupported output selector for the curated ratio evaluator")
+    selector = contract.output_selector.field_name
+    # The fixture's legacy selector names the reported label; its authoritative
+    # numeric measurement is ratio. Approved project profiles name a numeric
+    # measurement directly and need not provide a project-authored label.
+    value = result.get("ratio" if selector == "conclusion" else selector)
     reported = result.get("conclusion")
-    if reported not in ("above_threshold", "below_threshold", "inconclusive"):
+    if selector == "conclusion" and reported not in ("above_threshold", "below_threshold", "inconclusive"):
         raise ValueError("Missing or invalid worker conclusion")
-    value = result.get("ratio")
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ValueError("Missing or invalid numeric ratio")
+        raise ValueError("Missing or invalid numeric measurement")
     ratio = float(value)
     threshold = contract.conclusion.threshold
     if not math.isfinite(ratio) or not math.isfinite(threshold):

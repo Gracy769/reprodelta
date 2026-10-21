@@ -47,8 +47,8 @@ def validate_input(contract: ContractBody, input_json: dict) -> ValidationResult
 
         value = input_json[fname]
 
-        # 2. Must be a list / sequence (not a bare scalar or dict)
-        if not isinstance(value, (list, tuple)):
+        # Scalar fields use shape=[]; arrays keep the existing list contract.
+        if field.shape and not isinstance(value, (list, tuple)):
             return ValidationResult(
                 valid=False,
                 reason=f"Field '{fname}' must be a list, got {type(value).__name__}",
@@ -63,8 +63,10 @@ def validate_input(contract: ContractBody, input_json: dict) -> ValidationResult
                 raise ValueError("shape mismatch")
             return [item for child in items for item in flatten(child, shape[1:])]
         try:
-            if not 1 <= len(field.shape) <= 4 or any(dimension < 1 or dimension > 1000 for dimension in field.shape):
+            if not 0 <= len(field.shape) <= 4 or any(dimension < 1 or dimension > 1000 for dimension in field.shape):
                 raise ValueError("unsupported shape")
+            if not field.shape and type(value) not in (int, float):
+                raise ValueError("scalar field must be numeric")
             value = flatten(value, field.shape)
         except ValueError:
             return ValidationResult(valid=False, reason=f"Field '{fname}' has wrong length or shape: expected {field.shape}", checked_fields=checked)

@@ -60,6 +60,8 @@ class Settings(BaseSettings):
     guest_daily_investigations: int = Field(default=10, ge=1, le=100)
     owner_daily_investigations: int = Field(default=20, ge=1, le=1000)
     global_daily_investigations: int = Field(default=200, ge=1, le=10000)
+    profile_approver_subjects: str = ""
+    e2b_project_runs_enabled: bool = False
 
     @field_validator("log_level")
     @classmethod

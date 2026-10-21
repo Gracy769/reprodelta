@@ -1,0 +1,12 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+COPY pyproject.toml ./
+COPY app/ ./app/
+COPY runner/e2b_project.py ./runner/e2b_project.py
+RUN pip install --no-cache-dir '.[sandbox]' \
+    && useradd --system --create-home projectworker \
+    && chmod -R a+rX /app
+
+USER projectworker
+CMD ["python", "-m", "app.orchestrator.project_worker"]

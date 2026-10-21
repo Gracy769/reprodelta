@@ -1,7 +1,8 @@
 # Durable approved-project jobs
 
-This queue is an internal foundation for the approved-project pilot. It is not
-yet wired to an API start button or a worker, and `E2B_PROJECT_RUNS_ENABLED`
+This queue is an internal foundation for the approved-project pilot. A separate
+worker process now exists in `Dockerfile.project-worker`, but no API start
+endpoint or Railway worker service is deployed. `E2B_PROJECT_RUNS_ENABLED`
 remains `false`. The curated investigation runner and its report URLs are
 unchanged.
 
@@ -35,8 +36,8 @@ stop and destroy both sandboxes before marking it cancelled.
   concurrent claim, lease expiry, cancellation and restart recovery.
 - Add a separate Railway worker. It must recheck the PR revision, approved
   profile, source digest, environment digests, transfer consent, and budget
-  after claim. It must heartbeat during E2B work and stop on lost lease or
-  cancellation.
+  after claim. The worker implementation does these checks and heartbeats,
+  but it still needs the isolated Postgres test and a live service setup.
 - Persist bounded evidence and actual sandbox seconds, then implement owner
   status/progress endpoints and the five-stage browser flow. Keep setup errors
   separate from a tested negative finding.

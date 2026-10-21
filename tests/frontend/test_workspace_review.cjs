@@ -154,4 +154,7 @@ test('approved project run requires exact plan acknowledgement', async () => {
   assert.equal(body.approved_cost_ceiling_usd,plan.cost_ceiling_usd);
   assert.equal(body.source_transfer_approved,true);
   assert(all(parent).some(n => n.textContent?.includes('outcome changed for this sample')));
+  assert(all(parent).some(n => n.textContent?.includes('Repeatability')));
+  assert(all(parent).some(n => n.textContent?.includes('One paired execution cannot establish')));
+  assert(all(parent).some(n => n.textContent?.includes('No candidate repair was executed')));
 });

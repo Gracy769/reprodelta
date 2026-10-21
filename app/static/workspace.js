@@ -421,6 +421,42 @@
       finally { checkButton.disabled = false; }
     });
   }
+  function renderApprovedFinding(card, finding, job) {
+    const result = text("section", "", "approved-finding");
+    result.setAttribute("aria-label", "Executed sample evidence");
+    result.append(text("span", "EXECUTED SAMPLE / ONE INPUT", "review-kicker"));
+    result.append(text("h4", finding.changed_conclusion
+      ? "The declared outcome changed for this sample"
+      : "No outcome change for this sample"));
+    result.append(text("p", "These measurements came from the same source snapshot in two pinned environments. They describe this input only."));
+    const comparison = text("div", "", "approved-comparison");
+    [["Before", finding.old, job.spec_json?.old_environment_lock_sha256],
+      ["After", finding.new, job.spec_json?.new_environment_lock_sha256]].forEach(([label, observation, lock]) => {
+      const column = text("div", "", "approved-observation");
+      column.append(text("small", label), text("strong", Number.isFinite(observation?.ratio) ? String(observation.ratio) : "Not recorded"));
+      column.append(text("span", observation?.conclusion || "No decision recorded"));
+      if (lock) column.append(text("code", `Environment ${lock.slice(0, 12)}`));
+      comparison.append(column);
+    });
+    result.append(comparison);
+    const ladder = text("ol", "", "approved-evidence-ladder");
+    const steps = [
+      ["01", "Outcome", finding.changed_conclusion ? "The declared decision differs between environments for this input." : "The declared decision matched for this input."],
+      ["02", "Exact witness", `Input SHA-256: ${finding.input_sha256 || "Not recorded"}. Source SHA-256: ${finding.source_sha256 || "Not recorded"}.`],
+      ["03", "Repeatability", "Not tested. One paired execution cannot establish whether this repeats."],
+      ["04", "Mechanism", "Not tested. The run does not isolate which dependency behavior caused the measurement."],
+      ["05", "Repair", "Not tested. No candidate repair was executed for this project run."],
+      ["06", "Limits", `${Number.isFinite(finding.sandbox_seconds) ? finding.sandbox_seconds + "s" : "Unrecorded"} of sandbox time; estimated cost ${Number.isFinite(finding.estimated_sandbox_cost_usd) ? "$" + finding.estimated_sandbox_cost_usd : "not recorded"}. This is not a general regression verdict.`],
+    ];
+    steps.forEach(([number, title, description]) => {
+      const item = document.createElement("li");
+      item.append(text("span", number), text("strong", title), text("p", description));
+      ladder.append(item);
+    });
+    result.append(ladder);
+    if (job.result_sha256) result.append(text("p", `Saved finding SHA-256: ${job.result_sha256}`, "approved-result-digest"));
+    card.append(result);
+  }
   async function watchApprovedRun(jobId, message, card) {
     const cancel = text("button", "Cancel run", "review-button review-button-secondary"); cancel.type = "button";
     card.append(cancel);
@@ -434,12 +470,8 @@
       if (job.status === "completed") {
         cancel.remove();
         const finding = job.result_json || {};
-        message.textContent = "The approved sample completed. This does not establish a general regression.";
-        const result = text("div", "", "approved-finding");
-        result.append(text("h4", finding.changed_conclusion ? "The declared outcome changed for this sample" : "No outcome change for this sample"));
-        result.append(text("p", `Before: ${finding.old?.ratio} (${finding.old?.conclusion}) · After: ${finding.new?.ratio} (${finding.new?.conclusion})`));
-        result.append(text("p", `${finding.sandbox_seconds}s of sandbox time · approximately $${finding.estimated_sandbox_cost_usd} · input SHA-256 ${finding.input_sha256}`));
-        card.append(result); return;
+        message.textContent = "The bounded sample completed. Read what was observed and what remains untested.";
+        renderApprovedFinding(card, finding, job); return;
       }
       if (["failed", "cancelled"].includes(job.status)) {
         cancel.remove(); message.textContent = job.status === "cancelled" ? "Run cancelled." : `Run failed: ${job.error_code || "unknown error"}. No scientific verdict was recorded.`;

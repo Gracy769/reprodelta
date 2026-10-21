@@ -61,6 +61,7 @@ class Settings(BaseSettings):
     owner_daily_investigations: int = Field(default=20, ge=1, le=1000)
     global_daily_investigations: int = Field(default=200, ge=1, le=10000)
     profile_approver_subjects: str = ""
+    project_snapshot_key: str | None = None
     e2b_project_runs_enabled: bool = False
     e2b_profile_validation_enabled: bool = False
     e2b_sandbox_usd_per_second: float = Field(default=0.0, ge=0.0)

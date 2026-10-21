@@ -51,8 +51,10 @@ it on both the API and the separate worker service.
    [pilot E2B template proof](pilot-e2b-template-proof.md).
 2. Verify the preapproval sample-validation worker on an isolated Postgres queue
    and on two reviewed projects. Source snapshots are fetched by immutable commit
-   and hashed before upload; persistent snapshot storage and retention controls
-   remain a release requirement. Show explicit private-source transfer consent.
+   and hashed before upload. The pilot snapshot store encrypts source per owner
+   under `PROJECT_SNAPSHOT_KEY`, addresses it by digest and expires it after seven
+   days. Wire the worker to this store and verify deletion before enabling private
+   projects. Show explicit private-source transfer consent.
 3. Verify the leased Postgres queue and worker in an isolated database and
    deploy the separate Railway worker. Set a verified
    `E2B_SANDBOX_USD_PER_SECOND` and `E2B_PROJECT_RUN_COST_CEILING_USD` before
@@ -66,3 +68,7 @@ it on both the API and the separate worker service.
 
 The E2B key belongs only in Railway environment variables or a local secret
 store. Never add it to source, logs, browser JavaScript or profile records.
+`PROJECT_SNAPSHOT_KEY` is a separate random 32-byte key encoded with URL-safe
+base64 and belongs only in the worker's secret store. Losing or rotating it
+without a key migration makes retained snapshots unreadable; no source snapshot
+is stored unless this key is configured in the worker.

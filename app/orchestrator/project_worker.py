@@ -31,6 +31,7 @@ from app.domain.project_run import ProjectRunSpec
 from app.providers.e2b_runner import ProjectAdapter, execute_environment
 from app.storage.project_profiles import ProjectProfileStore
 from app.storage.project_run_queue import ProjectRunQueue
+from app.storage.project_snapshots import ProjectSnapshotStore
 
 log = logging.getLogger(__name__)
 
@@ -104,6 +105,19 @@ async def _fetch_validation_source(spec: ProfileValidationSpec, owner_id: str):
     )
 
 
+def _stored_snapshot(owner_id: str, files: dict[str, bytes], expected_digest: str):
+    settings = get_settings()
+    if not settings.project_snapshot_key:
+        raise RunRejected("snapshot_storage_unconfigured")
+    store = ProjectSnapshotStore(settings.database_url, settings.project_snapshot_key)
+    if store.save(owner_id, files) != expected_digest:
+        raise RunRejected("snapshot_changed")
+    restored = store.get(owner_id, expected_digest)
+    if restored is None:
+        raise RunRejected("snapshot_missing")
+    return restored
+
+
 def run_validation_job(
     job: dict,
     queue: ProjectRunQueue,
@@ -111,6 +125,7 @@ def run_validation_job(
     *,
     execute=execute_environment,
     fetch_source=_fetch_validation_source,
+    store_snapshot=_stored_snapshot,
 ) -> bool:
     """Validate a draft's approved sample before an operator can approve it."""
     job_id = uuid.UUID(job["id"])
@@ -158,6 +173,7 @@ def run_validation_job(
         files, source_digest = asyncio.run(fetch_source(spec, job["owner_id"]))
         if cancelled():
             raise RunRejected("cancelled")
+        files = store_snapshot(job["owner_id"], files, source_digest)
         if draft.dependency_path not in files:
             raise RunRejected("dependency_manifest_missing")
         adapter = ProjectAdapter(draft.adapter_module, draft.adapter_function)
@@ -236,6 +252,7 @@ def run_claimed_job(
     *,
     execute=execute_environment,
     fetch_source=_fetch_verified_source,
+    store_snapshot=_stored_snapshot,
 ) -> bool:
     """Run one claim. Return False if the lease was lost before a terminal write."""
     job_id = uuid.UUID(job["id"])
@@ -276,6 +293,7 @@ def run_claimed_job(
             raise RunRejected("change_not_eligible")
         if cancelled():
             raise RunRejected("cancelled")
+        files = store_snapshot(job["owner_id"], files, spec.source_sha256)
         adapter = ProjectAdapter(draft.adapter_module, draft.adapter_function)
         results = []
         for environment in (approval.old, approval.new):
@@ -372,6 +390,8 @@ def main() -> None:
         raise SystemExit("Project execution and validation are disabled")
     if not os.environ.get("E2B_API_KEY"):
         raise SystemExit("E2B_API_KEY is required for the project worker")
+    if not settings.project_snapshot_key:
+        raise SystemExit("PROJECT_SNAPSHOT_KEY is required for the project worker")
     queue = ProjectRunQueue(settings.database_url)
     profiles = ProjectProfileStore(settings.database_url)
     while True:

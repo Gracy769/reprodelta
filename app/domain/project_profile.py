@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 import re
+import uuid
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -117,6 +118,7 @@ class ProfileApproval(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     profile_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    validation_job_id: uuid.UUID
     old: PreparedEnvironment
     new: PreparedEnvironment
     review_note: str = Field(min_length=8, max_length=1000)

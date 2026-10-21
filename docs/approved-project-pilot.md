@@ -12,10 +12,13 @@ it on both the API and the separate worker service.
   `/api/project-profiles`. The draft records a source repository, Python
   module/function adapter, bounded sample input, numeric contract and explicit
   consent to transfer a selected source snapshot to E2B.
-- A configured operator subject can record approval with exact old/new template
-  IDs and lock digests. Template preparation and sample validation are not yet
-  automated. Do not approve real projects until both environments and the
-  adapter have been reviewed and the security gate passes.
+- A configured operator subject can queue sample validation against one immutable
+  source commit and two fixed NumPy pilot templates. The separate E2B worker
+  rechecks the draft and consent, executes the sample in both templates, and
+  records bounded observations and cost. Approval requires that exact completed
+  validation job ID and matching profile, contract, and environment digests.
+  `E2B_PROFILE_VALIDATION_ENABLED` defaults to `false` on the API and worker.
+  This preapproval run does not open the broader project-run gate.
 - `/api/project-profiles/{id}/changes/{number}/eligibility` checks a complete
   PR/MR diff against one approved profile. It permits only one in-place edit to
   the approved dependency file, with exact NumPy before/after pins. The result
@@ -46,8 +49,10 @@ it on both the API and the separate worker service.
    resulting template IDs and hashes must be recorded in profile approval.
    The fixed template build and synthetic live proof are recorded in
    [pilot E2B template proof](pilot-e2b-template-proof.md).
-2. Add preapproval sample validation, source snapshot persistence by digest,
-   immutable run records and explicit private-source transfer notice.
+2. Verify the preapproval sample-validation worker on an isolated Postgres queue
+   and on two reviewed projects. Source snapshots are fetched by immutable commit
+   and hashed before upload; persistent snapshot storage and retention controls
+   remain a release requirement. Show explicit private-source transfer consent.
 3. Verify the leased Postgres queue and worker in an isolated database and
    deploy the separate Railway worker. Set a verified
    `E2B_SANDBOX_USD_PER_SECOND` and `E2B_PROJECT_RUN_COST_CEILING_USD` before

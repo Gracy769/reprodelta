@@ -131,6 +131,7 @@ def test_profile_owner_access_and_operator_approval(monkeypatch):
         assert client.get(f"/api/project-profiles/{profile_id}").status_code == 200
         approval = {
             "profile_digest": response.json()["profile_digest"],
+            "validation_job_id": str(uuid.uuid4()),
             "old": {
                 "template_id": "old",
                 "python_version": "3.12",

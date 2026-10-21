@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import UTC, datetime
 
@@ -14,6 +15,30 @@ from app.domain.project_profile import ProfileApproval, ProjectProfileDraft
 
 def _dsn(value: str) -> str:
     return value.replace("postgresql+asyncpg://", "postgresql://", 1)
+
+
+def validation_matches_approval(profile: dict, approval: ProfileApproval, job: dict | None) -> bool:
+    if job is None or job.get("status") != "completed" or job.get("job_kind") != "profile_validation":
+        return False
+    spec, result = job.get("spec_json") or {}, job.get("result_json") or {}
+    return (
+        str(job.get("id")) == str(approval.validation_job_id)
+        and str(spec.get("profile_id")) == str(profile.get("id"))
+        and spec.get("profile_digest") == approval.profile_digest == profile.get("profile_digest")
+        and spec.get("contract_hash") == profile.get("contract_hash")
+        and spec.get("provider") == profile.get("provider")
+        and spec.get("repository") == profile.get("repository")
+        and spec.get("old") == approval.old.model_dump(mode="json")
+        and spec.get("new") == approval.new.model_dump(mode="json")
+        and result.get("sample_validated") is True
+        and result.get("profile_digest") == spec.get("profile_digest")
+        and result.get("contract_hash") == spec.get("contract_hash")
+        and result.get("source_sha") == spec.get("source_sha")
+        and isinstance(result.get("source_sha256"), str)
+        and re.fullmatch(r"[0-9a-f]{64}", result["source_sha256"]) is not None
+        and isinstance(result.get("input_sha256"), str)
+        and re.fullmatch(r"[0-9a-f]{64}", result["input_sha256"]) is not None
+    )
 
 
 class ProjectProfileStore:
@@ -123,6 +148,18 @@ class ProjectProfileStore:
                 return None
             if row["status"] != "draft" or row["profile_digest"] != approval.profile_digest:
                 raise ValueError("Profile was already approved or its digest changed")
+            table = conn.execute(
+                "SELECT to_regclass('project_run_jobs') AS table_name"
+            ).fetchone()["table_name"]
+            if table is None:
+                raise ValueError("A completed sample validation is required before approval")
+            validation = conn.execute(
+                """SELECT * FROM project_run_jobs WHERE id=%s AND owner_id=%s
+                AND job_kind='profile_validation' FOR UPDATE""",
+                (approval.validation_job_id, owner_id),
+            ).fetchone()
+            if not validation_matches_approval(row, approval, validation):
+                raise ValueError("A matching completed sample validation is required")
             result = conn.execute(
                 """UPDATE project_profile_versions SET status='approved',
                 approval_json=%s, approved_by=%s, approved_at=%s

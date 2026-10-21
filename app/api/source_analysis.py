@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import hashlib
 import re
 from pathlib import Path
@@ -10,6 +11,12 @@ from urllib.parse import quote
 from fastapi import HTTPException
 
 from app.domain.dependency_review import build_review, is_manifest, parse_manifest
+from app.providers.e2b_runner import (
+    MAX_FILE_BYTES,
+    MAX_FILES,
+    MAX_SNAPSHOT_BYTES,
+    validate_snapshot,
+)
 
 
 async def change_refs(get, provider, token, repository, number):
@@ -54,6 +61,78 @@ async def file_content(get, provider, token, repository, sha, path):
         return raw.decode("utf-8")
     except (ValueError, UnicodeError) as exc:
         raise HTTPException(422, "Source file is not bounded UTF-8 content") from exc
+
+
+async def immutable_snapshot(get, provider: str, token: str, repository: str, sha: str):
+    """Read a bounded tree by commit SHA; never follow a host download URL."""
+    if not re.fullmatch(r"[0-9a-f]{40,64}", sha):
+        raise HTTPException(422, "An immutable commit SHA is required")
+    if provider == "github":
+        tree = await get(provider, token, f"/repos/{repository}/git/trees/{sha}", {"recursive": "1"})
+        if not isinstance(tree, dict) or tree.get("truncated") is not False or not isinstance(tree.get("tree"), list):
+            raise HTTPException(422, "The source tree is incomplete or unavailable")
+        entries = tree["tree"]
+    elif provider == "gitlab":
+        entries = []
+        for page in range(1, 4):
+            batch = await get(provider, token, f"/projects/{repository}/repository/tree",
+                              {"ref": sha, "recursive": "true", "per_page": 100, "page": page})
+            if not isinstance(batch, list):
+                raise HTTPException(502, "Source host returned an invalid tree")
+            entries.extend(batch)
+            if len(batch) < 100:
+                break
+        else:
+            raise HTTPException(422, "Source tree exceeds the 200-file pilot limit")
+    else:
+        raise HTTPException(422, "Unsupported source host")
+    if len([entry for entry in entries if isinstance(entry, dict) and entry.get("type") != "tree"]) > MAX_FILES:
+        raise HTTPException(422, "Source tree exceeds the 200-file pilot limit")
+    files: dict[str, bytes] = {}
+    total = 0
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise HTTPException(502, "Source host returned an invalid tree entry")
+        kind, mode = entry.get("type"), entry.get("mode")
+        if kind == "tree":
+            continue
+        if kind != "blob" or mode not in {"100644", "100755", None}:
+            raise HTTPException(422, "Source tree contains a symlink, submodule, or unsupported entry")
+        path, blob_sha = entry.get("path"), entry.get("sha" if provider == "github" else "id")
+        size = entry.get("size")
+        if (not isinstance(path, str) or not isinstance(blob_sha, str)
+                or not re.fullmatch(r"[0-9a-f]{40,64}", blob_sha)
+                or (size is not None and (not isinstance(size, int) or size > MAX_FILE_BYTES))):
+            raise HTTPException(422, "Source tree contains an oversized or invalid file")
+        if provider == "github":
+            blob = await get(provider, token, f"/repos/{repository}/git/blobs/{blob_sha}")
+        else:
+            blob = await get(provider, token, f"/projects/{repository}/repository/blobs/{blob_sha}")
+        if not isinstance(blob, dict) or blob.get("encoding") != "base64":
+            raise HTTPException(502, "Source host returned an invalid blob")
+        encoded = blob.get("content")
+        if not isinstance(encoded, str) or len(encoded) > 1_400_000:
+            raise HTTPException(422, "Source blob exceeds the pilot limit")
+        try:
+            raw = base64.b64decode("".join(encoded.split()), validate=True)
+        except (ValueError, binascii.Error) as exc:
+            raise HTTPException(502, "Source host returned invalid blob encoding") from exc
+        if len(raw) > MAX_FILE_BYTES or (size is not None and len(raw) != size):
+            raise HTTPException(422, "Source blob size does not match its tree entry")
+        git_object = b"blob " + str(len(raw)).encode("ascii") + b"\x00" + raw
+        observed_blob_sha = (hashlib.sha1(git_object).hexdigest() if len(blob_sha) == 40
+                             else hashlib.sha256(git_object).hexdigest())
+        if observed_blob_sha != blob_sha:
+            raise HTTPException(502, "Source blob does not match its immutable tree entry")
+        files[path] = raw
+        total += len(raw)
+        if total > MAX_SNAPSHOT_BYTES:
+            raise HTTPException(422, "Source snapshot exceeds the 10 MB pilot limit")
+    try:
+        digest = validate_snapshot(files)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return files, digest
 
 
 async def analyze(get, pages, provider, token, repository, display_repository, number):

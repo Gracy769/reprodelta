@@ -24,6 +24,7 @@ from app.api.connections import (
 from app.api.source_analysis import analyze, change_refs, immutable_snapshot
 from app.config import get_settings
 from app.domain.comparison import evaluate_output, numeric_matches
+from app.domain.profile_validation import ProfileValidationSpec
 from app.domain.project_eligibility import check_eligibility
 from app.domain.project_profile import ProfileApproval, ProjectProfileDraft
 from app.domain.project_run import ProjectRunSpec
@@ -89,6 +90,143 @@ def _approved_inputs(spec: ProjectRunSpec, owner_id: str, store: ProjectProfileS
     ):
         raise RunRejected("environment_changed")
     return profile, draft, approval
+
+
+async def _fetch_validation_source(spec: ProfileValidationSpec, owner_id: str):
+    token = await asyncio.to_thread(_saved_token, owner_id, spec.provider)
+    source_id = (
+        _github_repository(spec.repository)
+        if spec.provider == "github"
+        else _gitlab_project(spec.repository)
+    )
+    return await immutable_snapshot(
+        _host_get, spec.provider, token, source_id, spec.source_sha
+    )
+
+
+def run_validation_job(
+    job: dict,
+    queue: ProjectRunQueue,
+    profiles: ProjectProfileStore,
+    *,
+    execute=execute_environment,
+    fetch_source=_fetch_validation_source,
+) -> bool:
+    """Validate a draft's approved sample before an operator can approve it."""
+    job_id = uuid.UUID(job["id"])
+    lease = uuid.UUID(job["lease_token"])
+    stop = threading.Event()
+    abort = threading.Event()
+
+    def watch_lease() -> None:
+        while not stop.wait(20):
+            try:
+                if not queue.heartbeat(job_id, lease):
+                    abort.set()
+                    return
+            except Exception:
+                abort.set()
+                return
+
+    watcher = threading.Thread(target=watch_lease, daemon=True)
+    watcher.start()
+    try:
+        spec = ProfileValidationSpec.model_validate(job["spec_json"])
+        started = time.monotonic()
+
+        def cancelled() -> bool:
+            return abort.is_set() or queue.cancellation_requested(job_id, lease)
+
+        if not get_settings().e2b_profile_validation_enabled:
+            raise RunRejected("validation_disabled")
+        if cancelled():
+            raise RunRejected("cancelled")
+        profile = profiles.get(job["owner_id"], spec.profile_id)
+        if profile is None or profile["status"] != "draft":
+            raise RunRejected("profile_changed")
+        draft = ProjectProfileDraft.model_validate(profile["draft_json"])
+        if (
+            draft.digest != spec.profile_digest
+            or draft.contract_hash != spec.contract_hash
+            or profile["profile_digest"] != spec.profile_digest
+            or profile["contract_hash"] != spec.contract_hash
+            or draft.provider != spec.provider
+            or draft.repository != spec.repository
+            or not draft.source_transfer_consent
+        ):
+            raise RunRejected("profile_changed")
+        files, source_digest = asyncio.run(fetch_source(spec, job["owner_id"]))
+        if cancelled():
+            raise RunRejected("cancelled")
+        if draft.dependency_path not in files:
+            raise RunRejected("dependency_manifest_missing")
+        adapter = ProjectAdapter(draft.adapter_module, draft.adapter_function)
+        results = []
+        for environment in (spec.old, spec.new):
+            if cancelled():
+                raise RunRejected("cancelled")
+            spent = sum(item.duration_seconds for item in results)
+            remaining = min(
+                900,
+                math.floor(spec.max_wall_seconds - (time.monotonic() - started)),
+                math.floor(spec.max_sandbox_seconds - spent),
+                math.floor((spec.max_cost_usd - spent * spec.sandbox_usd_per_second)
+                           / spec.sandbox_usd_per_second),
+            )
+            if remaining < 1:
+                raise RunRejected("wall_budget_exhausted")
+            observed = execute(
+                files=files,
+                input_json=draft.sample_input,
+                adapter=adapter,
+                template_id=environment.template_id,
+                expected_numpy=environment.numpy_version,
+                expected_lock_sha256=environment.lock_sha256,
+                should_abort=cancelled,
+                timeout_seconds=remaining,
+            )
+            if observed.source_sha256 != source_digest:
+                raise RunRejected("snapshot_changed")
+            results.append(observed)
+            spent = sum(item.duration_seconds for item in results)
+            if spent > spec.max_sandbox_seconds:
+                raise RunRejected("sandbox_budget_exhausted")
+            if spent * spec.sandbox_usd_per_second > spec.max_cost_usd:
+                raise RunRejected("cost_budget_exhausted")
+        if cancelled():
+            raise RunRejected("cancelled")
+        if time.monotonic() - started > spec.max_wall_seconds:
+            raise RunRejected("wall_budget_exhausted")
+        old, new = [evaluate_output(item.output, draft.contract) for item in results]
+        finding = {
+            "kind": "profile_sample_validation",
+            "sample_validated": True,
+            "scope": "one approved sample input on the same immutable source commit",
+            "source_sha": spec.source_sha,
+            "source_sha256": source_digest,
+            "profile_digest": spec.profile_digest,
+            "contract_hash": spec.contract_hash,
+            "input_sha256": results[0].input_sha256,
+            "old": old,
+            "new": new,
+            "changed_conclusion": old["conclusion"] != new["conclusion"],
+            "sandbox_seconds": round(spent, 3),
+            "estimated_sandbox_cost_usd": round(spent * spec.sandbox_usd_per_second, 6),
+            "sandbox_ids": [item.sandbox_id for item in results],
+        }
+        return queue.finish(job_id, lease, status="completed", result=finding)
+    except RunRejected as exc:
+        if exc.code == "cancelled":
+            return queue.finish(job_id, lease, status="cancelled")
+        return queue.finish(job_id, lease, status="failed", error_code=exc.code)
+    except Exception:
+        log.warning("Project validation job failed (%s)", job_id)
+        if abort.is_set():
+            return False
+        return queue.finish(job_id, lease, status="failed", error_code="validation_error")
+    finally:
+        stop.set()
+        watcher.join(timeout=2)
 
 
 def run_claimed_job(
@@ -225,18 +363,26 @@ def run_claimed_job(
 def main() -> None:
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
     settings = get_settings()
-    if not settings.e2b_project_runs_enabled:
-        raise SystemExit("E2B_PROJECT_RUNS_ENABLED is false; refusing to start the project worker")
+    allowed_kinds = []
+    if settings.e2b_project_runs_enabled:
+        allowed_kinds.append("investigation")
+    if settings.e2b_profile_validation_enabled:
+        allowed_kinds.append("profile_validation")
+    if not allowed_kinds:
+        raise SystemExit("Project execution and validation are disabled")
     if not os.environ.get("E2B_API_KEY"):
         raise SystemExit("E2B_API_KEY is required for the project worker")
     queue = ProjectRunQueue(settings.database_url)
     profiles = ProjectProfileStore(settings.database_url)
     while True:
-        job = queue.claim()
+        job = queue.claim(allowed_kinds=allowed_kinds)
         if job is None:
             time.sleep(5)
             continue
-        run_claimed_job(job, queue, profiles)
+        if job["job_kind"] == "profile_validation":
+            run_validation_job(job, queue, profiles)
+        else:
+            run_claimed_job(job, queue, profiles)
 
 
 if __name__ == "__main__":

@@ -52,6 +52,17 @@ class EnvironmentResult:
     stderr: str
 
 
+@dataclass(frozen=True)
+class EnvironmentBatchResult:
+    version: str
+    sandbox_id: str
+    duration_seconds: float
+    source_sha256: str
+    input_sha256: list[str]
+    outputs: list[dict]
+    stderrs: list[str]
+
+
 def validate_snapshot(files: Mapping[str, bytes]) -> str:
     if not files or len(files) > MAX_FILES:
         raise ValueError("Snapshot must contain 1–200 regular files")
@@ -85,10 +96,10 @@ def _sandbox_factory():
     return Sandbox
 
 
-def execute_environment(
+def execute_environment_batch(
     *,
     files: Mapping[str, bytes],
-    input_json: dict,
+    inputs_json: list[dict],
     adapter: ProjectAdapter,
     template_id: str,
     expected_numpy: str,
@@ -96,15 +107,20 @@ def execute_environment(
     sandbox_factory: Callable | None = None,
     should_abort: Callable[[], bool] | None = None,
     timeout_seconds: int = SANDBOX_TIMEOUT_SECONDS,
-) -> EnvironmentResult:
-    """Run one immutable snapshot in one prepared environment, then destroy it."""
+) -> EnvironmentBatchResult:
+    """Run bounded inputs against one snapshot in one sandbox, then destroy it."""
     source_sha256 = validate_snapshot(files)
     adapter.validate()
-    if not isinstance(input_json, dict):
-        raise ValueError("Input must be a JSON object")
-    input_bytes = json.dumps(input_json, sort_keys=True, allow_nan=False).encode("utf-8")
-    if len(input_bytes) > MAX_INPUT_BYTES:
-        raise ValueError("Input exceeds 128 KB")
+    if not isinstance(inputs_json, list) or not 1 <= len(inputs_json) <= 32:
+        raise ValueError("Batch must contain 1–32 JSON inputs")
+    input_bytes = []
+    for input_json in inputs_json:
+        if not isinstance(input_json, dict):
+            raise ValueError("Input must be a JSON object")
+        encoded = json.dumps(input_json, sort_keys=True, allow_nan=False).encode("utf-8")
+        if len(encoded) > MAX_INPUT_BYTES:
+            raise ValueError("Input exceeds 128 KB")
+        input_bytes.append(encoded)
     if (
         not template_id
         or len(template_id) > 128
@@ -173,7 +189,6 @@ def execute_environment(
             sandbox.files.write(f"/home/user/reprodelta-source/{name}", content)
         launcher = Path(__file__).resolve().parents[2] / "runner" / "e2b_project.py"
         sandbox.files.write("/home/user/reprodelta-project-run.py", launcher.read_bytes())
-        sandbox.files.write("/home/user/reprodelta-input.json", input_bytes)
         sandbox.files.write(
             "/home/user/reprodelta-adapter.json",
             json.dumps(
@@ -183,25 +198,33 @@ def execute_environment(
                 }
             ).encode("utf-8"),
         )
-        check_abort()
-        try:
-            command = sandbox.commands.run(
-                "python -I -B /home/user/reprodelta-project-run.py "
-                "/home/user/reprodelta-source /home/user/reprodelta-input.json "
-                "/home/user/reprodelta-adapter.json",
-                timeout=60,
-            )
-        except Exception:
-            raise RuntimeError("Approved adapter failed inside the sandbox") from None
-        if command.exit_code != 0:
-            raise RuntimeError("Approved adapter failed inside the sandbox")
-        check_abort()
-        if len(command.stdout.encode("utf-8")) > MAX_OUTPUT_BYTES:
-            raise RuntimeError("Sandbox output exceeds 128 KB")
-        output = json.loads(command.stdout)
-        if not isinstance(output, dict) or not isinstance(output.get("result"), dict):
-            raise RuntimeError("Sandbox returned an invalid result")
-        stderr = command.stderr[:4_096]
+        outputs = []
+        stderrs = []
+        for encoded in input_bytes:
+            check_abort()
+            remaining = min(60, int(timeout_seconds - (time.monotonic() - started)))
+            if remaining < 1:
+                raise RuntimeError("Sandbox execution budget exhausted")
+            sandbox.files.write("/home/user/reprodelta-input.json", encoded)
+            try:
+                command = sandbox.commands.run(
+                    "python -I -B /home/user/reprodelta-project-run.py "
+                    "/home/user/reprodelta-source /home/user/reprodelta-input.json "
+                    "/home/user/reprodelta-adapter.json",
+                    timeout=remaining,
+                )
+            except Exception:
+                raise RuntimeError("Approved adapter failed inside the sandbox") from None
+            if command.exit_code != 0:
+                raise RuntimeError("Approved adapter failed inside the sandbox")
+            check_abort()
+            if len(command.stdout.encode("utf-8")) > MAX_OUTPUT_BYTES:
+                raise RuntimeError("Sandbox output exceeds 128 KB")
+            output = json.loads(command.stdout)
+            if not isinstance(output, dict) or not isinstance(output.get("result"), dict):
+                raise RuntimeError("Sandbox returned an invalid result")
+            outputs.append(output)
+            stderrs.append(command.stderr[:4_096])
     finally:
         try:
             sandbox.kill()
@@ -209,12 +232,40 @@ def execute_environment(
             raise RuntimeError(
                 "Sandbox cleanup failed; investigation requires operator review"
             ) from None
-    return EnvironmentResult(
+    return EnvironmentBatchResult(
         version=expected_numpy,
         sandbox_id=sandbox.sandbox_id,
         duration_seconds=time.monotonic() - started,
         source_sha256=source_sha256,
-        input_sha256=hashlib.sha256(input_bytes).hexdigest(),
-        output=output,
-        stderr=stderr,
+        input_sha256=[hashlib.sha256(value).hexdigest() for value in input_bytes],
+        outputs=outputs,
+        stderrs=stderrs,
+    )
+
+
+def execute_environment(
+    *,
+    files: Mapping[str, bytes],
+    input_json: dict,
+    adapter: ProjectAdapter,
+    template_id: str,
+    expected_numpy: str,
+    expected_lock_sha256: str | None = None,
+    sandbox_factory: Callable | None = None,
+    should_abort: Callable[[], bool] | None = None,
+    timeout_seconds: int = SANDBOX_TIMEOUT_SECONDS,
+) -> EnvironmentResult:
+    """Compatibility wrapper for the approved one-sample path."""
+    result = execute_environment_batch(
+        files=files, inputs_json=[input_json], adapter=adapter,
+        template_id=template_id, expected_numpy=expected_numpy,
+        expected_lock_sha256=expected_lock_sha256,
+        sandbox_factory=sandbox_factory, should_abort=should_abort,
+        timeout_seconds=timeout_seconds,
+    )
+    return EnvironmentResult(
+        version=result.version, sandbox_id=result.sandbox_id,
+        duration_seconds=result.duration_seconds, source_sha256=result.source_sha256,
+        input_sha256=result.input_sha256[0], output=result.outputs[0],
+        stderr=result.stderrs[0],
     )

@@ -36,8 +36,9 @@ eligibility checks cannot start an E2B run.
 2. Add preapproval sample validation, source snapshot persistence by digest,
    immutable run records and explicit private-source transfer notice.
 3. Move starts to a leased Postgres worker with idempotency, cancellation,
-   heartbeat and restart recovery. Enforce owner/global concurrency, 15-minute
-   sandbox lifetime, and cost accounting.
+   heartbeat and restart recovery. The internal queue schema and transitions
+   are in place; the worker, integration checks and cost accounting remain.
+   See [durable jobs](durable-project-jobs.md).
 4. Wire the five-stage browser flow and evidence ladder. Keep unsupported
    changes labelled “Diff review only.”
 5. Pass malicious-source, network, timeout, cleanup, tenant isolation and

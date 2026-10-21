@@ -6,6 +6,13 @@ and cancellation endpoints exist, but no Railway worker service is deployed.
 `E2B_PROJECT_RUNS_ENABLED` remains `false`. The curated investigation runner
 and its report URLs are unchanged.
 
+Operator-requested profile validation now uses the same leased table with a
+separate `profile_validation` kind and an immutable profile/source/template
+manifest. Validation is disabled by default through
+`E2B_PROFILE_VALIDATION_ENABLED=false`; a worker implementation and approval
+gate are still required before it can be enabled. Owner run lists exclude
+validation jobs.
+
 ## Immutable job record
 
 `ProjectRunSpec` binds one approved profile, exact PR/MR base and head commits,

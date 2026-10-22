@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Shared finding — ReproDelta{% endblock %}
+{% block content %}
+<article class="shared-finding" aria-labelledby="shared-title">
+  <p class="section-kicker">SHARED PROJECT FINDING</p>
+  <h1 id="shared-title">{{ "A changed conclusion was observed" if finding.changed_conclusion else "A bounded run found no changed conclusion" }}</h1>
+  <p class="shared-lede">{{ finding.scope }}. {{ finding.tested_inputs }} input{{ "" if finding.tested_inputs == 1 else "s" }} tested{% if finding.inconclusive %}; repeat runs were inconclusive{% endif %}.</p>
+  <section class="shared-panel" aria-labelledby="scope-title">
+    <h2 id="scope-title">What was tested</h2>
+    <dl>
+      <div><dt>Run type</dt><dd>{{ "Candidate search" if finding.repeatability_tested else "Single sample" }}</dd></div>
+      <div><dt>Inputs tested</dt><dd>{{ finding.tested_inputs }}</dd></div>
+      <div><dt>Sandbox time</dt><dd>{{ finding.sandbox_seconds if finding.sandbox_seconds is not none else "Not recorded" }}{% if finding.sandbox_seconds is not none %} seconds{% endif %}</dd></div>
+      <div><dt>Estimated sandbox cost</dt><dd>{% if finding.estimated_sandbox_cost_usd is not none %}${{ finding.estimated_sandbox_cost_usd }}{% else %}Not recorded{% endif %}</dd></div>
+    </dl>
+  </section>
+  <section class="shared-panel" aria-labelledby="limits-title"><h2 id="limits-title">Limits of this copy</h2>
+    <ul>{% for limit in finding.limitations %}<li>{{ limit }}</li>{% endfor %}</ul>
+  </section>
+  <p class="shared-footnote">This link is a revocable summary issued by the investigation owner. It does not contain the repository, source, commits, input values or measurements.</p>
+</article>
+<style>
+  .shared-finding{max-width:760px;margin:25px auto 40px}.shared-finding h1{font-size:clamp(36px,5vw,64px);line-height:1.03;letter-spacing:-.055em;margin:14px 0 22px}.shared-lede{font-size:20px;color:#405447;line-height:1.5}.shared-panel{border:1px solid var(--border);background:#fff;padding:26px;margin:24px 0}.shared-panel h2{font-size:22px;letter-spacing:-.035em}.shared-panel dl{display:grid;gap:0;margin:0}.shared-panel dl>div{display:grid;grid-template-columns:170px 1fr;gap:12px;padding:10px 0;border-top:1px solid #dce6dd}.shared-panel dt{color:#546b59}.shared-panel dd{margin:0;font-family:var(--font-mono);overflow-wrap:anywhere}.shared-panel li{margin:8px 0;line-height:1.5}.shared-footnote{font-size:13px;color:#5c7160}@media(max-width:580px){.shared-panel dl>div{grid-template-columns:1fr;gap:0}}
+</style>
+{% endblock %}

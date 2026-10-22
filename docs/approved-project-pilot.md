@@ -60,6 +60,13 @@ it on both the API and the separate worker service.
   the current PR/MR base and head against the immutable recorded revision and
   warns if the source moved; the saved evidence remains tied to its original
   commits. The run list shows metered sandbox cost or an uncertain upper bound.
+- A completed approved-project run can create an owner-approved public copy at
+  `/shared/{token}`. The preview and stored copy allowlist only the bounded
+  outcome summary, tested count, repeatability status, time, cost and limits;
+  repository identity, commits, source, input values/hashes and numeric
+  measurements are omitted. The random link token is shown only at creation;
+  its hash is stored in PostgreSQL. The owner can list and revoke copies, and
+  revoked links return 404. Public copies are marked noindex and no-store.
 - Configured approvers can review pending drafts in the workspace or through
   `GET /api/project-profiles/operator/pending`. Other signed-in users receive
   403 and cannot see another owner's draft. The operator console accepts an

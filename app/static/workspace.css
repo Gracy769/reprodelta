@@ -127,6 +127,14 @@ main:has(.review-page){background:#f7f8f4;padding-top:0}
 .approved-evidence-ladder li strong{font-size:13px;color:#132c1c}
 .approved-evidence-ladder li p{font-size:13px;line-height:1.5;color:#536758;overflow-wrap:anywhere}
 .approved-result-digest{font:11px/1.5 var(--font-mono)!important;overflow-wrap:anywhere}
+.approved-share{display:grid;gap:14px;border-top:1px solid #c3d6c4;padding-top:22px}
+.approved-share h4{font-size:20px;letter-spacing:-.03em;margin:0}
+.approved-share p{font-size:13px;line-height:1.55;color:#49604d;margin:0}
+.approved-share>button,.approved-share-preview>button{justify-self:start}
+.approved-share-preview{display:grid;gap:10px;padding:14px;background:#f1f6ef}
+.approved-share-preview:empty{display:none}
+.approved-share-preview label{display:flex;align-items:center;gap:8px;font-size:13px}
+.approved-share-history{display:grid;gap:8px}.approved-share-history button{justify-self:start}
 @media(max-width:680px){.approved-comparison{grid-template-columns:1fr}.approved-evidence-ladder li{grid-template-columns:30px 1fr}.approved-evidence-ladder li p{grid-column:2}}
 .review-run-gate .review-contract{margin-top:7px;border-top:1px solid #aec6af;padding-top:23px}
 .review-run-gate .review-contract>label{display:grid;gap:8px}

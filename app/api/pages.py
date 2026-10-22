@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import pathlib
 from functools import lru_cache
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from app.config import get_settings
+from app.storage.project_shares import ProjectShareStore
 
 TEMPLATES_DIR = pathlib.Path(__file__).parent.parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -36,7 +38,7 @@ async def robots() -> Response:
         "User-agent: *\n"
         "Disallow: /api/\nDisallow: /auth/\nDisallow: /oauth/\n"
         "Disallow: /investigations/\nDisallow: /workspace\n"
-        "Disallow: /signin\nDisallow: /signup\n"
+        "Disallow: /signin\nDisallow: /signup\nDisallow: /shared/\n"
         f"Sitemap: {PUBLIC_ORIGIN}/sitemap.xml\n"
     )
     return Response(body, media_type="text/plain", headers={"Cache-Control": "public, max-age=3600"})
@@ -64,6 +66,17 @@ async def index(request: Request) -> Response:
     return templates.TemplateResponse(
         request,
         "index.html",
+    )
+
+
+@router.get("/shared/{token}", response_class=HTMLResponse, include_in_schema=False)
+async def shared_project_finding(request: Request, token: str) -> HTMLResponse:
+    copy = await asyncio.to_thread(ProjectShareStore(get_settings().database_url).public, token)
+    if copy is None:
+        raise HTTPException(404, "Shared finding not found")
+    return templates.TemplateResponse(
+        request, "shared_project_run.html", {"finding": copy},
+        headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"},
     )
 
 

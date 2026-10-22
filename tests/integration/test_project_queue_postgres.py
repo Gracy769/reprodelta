@@ -17,8 +17,10 @@ from psycopg.conninfo import make_conninfo
 
 from app.domain.profile_validation import ProfileValidationSpec, pilot_lock_digest
 from app.domain.project_profile import PreparedEnvironment, ProfileApproval
+from app.domain.project_share import redacted_project_share
 from app.storage.project_profiles import ProjectProfileStore
 from app.storage.project_run_queue import ProjectRunQueue
+from app.storage.project_shares import ProjectShareStore
 from app.storage.project_snapshots import ProjectSnapshotStore
 from tests.integration.test_project_profiles import _draft
 from tests.unit.test_project_run_queue import _spec
@@ -190,3 +192,25 @@ def test_postgres_operator_queue_tracks_only_pending_versions(local_queue):
             (uuid.UUID(first["id"]),),
         )
     assert [row["id"] for row in store.list_pending()] == [second["id"]]
+
+
+def test_postgres_redacted_share_is_revocable_and_owner_scoped(local_queue):
+    queue, dsn = local_queue
+    shares = ProjectShareStore(dsn)
+    submitted = queue.submit("github:owner", "share-test-key", _spec())
+    job_id = uuid.UUID(submitted["id"])
+    claimed = queue.claim()
+    assert queue.finish(job_id, uuid.UUID(claimed["lease_token"]), status="completed", result={
+        "kind": "approved_project_sample", "changed_conclusion": True,
+        "old": {"ratio": 0.1}, "new": {"ratio": 0.9}, "input_sha256": "secret-input",
+    })
+    copy = redacted_project_share(queue.get("github:owner", job_id))
+    with pytest.raises(ValueError, match="not found"):
+        shares.create("github:other", job_id, copy)
+    share = shares.create("github:owner", job_id, copy)
+    assert shares.public(share["token"]) == copy
+    assert shares.public("invalid") is None
+    assert shares.list("github:other", job_id) == []
+    assert not shares.revoke("github:other", job_id, uuid.UUID(share["id"]))
+    assert shares.revoke("github:owner", job_id, uuid.UUID(share["id"]))
+    assert shares.public(share["token"]) is None

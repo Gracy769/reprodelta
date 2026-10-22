@@ -7,7 +7,7 @@ import math
 import uuid
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.connections import (
@@ -23,8 +23,10 @@ from app.config import get_settings
 from app.domain.project_eligibility import check_eligibility
 from app.domain.project_profile import ProfileApproval, ProjectProfileDraft
 from app.domain.project_run import ProjectRunSpec
+from app.domain.project_share import redacted_project_share
 from app.storage.project_profiles import ProjectProfileStore
 from app.storage.project_run_queue import ProjectRunQueue
+from app.storage.project_shares import ProjectShareStore
 
 router = APIRouter(prefix="/api/project-runs", tags=["project runs"])
 
@@ -51,6 +53,16 @@ def get_run_queue() -> ProjectRunQueue:
 
 def get_profile_store() -> ProjectProfileStore:
     return ProjectProfileStore(get_settings().database_url)
+
+
+def get_share_store() -> ProjectShareStore:
+    return ProjectShareStore(get_settings().database_url)
+
+
+class ShareConsent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    acknowledge_public_share: bool
 
 
 def _public_job(job: dict) -> dict:
@@ -228,6 +240,20 @@ async def list_runs(
     return {"runs": [_public_job(job) for job in jobs]}
 
 
+@router.get("/shares/{token}")
+async def public_share(
+    token: str,
+    response: Response,
+    shares: Annotated[ProjectShareStore, Depends(get_share_store)],
+):
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Robots-Tag"] = "noindex"
+    copy = await asyncio.to_thread(shares.public, token)
+    if copy is None:
+        raise HTTPException(404, "Shared finding not found")
+    return copy
+
+
 @router.get("/{job_id}")
 async def get_run(
     job_id: uuid.UUID,
@@ -238,6 +264,66 @@ async def get_run(
     if job is None:
         raise HTTPException(404, "Project run not found")
     return _public_job(job)
+
+
+@router.get("/{job_id}/share-preview")
+async def share_preview(
+    job_id: uuid.UUID,
+    owner_id: Annotated[str, Depends(current_user)],
+    queue: Annotated[ProjectRunQueue, Depends(get_run_queue)],
+):
+    job = await asyncio.to_thread(queue.get, owner_id, job_id)
+    if job is None:
+        raise HTTPException(404, "Project run not found")
+    try:
+        return redacted_project_share(job)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@router.post("/{job_id}/shares", status_code=201)
+async def create_share(
+    job_id: uuid.UUID,
+    body: ShareConsent,
+    owner_id: Annotated[str, Depends(current_user)],
+    queue: Annotated[ProjectRunQueue, Depends(get_run_queue)],
+    shares: Annotated[ProjectShareStore, Depends(get_share_store)],
+):
+    if not body.acknowledge_public_share:
+        raise HTTPException(422, "Confirm that the redacted copy may be viewed by anyone with its link")
+    job = await asyncio.to_thread(queue.get, owner_id, job_id)
+    if job is None:
+        raise HTTPException(404, "Project run not found")
+    try:
+        copy = redacted_project_share(job)
+        saved = await asyncio.to_thread(shares.create, owner_id, job_id, copy)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return {"id": saved["id"], "url": f"/shared/{saved['token']}",
+            "created_at": saved["created_at"]}
+
+
+@router.get("/{job_id}/shares")
+async def list_shares(
+    job_id: uuid.UUID,
+    owner_id: Annotated[str, Depends(current_user)],
+    queue: Annotated[ProjectRunQueue, Depends(get_run_queue)],
+    shares: Annotated[ProjectShareStore, Depends(get_share_store)],
+):
+    if await asyncio.to_thread(queue.get, owner_id, job_id) is None:
+        raise HTTPException(404, "Project run not found")
+    return {"shares": await asyncio.to_thread(shares.list, owner_id, job_id)}
+
+
+@router.delete("/{job_id}/shares/{share_id}", status_code=204)
+async def revoke_share(
+    job_id: uuid.UUID,
+    share_id: uuid.UUID,
+    owner_id: Annotated[str, Depends(current_user)],
+    shares: Annotated[ProjectShareStore, Depends(get_share_store)],
+):
+    if not await asyncio.to_thread(shares.revoke, owner_id, job_id, share_id):
+        raise HTTPException(404, "Shared finding not found")
 
 
 @router.get("/{job_id}/revision")

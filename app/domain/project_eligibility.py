@@ -39,16 +39,22 @@ def check_eligibility(profile: dict, review: dict) -> dict:
         reasons.append("Only an in-place edit to the approved dependency file can be isolated.")
     expected_old = (approval.get("old") or {}).get("numpy_version")
     expected_new = (approval.get("new") or {}).get("numpy_version")
+    changes = review.get("dependency_changes")
+    if not isinstance(changes, list):
+        changes = []
     matched = [
         change
-        for change in review.get("dependency_changes", [])
-        if change.get("path") == dependency_path
+        for change in changes
+        if isinstance(change, dict)
+        and change.get("path") == dependency_path
         and change.get("package") == "numpy"
         and change.get("before") == f"=={expected_old}"
         and change.get("after") == f"=={expected_new}"
     ]
     if len(matched) != 1:
         reasons.append("The exact approved NumPy before/after pins were not established.")
+    if len(changes) > 1 or any(not isinstance(change, dict) for change in changes):
+        reasons.append("The dependency file changes more than the one approved NumPy pin.")
     if not review.get("base_sha") or not review.get("head_sha"):
         reasons.append("Immutable base and head commits are missing.")
     return {

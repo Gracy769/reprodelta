@@ -54,3 +54,14 @@ def test_incomplete_diff_and_pin_mismatch_are_rejected():
     result = check_eligibility(_profile(), review)
     assert not result["eligible"]
     assert len(result["reasons"]) == 2
+
+
+def test_second_dependency_change_in_same_file_is_diff_review_only():
+    review = _review()
+    review["dependency_changes"].append({
+        "path": "requirements.txt", "package": "scipy",
+        "before": "==1.13.1", "after": "==1.14.0",
+    })
+    result = check_eligibility(_profile(), review)
+    assert result["mode"] == "diff_review_only"
+    assert any("more than the one approved NumPy pin" in reason for reason in result["reasons"])

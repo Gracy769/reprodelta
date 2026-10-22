@@ -150,6 +150,7 @@ def test_approved_sample_records_observations_not_a_general_verdict(
         return
     assert (status, error) == ("completed", None)
     assert result["changed_conclusion"] is (tamper is None)
+    assert result["witness_input"] == (draft.sample_input if tamper is None else None)
     assert result["repeatable"] is (tamper is None)
     assert result["inconclusive"] is (tamper == "unstable")
     assert result["scope"] == "one approved sample input at one dependency-only PR revision"
@@ -231,6 +232,8 @@ def test_candidate_search_uses_controls_before_claiming_witness(
     assert result["attempted"] == 3
     assert result["changed_conclusion"] is (changed and not unstable)
     assert result["witness"] == (result["observations"][1] if changed and not unstable else None)
+    assert result["witness_input"] == (calls[0]["inputs_json"][2]
+                                      if changed and not unstable else None)
     assert result["inconclusive"] is unstable
     assert result["estimated_sandbox_cost_usd"] == 0.0004
     assert queue.usage == [(2, 0.0001, False), (2, 0.0001, False)]

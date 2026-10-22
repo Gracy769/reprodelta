@@ -12,6 +12,7 @@ def test_redacted_share_omits_private_source_inputs_and_measurements():
         "result_json": {
             "kind": "approved_project_search", "source_sha256": "secret-source-hash",
             "input_sha256": "secret-input-hash", "changed_conclusion": True,
+            "witness_input": {"secret_private_input": 314159},
             "attempted": 2, "inconclusive": False, "sandbox_seconds": 2.5,
             "estimated_sandbox_cost_usd": 0.001,
             "observations": [{"input_sha256": "secret-input-hash", "old": {"ratio": 0.12345},
@@ -24,7 +25,8 @@ def test_redacted_share_omits_private_source_inputs_and_measurements():
     assert copy["changed_conclusion"] is True
     assert copy["tested_inputs"] == 1
     for forbidden in ("private-owner", "secret-project", "secret-source-hash",
-                      "secret-input-hash", "0.12345", "0.98765"):
+                      "secret-input-hash", "secret_private_input", "314159",
+                      "0.12345", "0.98765"):
         assert forbidden not in encoded
 
 

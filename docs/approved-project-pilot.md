@@ -60,7 +60,10 @@ it on both the API and the separate worker service.
   hashes for both search and one-sample runs, reported environment versions,
   within-environment repeatability, and combined sandbox time against
   the approved cost ceiling. Results list each measured decision and show the
-  first repeatable changed decision as a witness. An exhausted, repeatable
+  first repeatable changed decision as a witness. Completed owner-only results
+  retain that witness's exact JSON input alongside its hash and measurements;
+  public share copies omit it. Older reports may have only the input hash.
+  An exhausted, repeatable
   search says no violation was found within the tested scope. Conflicting
   repeats are inconclusive. The default one-sample run also performs two
   executions per environment before claiming a changed conclusion; historical

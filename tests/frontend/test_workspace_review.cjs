@@ -21,7 +21,7 @@ function boot(fetch) {
   const document = {getElementById(id) {if(!elements.has(id)) elements.set(id,new Element()); return elements.get(id);},
     createElement(tag) {return new Element(tag);}, createTextNode(text) {const node = new Element('text'); node.textContent=text; return node;}, querySelectorAll() {return [];}};
   const context = {document, fetch, URL, AbortController, crypto: {randomUUID: () => 'fixed-idempotency-key'}, location: {}, window: {setTimeout,clearTimeout, matchMedia: () => ({matches:true})}};
-  vm.runInNewContext(shipped.replace('  start();', '  globalThis.reviewTest = {renderReview, configureReplay, configureApprovedRun, openSavedProjectRun, state};'), context);
+  vm.runInNewContext(shipped.replace('  start();', '  globalThis.reviewTest = {renderReview, configureReplay, configureApprovedRun, openSavedProjectRun, loadOperatorProfiles, state};'), context);
   return {...context, elements};
 }
 function all(node) {return [node,...node.children.flatMap(all)];}
@@ -179,4 +179,25 @@ test('saved project run warns when the PR revision has changed', async () => {
   assert(nodes.some(n => n.textContent?.includes('The PR moved since this run')));
   assert(nodes.some(n => n.textContent?.includes('No violation found within tested scope')));
   assert(nodes.some(n => n.textContent?.includes('Repeatability')));
+});
+
+test('operator validation controls are only rendered after the approver endpoint succeeds', async () => {
+  const denied=boot(async () => ({ok:false,status:403}));
+  denied.reviewTest.state.jwt='test-token';
+  await denied.reviewTest.loadOperatorProfiles();
+  assert.notEqual(denied.elements.get('operator-profiles')?.hidden, false);
+
+  const profile={id:'11111111-1111-4111-8111-111111111111',repository:'lab/project',version:1,
+    owner_id:'github:owner',profile_digest:'a'.repeat(64),contract_hash:'b'.repeat(64),
+    draft_json:{name:'Numerical adapter',adapter_module:'package.adapter',adapter_function:'run',
+      dependency_path:'requirements.txt',sample_input:{signal:0.5},
+      contract:{output_selector:{field_name:'ratio'},conclusion:{operator:'gt',threshold:0.5}},
+      source_transfer_consent:true}};
+  const allowed=boot(async () => ({ok:true,status:200,json:async () => ({profiles:[profile]})}));
+  allowed.reviewTest.state.jwt='test-token';
+  await allowed.reviewTest.loadOperatorProfiles();
+  assert.equal(allowed.elements.get('operator-profiles').hidden,false);
+  const nodes=all(allowed.elements.get('operator-profile-list'));
+  assert(nodes.some(n => n.textContent?.includes('Start bounded sample validation')));
+  assert(nodes.some(n => n.textContent?.includes('Source transfer consent')));
 });

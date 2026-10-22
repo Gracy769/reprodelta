@@ -334,8 +334,87 @@
       const details = text("dl", "", "approved-plan-details");
       facts.forEach(([label, value]) => details.append(text("dt", label), text("dd", value ?? "Not supplied")));
       card.append(details);
+      configureOperatorValidation(profile, card);
       list.append(card);
     });
+  }
+  function operatorField(form, labelText, name, placeholder) {
+    const label = text("label", labelText);
+    const input = document.createElement("input");
+    input.name = name; input.required = true; input.placeholder = placeholder;
+    input.autocomplete = "off";
+    label.append(input); form.append(label);
+    return input;
+  }
+  function configureOperatorValidation(profile, card) {
+    const path = `/project-profiles/${encodeURIComponent(profile.id)}/validations`;
+    const panel = text("div", "", "operator-validation");
+    panel.append(text("h4", "Validate the sample"));
+    panel.append(text("p", "Review the source at the exact commit and both prepared environment digests. Validation runs only after the pilot execution gate is enabled."));
+    const form = text("form", "", "profile-form");
+    const source = operatorField(form, "Reviewed source commit SHA", "source_sha", "40-character commit SHA");
+    source.pattern = "[0-9a-f]{40,64}";
+    const oldTemplate = operatorField(form, "NumPy 1.26.4 template ID", "old_template", "Prepared E2B template ID");
+    const oldLock = operatorField(form, "NumPy 1.26.4 lock SHA-256", "old_lock", "64-character lock digest");
+    const newTemplate = operatorField(form, "NumPy 2.0.2 template ID", "new_template", "Prepared E2B template ID");
+    const newLock = operatorField(form, "NumPy 2.0.2 lock SHA-256", "new_lock", "64-character lock digest");
+    for (const input of [oldLock, newLock]) input.pattern = "[0-9a-f]{64}";
+    const submit = text("button", "Start bounded sample validation ↗", "review-button review-button-primary");
+    submit.type = "submit"; form.append(submit);
+    const message = text("p", "No validation has run for this draft.");
+    const refresh = text("button", "Refresh validation status", "review-button review-button-secondary");
+    refresh.type = "button";
+    const finding = text("div", "", "operator-validation-result");
+    panel.append(form, message, refresh, finding); card.append(panel);
+    async function showLatest() {
+      const data = await projectApi(path);
+      const job = data.validations?.[0];
+      clear(finding);
+      if (!job) { message.textContent = "No validation has run for this draft."; return; }
+      message.textContent = `Validation ${job.id} · ${job.status}${job.error_code ? ` · ${job.error_code}` : ""}`;
+      if (job.status !== "completed" || job.result_json?.sample_validated !== true) return;
+      const result = job.result_json;
+      finding.append(text("p", `Sample validated at ${result.source_sha.slice(0, 12)}. Source SHA-256: ${result.source_sha256}. Review the measured outcome before approval.`));
+      finding.append(text("p", `Old: ${JSON.stringify(result.old || {})} · New: ${JSON.stringify(result.new || {})}`));
+      const approval = text("form", "", "profile-form");
+      const note = operatorField(approval, "Operator review note", "review_note", "What source, adapter, lock and result did you verify?");
+      note.minLength = 8; note.maxLength = 1000;
+      const consent = document.createElement("input");
+      consent.type = "checkbox"; consent.required = true;
+      const confirmation = text("label", " I checked the exact source, prepared environments and sample output.");
+      confirmation.prepend(consent); approval.append(confirmation);
+      const approve = text("button", "Approve this project version ↗", "review-button review-button-primary");
+      approve.type = "submit"; approval.append(approve);
+      approval.addEventListener("submit", async (event) => {
+        event.preventDefault(); approve.disabled = true;
+        try {
+          await projectApi(`/project-profiles/${encodeURIComponent(profile.id)}/approve`, {
+            method: "POST", body: JSON.stringify({profile_digest: profile.profile_digest,
+              validation_job_id: job.id, old: job.spec_json.old, new: job.spec_json.new,
+              review_note: note.value.trim()}),
+          });
+          await Promise.all([loadProfiles(), loadOperatorProfiles()]);
+          status(`${profile.repository} version ${profile.version} approved.`, true);
+        } catch (error) { message.textContent = error.message; approve.disabled = false; }
+      });
+      finding.append(approval);
+    }
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault(); submit.disabled = true;
+      try {
+        const values = Object.fromEntries(new FormData(form));
+        await projectApi(path, {method: "POST", body: JSON.stringify({
+          source_sha: values.source_sha.trim(),
+          old: {template_id: values.old_template.trim(), python_version: "3.12", numpy_version: "1.26.4", lock_sha256: values.old_lock.trim()},
+          new: {template_id: values.new_template.trim(), python_version: "3.12", numpy_version: "2.0.2", lock_sha256: values.new_lock.trim()},
+          idempotency_key: crypto.randomUUID(),
+        })});
+        await showLatest();
+      } catch (error) { message.textContent = error.message; }
+      finally { submit.disabled = false; }
+    });
+    refresh.addEventListener("click", () => showLatest().catch((error) => { message.textContent = error.message; }));
+    card.addEventListener("toggle", () => { if (card.open) showLatest().catch((error) => { message.textContent = error.message; }); });
   }
   function setupProfileForm() {
     const form = $("profile-form");

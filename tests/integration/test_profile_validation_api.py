@@ -44,6 +44,12 @@ class Queue:
             return self.job
         return None
 
+    def list_validations(self, owner, profile_id):
+        if (self.job and owner == self.job["owner_id"]
+                and self.job["spec_json"]["profile_id"] == str(profile_id)):
+            return [self.job]
+        return []
+
     def cancel(self, owner, job_id, *, kind):
         job = self.get(owner, job_id, kind=kind)
         if job is not None and job["status"] == "queued":
@@ -82,6 +88,31 @@ def test_validation_requires_operator_and_feature_gate(monkeypatch):
         assert "idempotency_key" not in response.json()
         assert queue.submitted[0] == "github:owner"
         assert queue.submitted[2].old.lock_sha256 == pilot_lock_digest("1.26.4")
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_validation_history_is_owner_or_operator_only(monkeypatch):
+    profiles, queue = Profiles(), Queue()
+    app.dependency_overrides[project_profiles.get_profile_store] = lambda: profiles
+    app.dependency_overrides[project_profiles.get_validation_queue] = lambda: queue
+    app.dependency_overrides[current_user] = lambda: "github:approver"
+    monkeypatch.setattr(project_profiles, "get_settings", lambda: Settings(
+        e2b_profile_validation_enabled=True, profile_approver_subjects="github:approver",
+        e2b_sandbox_usd_per_second=0.000046, e2b_project_run_cost_ceiling_usd=0.1,
+    ))
+    try:
+        client = TestClient(app)
+        url = f"/api/project-profiles/{profiles.row['id']}/validations"
+        assert client.post(url, json=_body()).status_code == 202
+        response = client.get(url)
+        assert response.status_code == 200
+        assert response.json()["validations"][0]["status"] == "queued"
+        assert "idempotency_key" not in response.text
+        app.dependency_overrides[current_user] = lambda: "github:owner"
+        assert client.get(url).status_code == 200
+        app.dependency_overrides[current_user] = lambda: "github:other"
+        assert client.get(url).status_code == 404
     finally:
         app.dependency_overrides.clear()
 

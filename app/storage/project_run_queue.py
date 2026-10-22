@@ -118,6 +118,17 @@ class ProjectRunQueue:
             ).fetchall()
             return [self._row(row) for row in rows]
 
+    def list_validations(self, owner_id: str, profile_id: uuid.UUID) -> list[dict]:
+        with self._connect() as conn:
+            self._ensure(conn)
+            rows = conn.execute(
+                """SELECT * FROM project_run_jobs WHERE owner_id=%s
+                AND job_kind='profile_validation' AND spec_json->>'profile_id'=%s
+                ORDER BY created_at DESC LIMIT 25""",
+                (owner_id, str(profile_id)),
+            ).fetchall()
+            return [self._row(row) for row in rows]
+
     def claim(self, allowed_kinds: tuple[str, ...] = ("investigation",)) -> dict | None:
         """Atomically claim one job, allowing one running per owner and two global."""
         if not allowed_kinds or any(

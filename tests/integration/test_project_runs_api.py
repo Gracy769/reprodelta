@@ -62,8 +62,12 @@ def test_start_requires_exact_approval_and_hides_worker_capability(monkeypatch):
         )
     )
 
-    async def planned(*_args, **_kwargs):
-        return {"rate_configured": True}, spec
+    async def planned(*_args, **kwargs):
+        return {"rate_configured": True}, spec.model_copy(update={
+            "candidate_budget": kwargs["candidate_budget"],
+            "candidate_strategy": kwargs["candidate_strategy"],
+            "candidate_seed": kwargs["candidate_seed"],
+        })
 
     monkeypatch.setattr(project_runs, "_plan", planned)
     try:
@@ -74,12 +78,18 @@ def test_start_requires_exact_approval_and_hides_worker_capability(monkeypatch):
         assert client.post("/api/project-runs", json={**body,
                "expected_head_sha": "f" * 40}).status_code == 409
         assert queue.submissions == []
-        response = client.post("/api/project-runs", json=body)
+        response = client.post("/api/project-runs", json={
+            **body, "candidate_budget": 8, "candidate_strategy": "seeded_random",
+            "candidate_seed": 17,
+        })
         assert response.status_code == 202
         assert response.json()["status"] == "queued"
         assert "lease_token" not in response.json()
         assert "idempotency_key" not in response.json()
         assert queue.submissions[0][0] == "github:owner"
+        submitted = queue.submissions[0][2]
+        assert (submitted.candidate_budget, submitted.candidate_strategy,
+                submitted.candidate_seed) == (8, "seeded_random", 17)
     finally:
         app.dependency_overrides.clear()
 

@@ -59,6 +59,11 @@ main:has(.review-page){background:#f7f8f4;padding-top:0}
 .profile-form>p{align-self:center;margin:0;color:#31583c;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
 .profile-list-item{display:grid;gap:5px;padding:14px 16px;background:#fff;border:1px solid #c4d2c5}
 .profile-list-item strong{font-size:15px}.profile-list-item small{font:11px var(--font-mono);color:#56715c}.profile-list-item p{margin:0;color:#647767;font-size:12px}
+.profile-list-item>summary{cursor:pointer;font-weight:700;line-height:1.5}
+.operator-validation{display:grid;gap:13px;padding:18px 0 4px;border-top:1px solid #d0ddd1}
+.operator-validation h4{margin:0;font-size:19px}.operator-validation>p,.operator-validation-result p{font-size:13px;line-height:1.55;overflow-wrap:anywhere}
+.operator-validation .profile-form{padding:12px 0}.operator-validation .profile-form label{font-size:12px}
+.operator-validation>button{justify-self:start}.operator-validation-result{display:grid;gap:10px}
 .review-browser-body>input{max-width:650px}
 .review-browser-note{font:12px/1.5 var(--font-mono);color:#687e6c;margin:12px 0 0}
 .review-repo-list{display:grid;max-height:360px;overflow:auto;margin-top:16px;border-top:1px solid #c5d4c6}

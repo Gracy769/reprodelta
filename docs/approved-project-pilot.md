@@ -62,8 +62,13 @@ it on both the API and the separate worker service.
   commits. The run list shows metered sandbox cost or an uncertain upper bound.
 - Configured approvers can review pending drafts in the workspace or through
   `GET /api/project-profiles/operator/pending`. Other signed-in users receive
-  403 and cannot see another owner's draft. The queue is read-only; sample
-  validation and approval still require their separate gated API operations.
+  403 and cannot see another owner's draft. The operator console accepts an
+  exact source commit and two prepared template IDs and lock digests, starts
+  the bounded sample validation, and shows its saved status. Only a completed
+  validated sample reveals the explicit approval action. Validation history is
+  available to the owner and configured approvers at
+  `GET /api/project-profiles/{id}/validations`; all approval checks remain on
+  the server. The validation feature flag stays off until the release gate.
 
 ## Release gate before enabling project runs
 

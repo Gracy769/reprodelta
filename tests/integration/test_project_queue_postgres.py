@@ -131,6 +131,8 @@ def test_postgres_approval_requires_matching_completed_validation(local_queue):
         sandbox_usd_per_second=0.000046, max_cost_usd=0.1,
     )
     submitted = queue.submit_validation("github:owner", "validation-one", spec)
+    assert [job["id"] for job in queue.list_validations("github:owner", uuid.UUID(profile["id"]))] == [submitted["id"]]
+    assert queue.list_validations("github:other", uuid.UUID(profile["id"])) == []
     approval = ProfileApproval(
         profile_digest=draft.digest, validation_job_id=uuid.UUID(submitted["id"]),
         old=spec.old, new=spec.new, review_note="Reviewed both environments and adapter")

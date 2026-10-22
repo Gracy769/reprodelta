@@ -197,6 +197,20 @@ async def request_validation(
     return _public_validation(job)
 
 
+@router.get("/{profile_id}/validations")
+async def list_validations(
+    profile_id: uuid.UUID,
+    user_id: Annotated[str, Depends(current_user)],
+    profiles: Annotated[ProjectProfileStore, Depends(get_profile_store)],
+    queue: Annotated[ProjectRunQueue, Depends(get_validation_queue)],
+):
+    profile = await asyncio.to_thread(profiles.get_any, profile_id)
+    if profile is None or (user_id != profile["owner_id"] and user_id not in _approvers()):
+        raise HTTPException(404, "Profile not found")
+    jobs = await asyncio.to_thread(queue.list_validations, profile["owner_id"], profile_id)
+    return {"validations": [_public_validation(job) for job in jobs]}
+
+
 @router.get("/{profile_id}/validations/{job_id}")
 async def validation_status(
     profile_id: uuid.UUID,

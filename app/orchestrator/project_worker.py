@@ -132,18 +132,18 @@ def _input_digest(value: dict) -> str:
 
 def _run_metered(queue, job_id, lease, rate, runner, **kwargs):
     """Record observed usage or a conservative uncertain bound on failure."""
+    attempt_id = queue.reserve_sandbox_attempt(
+        job_id, lease, timeout_seconds=kwargs["timeout_seconds"], usd_per_second=rate,
+    )
+    if attempt_id is None:
+        raise RunRejected("lease_lost")
     try:
         observed = runner(**kwargs)
     except Exception:
-        if not queue.record_usage(
-            job_id, lease, seconds=kwargs["timeout_seconds"],
-            usd_per_second=rate, uncertain=True,
-        ):
-            raise RunRejected("lease_lost") from None
+        # The reservation survives process death and also covers this failure.
         raise
-    if not queue.record_usage(
-        job_id, lease, seconds=observed.duration_seconds,
-        usd_per_second=rate,
+    if not queue.settle_sandbox_attempt(
+        job_id, lease, attempt_id, actual_seconds=observed.duration_seconds,
     ):
         raise RunRejected("lease_lost")
     return observed

@@ -71,7 +71,23 @@ timeouts capped the reserved estimate at `$0.01104`. See the
 [observation record](evidence/independent-mask-e2b-2026-10-22.json).
 
 This establishes a real sandbox-level reproduction of the narrow expression.
-The profile has not been approved or run through ReproDelta's Postgres queue,
-browser workflow, or saved finding path, so no end-to-end project finding is
-claimed. A full-isce3 result would require importing and running the actual
-upstream project and checking its output product.
+
+## Local queued-project proof
+
+The public profile then completed ReproDelta's real backend sequence against
+an isolated local PostgreSQL 18 database: create the draft, lease a validation
+job, execute its sample in both E2B templates, approve against that completed
+validation record, lease the PR investigation, and save a bounded finding.
+The investigation ran its sample twice in each environment and recorded
+`196869/196869` versus `5/5`, a repeatable changed conclusion. The two jobs
+used 38.032 observed sandbox seconds and recorded `$0.001750` in estimated
+sandbox usage under separate `$0.01` per-job ceilings. All four sandbox IDs
+were not reconnectable after cleanup. See the
+[queued-run evidence](evidence/independent-mask-queued-2026-10-22.json).
+
+This was a local operator simulation with a temporary database, not an
+approval by an independent maintainer or a Railway worker deployment. Browser
+workflow, live sign-in, restart recovery, a private project, and the second
+approved project remain unverified. A full-isce3 result would require
+importing and running the actual upstream project and checking its output
+product.

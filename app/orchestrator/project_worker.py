@@ -27,11 +27,12 @@ from app.api.source_analysis import analyze, change_refs, immutable_snapshot
 from app.config import get_settings
 from app.domain.comparison import evaluate_output, numeric_matches
 from app.domain.profile_validation import ProfileValidationSpec
-from app.domain.project_candidates import candidate_inputs
+from app.domain.project_candidates import candidate_inputs, feedback_candidates
 from app.domain.project_eligibility import check_eligibility
 from app.domain.project_profile import ProfileApproval, ProjectProfileDraft
 from app.domain.project_run import ProjectRunSpec
 from app.providers.e2b_runner import (
+    EnvironmentBatchResult,
     ProjectAdapter,
     execute_environment,
     execute_environment_batch,
@@ -330,61 +331,98 @@ def run_claimed_job(
             raise RunRejected("cancelled")
         files = store_snapshot(job["owner_id"], files, spec.source_sha256)
         adapter = ProjectAdapter(draft.adapter_module, draft.adapter_function)
+        initial_budget = (
+            max(1, (spec.candidate_budget + 1) // 2)
+            if spec.candidate_strategy == "adaptive" else spec.candidate_budget
+        )
         candidates = candidate_inputs(
             draft.contract, draft.sample_input,
-            strategy=spec.candidate_strategy, budget=spec.candidate_budget,
+            strategy="sweep" if spec.candidate_strategy == "adaptive" else spec.candidate_strategy,
+            budget=initial_budget,
             seed=spec.candidate_seed,
         )
+        runs: list[list[EnvironmentBatchResult]] = [[], []]
+        phases = [candidates]
+        for phase_index in range(2 if spec.candidate_strategy == "adaptive" and
+                                 spec.candidate_budget > len(candidates) else 1):
+            phase = phases[phase_index]
+            phase_hashes = [_input_digest(value) for value in phase]
+            execution_inputs = [value for candidate in phase for value in (candidate, candidate)]
+            execution_hashes = [digest for digest in phase_hashes for _ in (0, 1)]
+            for env_index, environment in enumerate((approval.old, approval.new)):
+                if cancelled():
+                    raise RunRejected("cancelled")
+                elapsed = time.monotonic() - started
+                spent_seconds = sum(item.duration_seconds for group in runs for item in group)
+                remaining = min(
+                    900,
+                    math.floor(spec.max_wall_seconds - elapsed),
+                    math.floor(spec.max_sandbox_seconds - spent_seconds),
+                    math.floor(
+                        (spec.max_cost_usd - spent_seconds * spec.sandbox_usd_per_second)
+                        / spec.sandbox_usd_per_second
+                    ),
+                )
+                if remaining < 1:
+                    raise RunRejected("wall_budget_exhausted")
+                observed = _run_metered(
+                    queue, job_id, lease, spec.sandbox_usd_per_second,
+                    execute_batch, inputs_json=execution_inputs,
+                    files=files, adapter=adapter, template_id=environment.template_id,
+                    expected_numpy=environment.numpy_version,
+                    expected_lock_sha256=environment.lock_sha256,
+                    should_abort=cancelled, timeout_seconds=remaining,
+                )
+                if observed.source_sha256 != spec.source_sha256:
+                    raise RunRejected("snapshot_changed")
+                if observed.version != environment.numpy_version:
+                    raise RunRejected("environment_result_mismatch")
+                if (observed.input_sha256 != execution_hashes
+                        or len(observed.outputs) != len(execution_inputs)):
+                    raise RunRejected("candidate_result_mismatch")
+                runs[env_index].append(observed)
+                spent_seconds = sum(item.duration_seconds for group in runs for item in group)
+                if spent_seconds > spec.max_sandbox_seconds:
+                    raise RunRejected("sandbox_budget_exhausted")
+                if spent_seconds * spec.sandbox_usd_per_second > spec.max_cost_usd:
+                    raise RunRejected("cost_budget_exhausted")
+            if phase_index == 0 and spec.candidate_strategy == "adaptive" and spec.candidate_budget > len(candidates):
+                measured = []
+                unstable = False
+                for index, candidate in enumerate(phase):
+                    old = evaluate_output(runs[0][0].outputs[index * 2], draft.contract)
+                    old_repeat = evaluate_output(runs[0][0].outputs[index * 2 + 1], draft.contract)
+                    new = evaluate_output(runs[1][0].outputs[index * 2], draft.contract)
+                    new_repeat = evaluate_output(runs[1][0].outputs[index * 2 + 1], draft.contract)
+                    unstable |= not all((
+                        old["conclusion"] == old_repeat["conclusion"],
+                        new["conclusion"] == new_repeat["conclusion"],
+                        numeric_matches(old["ratio"], old_repeat["ratio"], draft.contract),
+                        numeric_matches(new["ratio"], new_repeat["ratio"], draft.contract),
+                        old["dtype"] == old_repeat["dtype"],
+                        new["dtype"] == new_repeat["dtype"],
+                    ))
+                    measured.append((candidate, old["ratio"], new["ratio"]))
+                if unstable:
+                    break
+                next_phase = feedback_candidates(
+                    draft.contract, draft.sample_input, measured,
+                    budget=spec.candidate_budget - len(candidates), seed=spec.candidate_seed,
+                )
+                if not next_phase:
+                    break
+                candidates.extend(next_phase)
+                phases.append(next_phase)
         expected_inputs = [_input_digest(value) for value in candidates]
-        execution_inputs = [value for candidate in candidates for value in (candidate, candidate)]
-        execution_hashes = [digest for digest in expected_inputs for _ in (0, 1)]
-        results = []
-        for environment in (approval.old, approval.new):
-            if cancelled():
-                raise RunRejected("cancelled")
-            elapsed = time.monotonic() - started
-            spent_seconds = sum(item.duration_seconds for item in results)
-            remaining = min(
-                900,
-                math.floor(spec.max_wall_seconds - elapsed),
-                math.floor(spec.max_sandbox_seconds - spent_seconds),
-                math.floor(
-                    (spec.max_cost_usd - spent_seconds * spec.sandbox_usd_per_second)
-                    / spec.sandbox_usd_per_second
-                ),
-            )
-            if remaining < 1:
-                raise RunRejected("wall_budget_exhausted")
-            runner_args = dict(
-                files=files,
-                adapter=adapter,
-                template_id=environment.template_id,
-                expected_numpy=environment.numpy_version,
-                expected_lock_sha256=environment.lock_sha256,
-                should_abort=cancelled,
-                timeout_seconds=remaining,
-            )
-            observed = _run_metered(
-                queue, job_id, lease, spec.sandbox_usd_per_second,
-                execute_batch, inputs_json=execution_inputs, **runner_args,
-            )
-            if observed.source_sha256 != spec.source_sha256:
-                raise RunRejected("snapshot_changed")
-            if observed.version != environment.numpy_version:
-                raise RunRejected("environment_result_mismatch")
-            if (
-                observed.input_sha256 != execution_hashes
-                or len(observed.outputs) != len(execution_inputs)
-            ):
-                raise RunRejected("candidate_result_mismatch")
-            results.append(observed)
-            if sum(item.duration_seconds for item in results) > spec.max_sandbox_seconds:
-                raise RunRejected("sandbox_budget_exhausted")
-            if (
-                sum(item.duration_seconds for item in results) * spec.sandbox_usd_per_second
-                > spec.max_cost_usd
-            ):
-                raise RunRejected("cost_budget_exhausted")
+        results = [EnvironmentBatchResult(
+            version=group[0].version,
+            sandbox_id=group[0].sandbox_id,
+            duration_seconds=sum(item.duration_seconds for item in group),
+            source_sha256=group[0].source_sha256,
+            input_sha256=[digest for item in group for digest in item.input_sha256],
+            outputs=[output for item in group for output in item.outputs],
+            stderrs=[stderr for item in group for stderr in item.stderrs],
+        ) for group in runs]
         if cancelled():
             raise RunRejected("cancelled")
         if time.monotonic() - started > spec.max_wall_seconds:
@@ -440,7 +478,7 @@ def run_claimed_job(
                 "sandbox_seconds": round(spent, 3),
                 "estimated_sandbox_cost_usd": round(spent * spec.sandbox_usd_per_second, 6),
                 "approved_cost_ceiling_usd": spec.max_cost_usd,
-                "sandbox_ids": [item.sandbox_id for item in results],
+                "sandbox_ids": [item.sandbox_id for group in runs for item in group],
             }
             return queue.finish(job_id, lease, status="completed", result=finding)
         old = evaluate_output(results[0].outputs[0], draft.contract)
@@ -481,7 +519,7 @@ def run_claimed_job(
                 sum(item.duration_seconds for item in results) * spec.sandbox_usd_per_second, 6
             ),
             "approved_cost_ceiling_usd": spec.max_cost_usd,
-            "sandbox_ids": [item.sandbox_id for item in results],
+            "sandbox_ids": [item.sandbox_id for group in runs for item in group],
         }
         return queue.finish(job_id, lease, status="completed", result=finding)
     except RunRejected as exc:

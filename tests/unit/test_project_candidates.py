@@ -3,7 +3,7 @@
 import pytest
 
 from app.domain.contract import InputField, InputSchema
-from app.domain.project_candidates import candidate_inputs
+from app.domain.project_candidates import candidate_inputs, feedback_candidates
 from app.domain.validator import validate_input
 from tests.integration.test_project_profiles import _draft
 
@@ -54,3 +54,19 @@ def test_invalid_sample_and_undeclared_fields_never_generate_candidates():
     with pytest.raises(ValueError, match="undeclared"):
         candidate_inputs(draft.contract, {"x": 0.5, "secret": 1},
                          strategy="sweep", budget=4)
+
+
+def test_feedback_inputs_are_reproducible_unique_and_contract_checked():
+    draft = _draft()
+    measured = [({"x": 0.5}, 0.49, 0.51), ({"x": 0.0}, 0.1, 0.2)]
+    first = feedback_candidates(draft.contract, draft.sample_input, measured,
+                                budget=4, seed=13)
+    assert first == feedback_candidates(draft.contract, draft.sample_input, measured,
+                                        budget=4, seed=13)
+    assert 0 < len(first) <= 4
+    assert len({item["x"] for item in first}) == len(first)
+    assert all(item not in [row[0] for row in measured] for item in first)
+    assert all(validate_input(draft.contract, item).valid for item in first)
+    with pytest.raises(ValueError, match="finite measurements"):
+        feedback_candidates(draft.contract, draft.sample_input,
+                            [({"x": 0.5}, float("nan"), 0.5)], budget=2)

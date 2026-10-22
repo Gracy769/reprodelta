@@ -45,10 +45,16 @@ it on both the API and the separate worker service.
   one-sample result. A single sample is not a general regression verdict.
 - `project_candidates.candidate_inputs` can prepare up to 32 unique, contract-
   checked numeric scalar or one-dimensional array inputs by sweep or seeded
-  random search. The E2B adapter can execute a bounded batch in one offline
-  sandbox per environment, verifying the template before uploading source and
-  destroying it on exit. The run plan offers one sample (default) or a bounded
-  search of up to 8, 16, or 32 contract-valid inputs. The approved strategy,
+  random search. Opt-in measured-boundary search executes an initial sweep of
+  half the approved budget, checks its within-environment repeats, then uses
+  measured distance to the declared threshold to interpolate more valid inputs.
+  Unstable first-phase repeats stop feedback and leave the result inconclusive.
+  This is a local heuristic, not a claim that it beats random search. The E2B
+  adapter executes each phase in one offline sandbox per environment, verifying
+  the template before uploading source and destroying it on exit. An adaptive
+  run can therefore use four sandboxes; each is recorded in the cost ledger.
+  The run plan offers one sample (default) or a bounded search of up to 8, 16,
+  or 32 contract-valid inputs. The approved strategy,
   seed, and budget enter the immutable job spec; both environments execute the
   same ordered inputs twice per environment. The worker checks returned input
   hashes for both search and one-sample runs, reported environment versions,

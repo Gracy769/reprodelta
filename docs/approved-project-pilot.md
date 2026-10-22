@@ -56,8 +56,10 @@ it on both the API and the separate worker service.
   the approved cost ceiling. Results list each measured decision and show the
   first repeatable changed decision as a witness. An exhausted, repeatable
   search says no violation was found within the tested scope. Conflicting
-  repeats are inconclusive. The default one-sample run does not perform repeat
-  controls; mechanism and repair remain untested for approved project runs.
+  repeats are inconclusive. The default one-sample run also performs two
+  executions per environment before claiming a changed conclusion; historical
+  one-sample reports from before this change retain their original untested
+  repeatability label. Mechanism and repair remain untested for approved runs.
 - Recent approved-project runs have owner-only saved links. Opening one checks
   the current PR/MR base and head against the immutable recorded revision and
   warns if the source moved; the saved evidence remains tied to its original

@@ -10,7 +10,7 @@ import pytest
 from app.domain.contract import FIXTURE_CONTRACT, OutputSelector
 from app.domain.project_run import ProjectRunSpec
 from app.orchestrator import project_worker
-from app.providers.e2b_runner import EnvironmentBatchResult, EnvironmentResult
+from app.providers.e2b_runner import EnvironmentBatchResult
 
 
 def _job(candidate_budget=1):
@@ -62,12 +62,12 @@ def test_disabled_worker_never_fetches_source_or_executes(monkeypatch):
         raise AssertionError("Source or sandbox was accessed with execution disabled")
 
     assert project_worker.run_claimed_job(
-        _job(), queue, None, execute=forbidden, fetch_source=forbidden
+        _job(), queue, None, execute_batch=forbidden, fetch_source=forbidden
     )
     assert queue.final == ("failed", None, "execution_disabled")
 
 
-@pytest.mark.parametrize("tamper", [None, "input", "version"])
+@pytest.mark.parametrize("tamper", [None, "input", "version", "unstable"])
 def test_approved_sample_records_observations_not_a_general_verdict(
     monkeypatch, tamper,
 ):
@@ -102,7 +102,7 @@ def test_approved_sample_records_observations_not_a_general_verdict(
 
     versions = {"1.26.4": 0.4, "2.0.2": 0.6}
 
-    def execute(**kwargs):
+    def execute_batch(**kwargs):
         assert kwargs["should_abort"]() is False
         assert 1 <= kwargs["timeout_seconds"] <= 900
         assert kwargs["expected_lock_sha256"] == (
@@ -110,22 +110,30 @@ def test_approved_sample_records_observations_not_a_general_verdict(
             else spec.new_environment_lock_sha256
         )
         version = kwargs["expected_numpy"]
-        return EnvironmentResult(
+        inputs = kwargs["inputs_json"]
+        assert inputs == [draft.sample_input, draft.sample_input]
+        ratios = [versions[version], versions[version]]
+        if tamper == "unstable" and version == "2.0.2":
+            ratios[1] = 0.4
+        hashes = [hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()
+                  for value in inputs]
+        if tamper == "input" and version == "2.0.2":
+            hashes[1] = "f" * 64
+        return EnvironmentBatchResult(
             version="0.0.0" if tamper == "version" and version == "2.0.2" else version,
             sandbox_id=version.replace(".", ""), duration_seconds=1,
             source_sha256=spec.source_sha256,
-            input_sha256=("f" * 64 if tamper == "input" and version == "2.0.2"
-                          else hashlib.sha256(json.dumps(kwargs["input_json"],
-                              sort_keys=True).encode()).hexdigest()),
-            output={"result": {"ratio": versions[version]}}, stderr="",
+            input_sha256=hashes,
+            outputs=[{"result": {"ratio": ratio}} for ratio in ratios],
+            stderrs=["", ""],
         )
 
     assert project_worker.run_claimed_job(
-        job, queue, None, execute=execute, fetch_source=source,
+        job, queue, None, execute_batch=execute_batch, fetch_source=source,
         store_snapshot=lambda owner, files, digest: files,
     )
     status, result, error = queue.final
-    if tamper:
+    if tamper in {"input", "version"}:
         assert (status, result, error) == (
             "failed", None,
             "environment_result_mismatch" if tamper == "version" else "candidate_result_mismatch",
@@ -133,7 +141,9 @@ def test_approved_sample_records_observations_not_a_general_verdict(
         assert queue.usage == [(1, 0.0001, False), (1, 0.0001, False)]
         return
     assert (status, error) == ("completed", None)
-    assert result["changed_conclusion"] is True
+    assert result["changed_conclusion"] is (tamper is None)
+    assert result["repeatable"] is (tamper is None)
+    assert result["inconclusive"] is (tamper == "unstable")
     assert result["scope"] == "one approved sample input at one dependency-only PR revision"
     assert result["sandbox_seconds"] == 2
     assert queue.usage == [(1, 0.0001, False), (1, 0.0001, False)]
@@ -150,7 +160,7 @@ def test_owner_cancellation_prevents_any_sandbox(monkeypatch):
         raise AssertionError("Cancelled job accessed the source or sandbox")
 
     assert project_worker.run_claimed_job(
-        _job(), queue, None, execute=forbidden, fetch_source=forbidden
+        _job(), queue, None, execute_batch=forbidden, fetch_source=forbidden
     )
     assert queue.final == ("cancelled", None, None)
 

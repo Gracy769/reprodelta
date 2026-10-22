@@ -285,7 +285,6 @@ def run_claimed_job(
     queue: ProjectRunQueue,
     profiles: ProjectProfileStore,
     *,
-    execute=execute_environment,
     execute_batch=execute_environment_batch,
     fetch_source=_fetch_verified_source,
     store_snapshot=_stored_snapshot,
@@ -365,23 +364,18 @@ def run_claimed_job(
                 should_abort=cancelled,
                 timeout_seconds=remaining,
             )
-            observed = (
-                _run_metered(queue, job_id, lease, spec.sandbox_usd_per_second,
-                             execute_batch, inputs_json=execution_inputs, **runner_args)
-                if spec.candidate_budget > 1
-                else _run_metered(queue, job_id, lease, spec.sandbox_usd_per_second,
-                                  execute, input_json=candidates[0], **runner_args)
+            observed = _run_metered(
+                queue, job_id, lease, spec.sandbox_usd_per_second,
+                execute_batch, inputs_json=execution_inputs, **runner_args,
             )
             if observed.source_sha256 != spec.source_sha256:
                 raise RunRejected("snapshot_changed")
             if observed.version != environment.numpy_version:
                 raise RunRejected("environment_result_mismatch")
-            if spec.candidate_budget > 1 and (
+            if (
                 observed.input_sha256 != execution_hashes
                 or len(observed.outputs) != len(execution_inputs)
             ):
-                raise RunRejected("candidate_result_mismatch")
-            if spec.candidate_budget == 1 and observed.input_sha256 != expected_inputs[0]:
                 raise RunRejected("candidate_result_mismatch")
             results.append(observed)
             if sum(item.duration_seconds for item in results) > spec.max_sandbox_seconds:
@@ -449,17 +443,32 @@ def run_claimed_job(
                 "sandbox_ids": [item.sandbox_id for item in results],
             }
             return queue.finish(job_id, lease, status="completed", result=finding)
-        old, new = [evaluate_output(item.output, draft.contract) for item in results]
+        old = evaluate_output(results[0].outputs[0], draft.contract)
+        old_repeat = evaluate_output(results[0].outputs[1], draft.contract)
+        new = evaluate_output(results[1].outputs[0], draft.contract)
+        new_repeat = evaluate_output(results[1].outputs[1], draft.contract)
+        repeatable = all((
+            old["conclusion"] == old_repeat["conclusion"],
+            new["conclusion"] == new_repeat["conclusion"],
+            numeric_matches(old["ratio"], old_repeat["ratio"], draft.contract),
+            numeric_matches(new["ratio"], new_repeat["ratio"], draft.contract),
+            old["dtype"] == old_repeat["dtype"],
+            new["dtype"] == new_repeat["dtype"],
+        ))
         finding = {
             "kind": "approved_project_sample",
             "scope": "one approved sample input at one dependency-only PR revision",
-            "changed_conclusion": old["conclusion"] != new["conclusion"],
+            "changed_conclusion": repeatable and old["conclusion"] != new["conclusion"],
+            "repeatable": repeatable,
+            "inconclusive": not repeatable,
             "measurement_matches_tolerance": numeric_matches(
                 old["ratio"], new["ratio"], draft.contract
             ),
             "old": old,
             "new": new,
-            "input_sha256": results[0].input_sha256,
+            "old_repeat": old_repeat,
+            "new_repeat": new_repeat,
+            "input_sha256": expected_inputs[0],
             "source_sha256": spec.source_sha256,
             "base_sha": spec.base_sha,
             "head_sha": spec.head_sha,

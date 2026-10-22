@@ -240,6 +240,35 @@ async def get_run(
     return _public_job(job)
 
 
+@router.get("/{job_id}/revision")
+async def get_run_revision(
+    job_id: uuid.UUID,
+    owner_id: Annotated[str, Depends(current_user)],
+    queue: Annotated[ProjectRunQueue, Depends(get_run_queue)],
+):
+    """Check a saved run against the source host without changing its evidence."""
+    job = await asyncio.to_thread(queue.get, owner_id, job_id)
+    if job is None:
+        raise HTTPException(404, "Project run not found")
+    spec = ProjectRunSpec.model_validate(job["spec_json"])
+    source_id = (
+        _github_repository(spec.repository)
+        if spec.provider == "github"
+        else _gitlab_project(spec.repository)
+    )
+    token = await asyncio.to_thread(_saved_token, owner_id, spec.provider)
+    base_sha, head_sha = await change_refs(
+        _host_get, spec.provider, token, source_id, spec.change_number
+    )
+    return {
+        "saved_base_sha": spec.base_sha,
+        "saved_head_sha": spec.head_sha,
+        "current_base_sha": base_sha,
+        "current_head_sha": head_sha,
+        "changed": (base_sha, head_sha) != (spec.base_sha, spec.head_sha),
+    }
+
+
 @router.post("/{job_id}/cancel")
 async def cancel_run(
     job_id: uuid.UUID,

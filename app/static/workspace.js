@@ -258,20 +258,39 @@
       if (!data.runs?.length) { empty(list, "No approved project runs yet."); return; }
       data.runs.forEach((job) => {
         const spec = job.spec_json || {};
-        const button = text("button", `${spec.repository || "Project"} #${spec.change_number || "?"} · ${job.status} · ${(spec.head_sha || "").slice(0, 12)}`, "review-change-item");
+        const cost = Number.isFinite(job.estimated_sandbox_cost_usd)
+          ? ` · ${job.usage_uncertain ? "up to " : "estimated "}$${job.estimated_sandbox_cost_usd.toFixed(6)}` : "";
+        const button = text("button", `${spec.repository || "Project"} #${spec.change_number || "?"} · ${job.status} · ${(spec.head_sha || "").slice(0, 12)}${cost}`, "review-change-item");
         button.type = "button";
-        button.addEventListener("click", () => {
-          const slot = $("saved-project-run"); clear(slot); slot.hidden = false;
-          const card = text("div", "", "approved-plan");
-          card.append(text("h4", `Saved run · ${spec.repository || "project"} #${spec.change_number || "?"}`));
-          const message = text("p", "Loading the saved run…");
-          card.append(message); slot.append(card);
-          slot.scrollIntoView({behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "center"});
-          watchApprovedRun(job.id, message, card).catch((error) => { message.textContent = error.message; });
-        });
-        list.append(button);
+        button.addEventListener("click", () => openSavedProjectRun(job.id));
+        const link = text("a", "Saved link ↗");
+        link.href = `/workspace?project_run=${encodeURIComponent(job.id)}`;
+        const row = text("div", "", "profile-list-item");
+        row.append(button, link); list.append(row);
       });
     } catch (error) { empty(list, `Saved runs unavailable: ${error.message}`); }
+  }
+  async function openSavedProjectRun(jobId) {
+    const slot = $("saved-project-run"); clear(slot); slot.hidden = false;
+    const card = text("div", "", "approved-plan");
+    const title = text("h4", "Saved run");
+    const message = text("p", "Loading the saved run…");
+    card.append(title, message); slot.append(card);
+    slot.scrollIntoView({behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "center"});
+    try {
+      const job = await projectApi(`/project-runs/${encodeURIComponent(jobId)}`);
+      const spec = job.spec_json || {};
+      title.textContent = `Saved run · ${spec.repository || "project"} #${spec.change_number || "?"}`;
+      const revision = text("p", "Checking the current PR revision…");
+      card.append(revision);
+      try {
+        const current = await projectApi(`/project-runs/${encodeURIComponent(jobId)}/revision`);
+        revision.textContent = current.changed
+          ? `The PR moved since this run. This evidence belongs to head ${current.saved_head_sha.slice(0, 12)}; check the new revision before running again.`
+          : `Current PR revision matches this saved run (${current.saved_head_sha.slice(0, 12)}).`;
+      } catch { revision.textContent = "Current PR revision could not be checked. The saved evidence remains pinned to its recorded commits."; }
+      await watchApprovedRun(jobId, message, card);
+    } catch (error) { message.textContent = error.message; }
   }
   async function loadProfiles() {
     const list = $("profile-list");
@@ -432,6 +451,9 @@
               source_transfer_approved: true, idempotency_key: crypto.randomUUID(),
             }) });
             start.hidden = true; consent.disabled = true;
+            const savedLink = text("a", "Open saved run ↗");
+            savedLink.href = `/workspace?project_run=${encodeURIComponent(job.id)}`;
+            card.append(savedLink);
             await watchApprovedRun(job.id, runState, card);
           } catch (error) { runState.textContent = error.message; start.disabled = false; }
         });
@@ -695,6 +717,10 @@
       setupProfileForm();
       await api("/session/investigation", {method: "POST"});
       await loadConnections();
+      const savedRun = new URLSearchParams(window.location.search).get("project_run");
+      if (savedRun && /^[0-9a-f-]{36}$/i.test(savedRun)) {
+        openSavedProjectRun(savedRun).catch((error) => status(error.message));
+      }
     } catch (error) {
       $("workspace-loading").hidden = true;
       if (state.jwt) { $("workspace-content").hidden = false; status(`${error.message} Reload to try again.`); }

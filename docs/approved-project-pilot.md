@@ -56,6 +56,10 @@ it on both the API and the separate worker service.
   search says no violation was found within the tested scope. Conflicting
   repeats are inconclusive. The default one-sample run does not perform repeat
   controls; mechanism and repair remain untested for approved project runs.
+- Recent approved-project runs have owner-only saved links. Opening one checks
+  the current PR/MR base and head against the immutable recorded revision and
+  warns if the source moved; the saved evidence remains tied to its original
+  commits. The run list shows metered sandbox cost or an uncertain upper bound.
 
 ## Release gate before enabling project runs
 

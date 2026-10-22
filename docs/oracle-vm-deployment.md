@@ -63,6 +63,8 @@ Provider configuration must match the new origin:
   `approved-projects` Compose profile before then. Once gated and configured,
   start it with `docker compose --env-file deploy/oracle/.env -f
   deploy/oracle/compose.yaml --profile approved-projects up -d project-worker`.
+  The API checks the worker's recent Postgres heartbeat before accepting new
+  project jobs; `/ready` reports it only after an E2B feature flag is enabled.
 
 The curated workers receive no provider or database credentials, have no
 public ports, and use an internal Docker network. The E2B worker receives

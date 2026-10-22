@@ -581,16 +581,39 @@ def main() -> None:
     queue = ProjectRunQueue(settings.database_url)
     profiles = ProjectProfileStore(settings.database_url)
     janitor = SnapshotJanitor(ProjectSnapshotStore(settings.database_url, settings.project_snapshot_key))
-    while True:
-        janitor.sweep_due()
-        job = queue.claim(allowed_kinds=allowed_kinds)
-        if job is None:
-            time.sleep(5)
-            continue
-        if job["job_kind"] == "profile_validation":
-            run_validation_job(job, queue, profiles)
-        else:
-            run_claimed_job(job, queue, profiles)
+    worker_id = uuid.uuid4()
+    kinds = tuple(allowed_kinds)
+    presence_stop = threading.Event()
+
+    def publish_presence() -> None:
+        while not presence_stop.is_set():
+            try:
+                queue.worker_heartbeat(worker_id, kinds)
+            except Exception:
+                log.warning("Project worker heartbeat failed")
+            presence_stop.wait(15)
+
+    queue.worker_heartbeat(worker_id, kinds)
+    presence = threading.Thread(target=publish_presence, daemon=True)
+    presence.start()
+    try:
+        while True:
+            janitor.sweep_due()
+            job = queue.claim(allowed_kinds=kinds)
+            if job is None:
+                time.sleep(5)
+                continue
+            if job["job_kind"] == "profile_validation":
+                run_validation_job(job, queue, profiles)
+            else:
+                run_claimed_job(job, queue, profiles)
+    finally:
+        presence_stop.set()
+        presence.join(timeout=2)
+        try:
+            queue.remove_worker(worker_id)
+        except Exception:
+            log.warning("Project worker presence cleanup failed")
 
 
 if __name__ == "__main__":

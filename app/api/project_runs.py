@@ -8,6 +8,7 @@ import uuid
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Response
+from psycopg import Error as PostgresError
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.connections import (
@@ -181,6 +182,7 @@ async def run_plan(
     change_number: int,
     owner_id: Annotated[str, Depends(current_user)],
     profiles: Annotated[ProjectProfileStore, Depends(get_profile_store)],
+    queue: Annotated[ProjectRunQueue, Depends(get_run_queue)],
     candidate_strategy: Literal["sweep", "seeded_random", "adaptive"] = "sweep",
     candidate_budget: int = 1,
     candidate_seed: int = 0,
@@ -194,6 +196,17 @@ async def run_plan(
         candidate_strategy=candidate_strategy, candidate_budget=candidate_budget,
         candidate_seed=candidate_seed,
     )
+    plan["feature_enabled"] = plan["execution_enabled"]
+    if plan["execution_enabled"]:
+        try:
+            plan["worker_available"] = await asyncio.to_thread(
+                queue.has_live_worker, "investigation"
+            )
+        except PostgresError:
+            plan["worker_available"] = False
+        plan["execution_enabled"] = plan["worker_available"]
+    else:
+        plan["worker_available"] = False
     return plan
 
 
@@ -206,6 +219,12 @@ async def start_run(
 ):
     if not get_settings().e2b_project_runs_enabled:
         raise HTTPException(503, "Approved-project execution is not enabled")
+    try:
+        worker_available = await asyncio.to_thread(queue.has_live_worker, "investigation")
+    except PostgresError as exc:
+        raise HTTPException(503, "Investigation worker status is unavailable") from exc
+    if not worker_available:
+        raise HTTPException(503, "Investigation worker is unavailable; try again later")
     if not body.source_transfer_approved:
         raise HTTPException(422, "Approve source transfer to E2B before starting")
     plan, spec = await _plan(

@@ -535,7 +535,11 @@
           .forEach(([name, value]) => fields.append(text("dt", name), text("dd", value)));
         card.append(fields, text("p", plan.source_transfer_notice));
         if (!plan.rate_configured || !plan.execution_enabled) {
-          card.append(text("p", "Project execution is not enabled yet. The diff review above is still available.", "review-run-unavailable"));
+          const reason = !plan.feature_enabled ? "Project execution is not enabled yet."
+            : !plan.rate_configured ? "A verified sandbox cost limit is not configured yet."
+            : !plan.worker_available ? "The investigation worker is offline. Try again when it is available."
+            : "Project execution is unavailable.";
+          card.append(text("p", `${reason} The diff review above is still available.`, "review-run-unavailable"));
           details.append(card); return;
         }
         const form = document.createElement("form");

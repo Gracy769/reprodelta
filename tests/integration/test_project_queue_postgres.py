@@ -224,6 +224,24 @@ def test_postgres_snapshots_are_encrypted_owner_scoped_and_expire(local_queue):
     assert store.purge_expired() == 1
 
 
+def test_worker_presence_is_kind_scoped_and_expires(local_queue):
+    queue, dsn = local_queue
+    worker_id = uuid.uuid4()
+    assert not queue.has_live_worker("investigation")
+    queue.worker_heartbeat(worker_id, ("profile_validation",))
+    assert queue.has_live_worker("profile_validation")
+    assert not queue.has_live_worker("investigation")
+    with psycopg.connect(dsn) as conn:
+        conn.execute("""UPDATE project_run_workers
+            SET last_seen=now()-interval '46 seconds' WHERE worker_id=%s""", (worker_id,))
+    assert not queue.has_live_worker("profile_validation")
+    queue.worker_heartbeat(worker_id, ("investigation",))
+    assert queue.has_live_worker("investigation")
+    assert not queue.has_live_worker("profile_validation")
+    queue.remove_worker(worker_id)
+    assert not queue.has_live_worker("investigation")
+
+
 def test_postgres_operator_queue_tracks_only_pending_versions(local_queue):
     _, dsn = local_queue
     store = ProjectProfileStore(dsn)

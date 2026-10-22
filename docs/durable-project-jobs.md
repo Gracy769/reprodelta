@@ -13,6 +13,15 @@ and cancellation endpoints exist, but no Railway worker service is deployed.
 `E2B_PROJECT_RUNS_ENABLED` remains `false`. The curated investigation runner
 and its report URLs are unchanged.
 
+The worker publishes its accepted job kinds to Postgres every 15 seconds.
+Admission and the browser plan require a matching heartbeat seen within 45
+seconds; `/ready` includes that check only when the corresponding feature flag
+is enabled. A missing worker returns 503 before a new run or validation is
+queued. Presence is a liveness signal, not proof that a future sandbox call
+will succeed; a worker crash just after admission still leaves a queued job
+until another worker is available. Clean shutdown removes its registration,
+and old registrations expire without being mistaken for live workers.
+
 Operator-requested profile validation now uses the same leased table with a
 separate `profile_validation` kind and an immutable profile/source/template
 manifest. Validation is disabled by default through

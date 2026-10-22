@@ -25,6 +25,11 @@ def _spec():
 class Queue:
     def __init__(self):
         self.submissions = []
+        self.worker_available = True
+
+    def has_live_worker(self, kind):
+        assert kind == "investigation"
+        return self.worker_available
 
     def submit(self, owner, key, spec):
         self.submissions.append((owner, key, spec))
@@ -73,6 +78,10 @@ def test_start_requires_exact_approval_and_hides_worker_capability(monkeypatch):
     try:
         client = TestClient(app)
         body = _body(spec)
+        queue.worker_available = False
+        assert client.post("/api/project-runs", json=body).status_code == 503
+        assert queue.submissions == []
+        queue.worker_available = True
         assert client.post("/api/project-runs", json={**body,
                "source_transfer_approved": False}).status_code == 422
         assert client.post("/api/project-runs", json={**body,
@@ -90,6 +99,29 @@ def test_start_requires_exact_approval_and_hides_worker_capability(monkeypatch):
         submitted = queue.submissions[0][2]
         assert (submitted.candidate_budget, submitted.candidate_strategy,
                 submitted.candidate_seed) == (8, "seeded_random", 17)
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_plan_hides_start_when_worker_is_offline(monkeypatch):
+    queue = Queue()
+    queue.worker_available = False
+    app.dependency_overrides[current_user] = lambda: "github:owner"
+    app.dependency_overrides[project_runs.get_profile_store] = lambda: object()
+    app.dependency_overrides[project_runs.get_run_queue] = lambda: queue
+
+    async def planned(*_args, **_kwargs):
+        return {"execution_enabled": True, "rate_configured": True}, None
+
+    monkeypatch.setattr(project_runs, "_plan", planned)
+    try:
+        response = TestClient(app).get(
+            f"/api/project-runs/profiles/{uuid.uuid4()}/changes/4/plan"
+        )
+        assert response.status_code == 200
+        assert response.json()["feature_enabled"] is True
+        assert response.json()["worker_available"] is False
+        assert response.json()["execution_enabled"] is False
     finally:
         app.dependency_overrides.clear()
 

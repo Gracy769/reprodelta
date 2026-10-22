@@ -30,6 +30,11 @@ class Queue:
     def __init__(self):
         self.submitted = None
         self.job = None
+        self.worker_available = True
+
+    def has_live_worker(self, kind):
+        assert kind == "profile_validation"
+        return self.worker_available
 
     def submit_validation(self, owner, key, spec):
         self.submitted = (owner, key, spec)
@@ -82,6 +87,10 @@ def test_validation_requires_operator_and_feature_gate(monkeypatch):
         url = f"/api/project-profiles/{profiles.row['id']}/validations"
         assert client.post(url, json=_body()).status_code == 403
         app.dependency_overrides[current_user] = lambda: "github:approver"
+        queue.worker_available = False
+        assert client.post(url, json=_body()).status_code == 503
+        assert queue.submitted is None
+        queue.worker_available = True
         response = client.post(url, json=_body())
         assert response.status_code == 202
         assert response.json()["status"] == "queued"

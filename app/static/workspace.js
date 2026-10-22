@@ -354,9 +354,10 @@
     const form = text("form", "", "profile-form");
     const source = operatorField(form, "Reviewed source commit SHA", "source_sha", "40-character commit SHA");
     source.pattern = "[0-9a-f]{40,64}";
-    const oldTemplate = operatorField(form, "NumPy 1.26.4 template ID", "old_template", "Prepared E2B template ID");
+    const oracleRunner = document.getElementById("workspace-root")?.dataset.sandboxProvider === "oracle_docker";
+    const oldTemplate = operatorField(form, "NumPy 1.26.4 template ID", "old_template", oracleRunner ? "oracle-numpy-1264" : "Prepared E2B template ID");
     const oldLock = operatorField(form, "NumPy 1.26.4 lock SHA-256", "old_lock", "64-character lock digest");
-    const newTemplate = operatorField(form, "NumPy 2.0.2 template ID", "new_template", "Prepared E2B template ID");
+    const newTemplate = operatorField(form, "NumPy 2.0.2 template ID", "new_template", oracleRunner ? "oracle-numpy-202" : "Prepared E2B template ID");
     const newLock = operatorField(form, "NumPy 2.0.2 lock SHA-256", "new_lock", "64-character lock digest");
     for (const input of [oldLock, newLock]) input.pattern = "[0-9a-f]{64}";
     const submit = text("button", "Start bounded sample validation ↗", "review-button review-button-primary");
@@ -439,6 +440,7 @@
           adapter_module: values.adapter_module.trim(), adapter_function: values.adapter_function.trim(),
           dependency_path: values.dependency_path.trim(), sample_input: {[values.input_name.trim()]: sample},
           source_transfer_consent: values.source_transfer_consent === "on",
+          sandbox_provider: document.getElementById("workspace-root")?.dataset.sandboxProvider || "e2b",
           contract: {
             schema_version: "1", input_schema: {fields: [{name: values.input_name.trim(), dtype: values.input_dtype,
               shape: Array.isArray(sample) ? [sample.length] : [], min_value: minimum, max_value: maximum,

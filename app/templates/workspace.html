@@ -2,7 +2,7 @@
 {% block title %}Review a change — ReproDelta{% endblock %}
 {% block extra_head %}<link rel="stylesheet" href="{{ asset_url('workspace.css') }}">{% endblock %}
 {% block content %}
-<div class="review-page" id="workspace-root" data-auth-base="{{ auth_base_url or '' }}">
+<div class="review-page" id="workspace-root" data-auth-base="{{ auth_base_url or '' }}" data-sandbox-provider="{{ sandbox_provider or 'e2b' }}">
   <header class="review-header"><span class="review-kicker">YOUR WORKSPACE / INVESTIGATIONS</span><h1>One change.<br><em>A clearer next step.</em></h1><p>Paste a pull request or merge request, or pick one from your connected projects. We inspect the changed files first, then offer a paired run when the supported contract matches.</p></header>
   <div id="workspace-alert" class="review-alert" role="status" aria-live="polite" hidden></div>
   <p id="workspace-loading" class="review-loading" role="status">Checking your session…</p>
@@ -31,7 +31,7 @@
       <label>Numeric output field <input name="output_name" required value="ratio" placeholder="ratio"></label>
       <label>Decision rule <select name="operator"><option value="gt">Greater than</option><option value="gte">Greater than or equal</option><option value="lt">Less than</option><option value="lte">Less than or equal</option></select></label>
       <label>Threshold <input name="threshold" required type="number" step="any" value="0.5"></label>
-      <label class="profile-consent"><input name="source_transfer_consent" type="checkbox" required> I authorize transferring the selected source snapshot to E2B after operator approval. Private source is handled under E2B's published security terms; I will confirm retention and deletion details before approval.</label>
+      <label class="profile-consent"><input name="source_transfer_consent" type="checkbox" required> {% if sandbox_provider == 'oracle_docker' %}I authorize executing the selected source snapshot in an offline Docker container on the operator's Oracle VM after approval. Docker containers share the VM kernel.{% else %}I authorize transferring the selected source snapshot to E2B after operator approval. Private source is handled under E2B's published security terms; I will confirm retention and deletion details before approval.{% endif %}</label>
       <button class="review-button review-button-primary" type="submit">Save project draft ↗</button><p id="profile-form-status" role="status"></p>
     </form><div id="profile-list" class="review-change-list" aria-live="polite"></div></div></details>
     <details id="operator-profiles" class="review-browser" hidden><summary>Project approvals <span aria-hidden="true">+</span></summary><div class="review-browser-body"><p>Drafts awaiting operator review. Inspect the adapter, sample, contract and source-transfer consent before preparing environments or running validation.</p><div id="operator-profile-list" class="review-change-list" aria-live="polite"></div></div></details>

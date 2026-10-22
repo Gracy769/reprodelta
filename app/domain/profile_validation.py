@@ -23,6 +23,7 @@ class ProfileValidationSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     profile_id: uuid.UUID
+    sandbox_provider: Literal["e2b", "oracle_docker"] = "e2b"
     provider: Literal["github", "gitlab"]
     repository: str = Field(min_length=3, max_length=255)
     source_sha: str = Field(pattern=r"^[0-9a-f]{40,64}$")

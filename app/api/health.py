@@ -38,14 +38,16 @@ async def ready():
         checks["storage"] = "ok"
     except Exception:  # noqa: BLE001
         checks["storage"] = "unavailable"
-    if settings.e2b_project_runs_enabled or settings.e2b_profile_validation_enabled:
+    if settings.project_runs_enabled or settings.profile_validation_enabled:
         from app.storage.project_run_queue import ProjectRunQueue
 
         try:
             queue = ProjectRunQueue(settings.database_url)
             for kind, enabled in (
-                ("investigation", settings.e2b_project_runs_enabled),
-                ("profile_validation", settings.e2b_profile_validation_enabled),
+                (queue.capability("investigation", settings.project_sandbox_provider),
+                 settings.project_runs_enabled),
+                (queue.capability("profile_validation", settings.project_sandbox_provider),
+                 settings.profile_validation_enabled),
             ):
                 if enabled:
                     checks[f"project_worker_{kind}"] = (

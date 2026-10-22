@@ -31,6 +31,7 @@ class ProjectProfileDraft(BaseModel):
     sample_input: dict
     contract: ContractBody
     source_transfer_consent: bool = False
+    sandbox_provider: Literal["e2b", "oracle_docker"] = "e2b"
 
     @model_validator(mode="after")
     def validate_profile(self):
@@ -96,6 +97,10 @@ class ProjectProfileDraft(BaseModel):
     @property
     def digest(self) -> str:
         body = self.model_dump(mode="json")
+        # Historical E2B profiles predate this field. Preserve their approved
+        # digest; Oracle consent is bound to a distinct new profile version.
+        if self.sandbox_provider == "e2b":
+            body.pop("sandbox_provider")
         return hashlib.sha256(
             json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()

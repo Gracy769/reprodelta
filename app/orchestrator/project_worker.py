@@ -31,6 +31,7 @@ from app.domain.project_candidates import candidate_inputs, feedback_candidates
 from app.domain.project_eligibility import check_eligibility
 from app.domain.project_profile import ProfileApproval, ProjectProfileDraft
 from app.domain.project_run import ProjectRunSpec
+from app.providers import oracle_docker_runner
 from app.providers.e2b_runner import (
     EnvironmentBatchResult,
     ProjectAdapter,
@@ -45,6 +46,16 @@ log = logging.getLogger(__name__)
 
 SNAPSHOT_PURGE_INTERVAL_SECONDS = 60 * 60
 SNAPSHOT_PURGE_RETRY_SECONDS = 60
+
+
+def _provider(settings) -> str:
+    return getattr(settings, "project_sandbox_provider", "e2b")
+
+
+def _enabled(settings, kind: str) -> bool:
+    if _provider(settings) == "oracle_docker":
+        return bool(getattr(settings, f"oracle_{kind}_enabled", False))
+    return bool(getattr(settings, f"e2b_{kind}_enabled", False))
 
 
 class RunRejected(Exception):
@@ -115,7 +126,8 @@ def _approved_inputs(spec: ProjectRunSpec, owner_id: str, store: ProjectProfileS
     ):
         raise RunRejected("profile_changed")
     draft = ProjectProfileDraft.model_validate(profile["draft_json"])
-    if draft.digest != spec.profile_digest or not draft.source_transfer_consent:
+    if (draft.digest != spec.profile_digest or not draft.source_transfer_consent
+            or draft.sandbox_provider != spec.sandbox_provider):
         raise RunRejected("profile_changed")
     approval = ProfileApproval.model_validate(profile["approval_json"])
     if (
@@ -209,8 +221,11 @@ def run_validation_job(
         def cancelled() -> bool:
             return abort.is_set() or queue.cancellation_requested(job_id, lease)
 
-        if not get_settings().e2b_profile_validation_enabled:
+        settings = get_settings()
+        if not _enabled(settings, "profile_validation"):
             raise RunRejected("validation_disabled")
+        if spec.sandbox_provider != _provider(settings):
+            raise RunRejected("sandbox_provider_changed")
         if cancelled():
             raise RunRejected("cancelled")
         profile = profiles.get(job["owner_id"], spec.profile_id)
@@ -225,6 +240,7 @@ def run_validation_job(
             or draft.provider != spec.provider
             or draft.repository != spec.repository
             or not draft.source_transfer_consent
+            or draft.sandbox_provider != spec.sandbox_provider
         ):
             raise RunRejected("profile_changed")
         files, source_digest = asyncio.run(fetch_source(spec, job["owner_id"]))
@@ -343,8 +359,11 @@ def run_claimed_job(
         def cancelled() -> bool:
             return abort.is_set() or queue.cancellation_requested(job_id, lease)
 
-        if not get_settings().e2b_project_runs_enabled:
+        settings = get_settings()
+        if not _enabled(settings, "project_runs"):
             raise RunRejected("execution_disabled")
+        if spec.sandbox_provider != _provider(settings):
+            raise RunRejected("sandbox_provider_changed")
         if spec.sandbox_usd_per_second <= 0 or spec.max_cost_usd <= 0:
             raise RunRejected("cost_unconfigured")
         if cancelled():
@@ -574,14 +593,19 @@ def main() -> None:
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
     settings = get_settings()
     allowed_kinds = []
-    if settings.e2b_project_runs_enabled:
+    if _enabled(settings, "project_runs"):
         allowed_kinds.append("investigation")
-    if settings.e2b_profile_validation_enabled:
+    if _enabled(settings, "profile_validation"):
         allowed_kinds.append("profile_validation")
     if not allowed_kinds:
         raise SystemExit("Project execution and validation are disabled")
-    if not os.environ.get("E2B_API_KEY"):
+    if _provider(settings) == "e2b" and not os.environ.get("E2B_API_KEY"):
         raise SystemExit("E2B_API_KEY is required for the project worker")
+    if _provider(settings) == "oracle_docker":
+        for image_var in ("ORACLE_OLD_IMAGE_ID", "ORACLE_NEW_IMAGE_ID"):
+            if not os.environ.get(image_var):
+                raise SystemExit(f"{image_var} is required for the Oracle project worker")
+        oracle_docker_runner.preflight()
     if not settings.project_snapshot_key:
         raise SystemExit("PROJECT_SNAPSHOT_KEY is required for the project worker")
     queue = ProjectRunQueue(settings.database_url)
@@ -589,30 +613,40 @@ def main() -> None:
     janitor = SnapshotJanitor(ProjectSnapshotStore(settings.database_url, settings.project_snapshot_key))
     worker_id = uuid.uuid4()
     kinds = tuple(allowed_kinds)
+    presence_kinds = tuple(queue.capability(kind, _provider(settings)) for kind in kinds)
     presence_stop = threading.Event()
 
     def publish_presence() -> None:
         while not presence_stop.is_set():
             try:
-                queue.worker_heartbeat(worker_id, kinds)
+                queue.worker_heartbeat(worker_id, presence_kinds)
             except Exception:
                 log.warning("Project worker heartbeat failed")
             presence_stop.wait(15)
 
-    queue.worker_heartbeat(worker_id, kinds)
+    queue.worker_heartbeat(worker_id, presence_kinds)
     presence = threading.Thread(target=publish_presence, daemon=True)
     presence.start()
     try:
         while True:
             janitor.sweep_due()
-            job = queue.claim(allowed_kinds=kinds)
+            job = queue.claim(allowed_kinds=kinds, provider=_provider(settings))
             if job is None:
                 time.sleep(5)
                 continue
             if job["job_kind"] == "profile_validation":
-                run_validation_job(job, queue, profiles)
+                run_validation_job(
+                    job, queue, profiles,
+                    execute=(oracle_docker_runner.execute_environment
+                             if _provider(settings) == "oracle_docker" else execute_environment),
+                )
             else:
-                run_claimed_job(job, queue, profiles)
+                run_claimed_job(
+                    job, queue, profiles,
+                    execute_batch=(oracle_docker_runner.execute_environment_batch
+                                   if _provider(settings) == "oracle_docker"
+                                   else execute_environment_batch),
+                )
     finally:
         presence_stop.set()
         presence.join(timeout=2)

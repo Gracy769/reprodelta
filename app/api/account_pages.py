@@ -22,6 +22,7 @@ def _context() -> dict[str, object]:
         "auth_base_url": settings.neon_auth_base_url,
         "firebase_config": firebase_config,
         "gitlab_oauth_enabled": bool(settings.gitlab_oauth_client_id and settings.gitlab_oauth_client_secret),
+        "sandbox_provider": getattr(settings, "project_sandbox_provider", "e2b"),
     }
 
 

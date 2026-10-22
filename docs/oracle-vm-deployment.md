@@ -10,6 +10,57 @@ tested on an Oracle VM. The existing Railway deployment remains in place until
 data migration and live checks are complete. Oracle's Always Free capacity is
 limited and can be unavailable in a home region.
 
+## Optional local project container runner
+
+The Oracle Docker runner is a separate plugin selected with
+`PROJECT_SANDBOX_PROVIDER=oracle_docker`. It uses the same immutable profiles,
+Postgres queue, contract checks, and witness reporting as the E2B runner. It
+does **not** require an E2B key. It remains disabled by default. Docker
+containers share the VM kernel, so this backend is limited to operator-reviewed
+repositories; it is not a public arbitrary-code service.
+[Docker documents](https://docs.docker.com/engine/security/) the container security boundary,
+and [Docker warns](https://docs.docker.com/engine/install/linux-postinstall/)
+that Docker socket access gives root-level host privileges. The worker holding
+that socket must be treated as a host administrator, kept private, and never
+exposed through a public port. The API and source containers receive no socket.
+
+Once the VM exists, build the two reviewed images with
+`sh deploy/oracle/build_project_images.sh`. Record the printed `sha256:` image
+IDs in `ORACLE_OLD_IMAGE_ID` and `ORACLE_NEW_IMAGE_ID`. These IDs, rather than
+mutable tags, are verified before every source transfer. In an approved
+profile use template IDs `oracle-numpy-1264` and `oracle-numpy-202` with the
+fixed lock digests from [the pilot template proof](pilot-e2b-template-proof.md).
+The image build installs packages before any repository source is transferred.
+Each runtime container uses `--network none`, a read-only root filesystem,
+an in-memory workspace, a non-root adapter process, dropped capabilities,
+process/memory/CPU limits, and a 15-minute maximum. The worker removes the
+container after success or failure. The actual host isolation and cleanup
+must be tested on the VM; the Windows development host has no Docker.
+At startup, the single Oracle worker removes containers bearing its project
+sandbox label that a previous worker process left behind. Do not run multiple
+Oracle project workers against the same Docker daemon.
+
+Set `DOCKER_GID` to `stat -c %g /var/run/docker.sock` on the VM so the
+non-root worker can use the socket. Set `PROJECT_SANDBOX_PROVIDER=oracle_docker`
+on the API through `.env`; keep `ORACLE_PROJECT_RUNS_ENABLED=false` and
+`ORACLE_PROFILE_VALIDATION_ENABLED=false` until isolation, malicious-source,
+cost allocation, restart, and cleanup tests pass. The `ORACLE_SANDBOX_USD_PER_SECOND`
+and `ORACLE_PROJECT_RUN_COST_CEILING_USD` settings are an operator-defined
+resource accounting limit, not an Oracle charge quote; leave both at zero
+until a defensible allocation is chosen. Start the worker only after these
+values and image IDs are configured:
+
+```sh
+docker compose --env-file deploy/oracle/.env -f deploy/oracle/compose.yaml \
+  --profile oracle-projects up --build -d project-worker-oracle
+```
+
+Only one project backend should be enabled at a time. Queue claims and worker
+presence are provider-specific, so an E2B worker cannot consume an Oracle job.
+Existing E2B approvals use different template IDs and need a new approved
+profile version and new location-specific owner consent for Oracle; historical runs remain readable. Browser consent
+and the run plan identify which execution location is selected.
+
 ## Prepare the VM
 
 1. Create an Oracle Ampere A1 (Arm64) VM with an Always Free-eligible shape and

@@ -87,6 +87,7 @@ async def investigation_new(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(request, "workspace.html", {
         "auth_base_url": settings.neon_auth_base_url,
         "gitlab_oauth_enabled": bool(settings.gitlab_oauth_client_id and settings.gitlab_oauth_client_secret),
+        "sandbox_provider": getattr(settings, "project_sandbox_provider", "e2b"),
         "new_investigation": True,
     })
 

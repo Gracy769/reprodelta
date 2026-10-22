@@ -8,6 +8,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
+from psycopg import Error as PostgresError
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.connections import (
@@ -166,6 +167,12 @@ async def request_validation(
         raise HTTPException(403, "Only a configured project approver may validate execution")
     if not settings.e2b_profile_validation_enabled:
         raise HTTPException(503, "Approved-project sample validation is not enabled")
+    try:
+        worker_available = await asyncio.to_thread(queue.has_live_worker, "profile_validation")
+    except PostgresError as exc:
+        raise HTTPException(503, "Validation worker status is unavailable") from exc
+    if not worker_available:
+        raise HTTPException(503, "Validation worker is unavailable; try again later")
     profile = await asyncio.to_thread(profiles.get_any, profile_id)
     if profile is None:
         raise HTTPException(404, "Profile not found")

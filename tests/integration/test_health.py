@@ -5,7 +5,10 @@ from __future__ import annotations
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from app.api import health, investigation_access, investigations
+from app.config import Settings
 from app.main import app
+from app.storage.project_run_queue import ProjectRunQueue
 
 
 @pytest.fixture
@@ -61,3 +64,26 @@ async def test_api_docs_and_brand_assets_are_served_locally():
         for response in (logo, swagger_script, swagger_style, redoc_script)
     )
     assert logo.headers["content-type"].startswith("image/svg+xml")
+
+
+async def test_ready_requires_live_project_worker_only_when_feature_enabled(monkeypatch):
+    class ReadyStore:
+        def check_ready(self):
+            return None
+
+    monkeypatch.setattr(health, "get_settings", lambda: Settings(
+        secret_key="x" * 32, runner_mode="local", e2b_project_runs_enabled=True,
+    ))
+    monkeypatch.setattr(investigation_access, "cookie_key", lambda: b"x" * 32)
+    monkeypatch.setattr(investigations, "get_store", lambda: ReadyStore())
+    monkeypatch.setattr(ProjectRunQueue, "has_live_worker", lambda self, kind: False)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/ready")
+    assert response.status_code == 503
+    assert response.json()["checks"]["project_worker_investigation"] == "unavailable"
+
+    monkeypatch.setattr(ProjectRunQueue, "has_live_worker", lambda self, kind: True)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/ready")
+    assert response.status_code == 200
+    assert response.json()["checks"]["project_worker_investigation"] == "ok"

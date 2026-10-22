@@ -38,6 +38,23 @@ async def ready():
         checks["storage"] = "ok"
     except Exception:  # noqa: BLE001
         checks["storage"] = "unavailable"
+    if settings.e2b_project_runs_enabled or settings.e2b_profile_validation_enabled:
+        from app.storage.project_run_queue import ProjectRunQueue
+
+        try:
+            queue = ProjectRunQueue(settings.database_url)
+            for kind, enabled in (
+                ("investigation", settings.e2b_project_runs_enabled),
+                ("profile_validation", settings.e2b_profile_validation_enabled),
+            ):
+                if enabled:
+                    checks[f"project_worker_{kind}"] = (
+                        "ok"
+                        if await asyncio.to_thread(queue.has_live_worker, kind)
+                        else "unavailable"
+                    )
+        except Exception:  # noqa: BLE001
+            checks["project_worker"] = "unavailable"
     if settings.runner_mode == "worker_http":
         from pathlib import Path
 

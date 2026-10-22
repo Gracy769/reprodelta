@@ -66,6 +66,49 @@ class ProjectRunQueue:
         )""")
         conn.execute("""CREATE INDEX IF NOT EXISTS project_sandbox_attempts_job_idx
             ON project_sandbox_attempts(job_id)""")
+        conn.execute("""CREATE TABLE IF NOT EXISTS project_run_workers (
+            worker_id UUID PRIMARY KEY, allowed_kinds TEXT[] NOT NULL,
+            last_seen TIMESTAMPTZ NOT NULL DEFAULT now()
+        )""")
+        conn.execute("""CREATE INDEX IF NOT EXISTS project_run_workers_seen_idx
+            ON project_run_workers(last_seen)""")
+
+    @staticmethod
+    def _check_kind(kind: str) -> None:
+        if kind not in {"investigation", "profile_validation"}:
+            raise ValueError("Unsupported project job kind")
+
+    def worker_heartbeat(self, worker_id: uuid.UUID, allowed_kinds: tuple[str, ...]) -> None:
+        """Publish a short-lived capability signal for admission and readiness."""
+        if not isinstance(worker_id, uuid.UUID) or not allowed_kinds:
+            raise ValueError("A worker ID and supported job kinds are required")
+        for kind in allowed_kinds:
+            self._check_kind(kind)
+        with self._connect() as conn:
+            self._ensure(conn)
+            conn.execute("""INSERT INTO project_run_workers
+                (worker_id, allowed_kinds, last_seen) VALUES (%s,%s,now())
+                ON CONFLICT(worker_id) DO UPDATE SET
+                allowed_kinds=EXCLUDED.allowed_kinds, last_seen=now()""",
+                (worker_id, list(allowed_kinds)),
+            )
+            conn.execute("""DELETE FROM project_run_workers
+                WHERE last_seen < now()-interval '1 day'""")
+
+    def has_live_worker(self, kind: str) -> bool:
+        self._check_kind(kind)
+        with self._connect() as conn:
+            self._ensure(conn)
+            return conn.execute("""SELECT EXISTS (
+                SELECT 1 FROM project_run_workers
+                WHERE %s=ANY(allowed_kinds)
+                    AND last_seen>now()-interval '45 seconds'
+            ) AS available""", (kind,)).fetchone()["available"]
+
+    def remove_worker(self, worker_id: uuid.UUID) -> None:
+        with self._connect() as conn:
+            self._ensure(conn)
+            conn.execute("DELETE FROM project_run_workers WHERE worker_id=%s", (worker_id,))
 
     @staticmethod
     def _row(row):

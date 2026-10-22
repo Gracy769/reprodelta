@@ -36,3 +36,29 @@ Fixed samples, random search, and ReproDelta must receive equal
 execution budgets. A discovery claim requires running the source through the
 approved-project pipeline with a predeclared contract; this script alone is
 insufficient.
+
+## Public project for the approved-project pipeline
+
+The independent [evaluation repository](https://github.com/Gracy769/reprodelta-isce3-mask-evaluation)
+contains only the expression from the reported issue and a bounded adapter.
+Its [open NumPy upgrade PR](https://github.com/Gracy769/reprodelta-isce3-mask-evaluation/pull/1)
+changes `requirements.txt` from 1.26.4 to 2.0.2 and stays open as a
+source-host test change. The base and head commits are
+`34e1dcd88dc2def1fd8e736313817f070c003a36` and
+`5c4c09cdef28716485d78ad1fe4db564d935506f`. The ready-to-review
+[profile draft](../evaluation/isce3-mask-project-profile.json) declares two
+integer mask IDs, the packed-mask measurement, and a decision at 65535.
+
+ReproDelta's source analyzer read the live GitHub PR at those commits,
+identified only the exact NumPy pin change, admitted it under the pilot
+eligibility rule, and verified the base source tree by blob hash. That
+snapshot's SHA-256 was
+`4a5ef877826342c5d5d5ae3d75ca003b087b9cae6fec5461178c93ef1f2b3705`.
+These checks establish source identity and admission, not an E2B result.
+
+Local execution of that adapter gave `196869` on NumPy 1.26.4 and `5` on
+2.0.2 for the declared sample; a zero/zero control returned `5` in both.
+Those commands ran the harness directly on Windows, outside ReproDelta. The
+profile has not been approved or executed by the E2B worker, so no
+end-to-end finding is claimed. A full-isce3 result would require importing
+and running the actual upstream project and checking its output product.

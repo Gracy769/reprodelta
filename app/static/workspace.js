@@ -611,6 +611,68 @@
     if (job.result_sha256) result.append(text("p", `Saved finding SHA-256: ${job.result_sha256}`, "approved-result-digest"));
     card.append(result);
   }
+  function configureShare(jobId, card) {
+    const panel = text("section", "", "approved-share");
+    panel.append(text("h4", "Share a redacted finding"));
+    panel.append(text("p", "A share copy omits the repository, commits, source, inputs, hashes and measurements. Anyone with its link can read the summary until you revoke it."));
+    const previewButton = text("button", "Preview public copy ↗", "review-button review-button-secondary");
+    previewButton.type = "button";
+    const previewSlot = text("div", "", "approved-share-preview");
+    const history = text("div", "", "approved-share-history");
+    panel.append(previewButton, previewSlot, history); card.append(panel);
+    async function loadShares() {
+      const data = await projectApi(`/project-runs/${encodeURIComponent(jobId)}/shares`);
+      clear(history);
+      if (!data.shares?.length) { history.append(text("p", "No share copies yet.")); return; }
+      data.shares.forEach((share) => {
+        const row = text("div", "", "profile-list-item");
+        row.append(text("span", `Share ${share.id.slice(0, 8)} · ${share.revoked_at ? "revoked" : "active"}`));
+        if (!share.revoked_at) {
+          const revoke = text("button", "Revoke link", "review-button review-button-secondary");
+          revoke.type = "button";
+          revoke.addEventListener("click", async () => {
+            revoke.disabled = true;
+            try {
+              await projectApi(`/project-runs/${encodeURIComponent(jobId)}/shares/${encodeURIComponent(share.id)}`, {method: "DELETE"});
+              await loadShares();
+            } catch (error) { row.append(text("p", error.message)); revoke.disabled = false; }
+          });
+          row.append(revoke);
+        }
+        history.append(row);
+      });
+    }
+    previewButton.addEventListener("click", async () => {
+      previewButton.disabled = true; clear(previewSlot);
+      try {
+        const copy = await projectApi(`/project-runs/${encodeURIComponent(jobId)}/share-preview`);
+        previewSlot.append(text("p", `${copy.scope}. ${copy.tested_inputs} input${copy.tested_inputs === 1 ? "" : "s"} tested. ${copy.inconclusive ? "Inconclusive repeats." : copy.changed_conclusion ? "A changed conclusion was observed." : "No violation found within tested scope."}`));
+        copy.limitations.forEach((limit) => previewSlot.append(text("p", limit)));
+        const label = text("label", " I understand this summary is public to anyone with the link.");
+        const checkbox = document.createElement("input"); checkbox.type = "checkbox";
+        label.prepend(checkbox);
+        const create = text("button", "Create revocable link ↗", "review-button review-button-primary");
+        create.type = "button"; create.disabled = true;
+        checkbox.addEventListener("change", () => { create.disabled = !checkbox.checked; });
+        create.addEventListener("click", async () => {
+          create.disabled = true;
+          try {
+            const share = await projectApi(`/project-runs/${encodeURIComponent(jobId)}/shares`, {
+              method: "POST", body: JSON.stringify({acknowledge_public_share: true}),
+            });
+            clear(previewSlot);
+            previewSlot.append(text("p", "Save this link now. The token is shown once."));
+            const link = text("a", "Open redacted report ↗");
+            link.href = share.url; link.target = "_blank"; link.rel = "noopener noreferrer";
+            previewSlot.append(link);
+            await loadShares();
+          } catch (error) { previewSlot.append(text("p", error.message)); create.disabled = false; }
+        });
+        previewSlot.append(label, create);
+      } catch (error) { previewSlot.append(text("p", error.message)); previewButton.disabled = false; }
+    });
+    loadShares().catch((error) => { history.append(text("p", error.message)); });
+  }
   async function watchApprovedRun(jobId, message, card) {
     const cancel = text("button", "Cancel run", "review-button review-button-secondary"); cancel.type = "button";
     card.append(cancel);
@@ -625,7 +687,8 @@
         cancel.remove();
         const finding = job.result_json || {};
         message.textContent = "The bounded run completed. Read what was observed and what remains untested.";
-        renderApprovedFinding(card, finding, job); return;
+        renderApprovedFinding(card, finding, job);
+        configureShare(jobId, card); return;
       }
       if (["failed", "cancelled"].includes(job.status)) {
         cancel.remove(); message.textContent = job.status === "cancelled" ? "Run cancelled." : `Run failed: ${job.error_code || "unknown error"}. No scientific verdict was recorded.`;

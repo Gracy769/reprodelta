@@ -8,6 +8,7 @@ const shipped = fs.readFileSync(path.join(__dirname, '../../app/static/workspace
 class Element {
   constructor(tag = 'div') { this.tagName = tag; this.children = []; this.dataset = {}; this.listeners = {}; this.classList = {toggle(){}, add(){}, remove(){}}; }
   append(...nodes) { nodes.forEach(node => {node.parent = this; this.children.push(node);}); }
+  prepend(...nodes) { nodes.forEach(node => {node.parent = this;}); this.children.unshift(...nodes); }
   get firstChild() {return this.children[0];}
   get options() {return this.children;}
   remove() {this.parent.children.splice(this.parent.children.indexOf(this),1);}
@@ -21,7 +22,7 @@ function boot(fetch) {
   const document = {getElementById(id) {if(!elements.has(id)) elements.set(id,new Element()); return elements.get(id);},
     createElement(tag) {return new Element(tag);}, createTextNode(text) {const node = new Element('text'); node.textContent=text; return node;}, querySelectorAll() {return [];}};
   const context = {document, fetch, URL, AbortController, crypto: {randomUUID: () => 'fixed-idempotency-key'}, location: {}, window: {setTimeout,clearTimeout, matchMedia: () => ({matches:true})}};
-  vm.runInNewContext(shipped.replace('  start();', '  globalThis.reviewTest = {renderReview, configureReplay, configureApprovedRun, openSavedProjectRun, loadOperatorProfiles, state};'), context);
+  vm.runInNewContext(shipped.replace('  start();', '  globalThis.reviewTest = {renderReview, configureReplay, configureApprovedRun, openSavedProjectRun, loadOperatorProfiles, configureShare, state};'), context);
   return {...context, elements};
 }
 function all(node) {return [node,...node.children.flatMap(all)];}
@@ -200,4 +201,29 @@ test('operator validation controls are only rendered after the approver endpoint
   const nodes=all(allowed.elements.get('operator-profile-list'));
   assert(nodes.some(n => n.textContent?.includes('Start bounded sample validation')));
   assert(nodes.some(n => n.textContent?.includes('Source transfer consent')));
+});
+
+test('public finding link requires preview and explicit acknowledgement', async () => {
+  let posted=0;
+  const ctx=boot(async (url,options={}) => ({ok:true,status:200,json:async () => {
+    if (url.endsWith('/share-preview')) return {scope:'Bounded sample',tested_inputs:1,
+      changed_conclusion:true,inconclusive:false,limitations:['Source omitted.']};
+    if (options.method === 'POST') {posted += 1; return {url:'/shared/token'};}
+    return {shares:[]};
+  }}));
+  ctx.reviewTest.state.jwt='test-token';
+  const card=new Element();
+  ctx.reviewTest.configureShare('11111111-1111-4111-8111-111111111111',card);
+  const preview=all(card).find(n => n.textContent === 'Preview public copy ↗');
+  assert(preview);
+  assert.equal(posted,0);
+  await preview.listeners.click();
+  const consent=all(card).find(n => n.type === 'checkbox');
+  const create=all(card).find(n => n.textContent === 'Create revocable link ↗');
+  assert.equal(create.disabled,true);
+  consent.checked=true; consent.listeners.change();
+  assert.equal(create.disabled,false);
+  await create.listeners.click();
+  assert.equal(posted,1);
+  assert(all(card).some(n => n.href === '/shared/token'));
 });

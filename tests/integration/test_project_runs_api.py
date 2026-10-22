@@ -4,7 +4,7 @@ import uuid
 
 from fastapi.testclient import TestClient
 
-from app.api import project_runs
+from app.api import pages, project_runs
 from app.api.connections import current_user
 from app.config import Settings
 from app.domain.project_run import ProjectRunSpec
@@ -147,5 +147,82 @@ def test_saved_revision_check_is_owner_scoped_and_read_only(monkeypatch):
         app.dependency_overrides[current_user] = lambda: "github:other"
         assert TestClient(app).get(f"/api/project-runs/{job_id}/revision").status_code == 404
         assert calls[-1] == ("github:other", job_id)
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_redacted_share_requires_owner_consent_and_can_be_revoked(monkeypatch):
+    job_id, share_id = uuid.uuid4(), uuid.uuid4()
+    token = "A" * 43
+
+    class SavedQueue(Queue):
+        def get(self, owner, requested):
+            if owner != "github:owner" or requested != job_id:
+                return None
+            return {"id": str(job_id), "status": "completed", "result_json": {
+                "kind": "approved_project_sample", "changed_conclusion": True,
+                "input_sha256": "private-input-marker", "source_sha256": "private-source-marker",
+                "old": {"ratio": 0.125}, "new": {"ratio": 0.875},
+            }}
+
+    class Shares:
+        copy = None
+        revoked = False
+
+        def create(self, owner, requested, copy):
+            assert owner == "github:owner" and requested == job_id
+            self.copy = copy
+            return {"id": str(share_id), "token": token, "created_at": "now"}
+
+        def public(self, value):
+            return self.copy if value == token and not self.revoked else None
+
+        def list(self, owner, requested):
+            assert owner == "github:owner" and requested == job_id
+            return [{"id": str(share_id), "revoked_at": None}]
+
+        def revoke(self, owner, requested, target):
+            if (owner, requested, target) != ("github:owner", job_id, share_id):
+                return False
+            self.revoked = True
+            return True
+
+    shares = Shares()
+    monkeypatch.setattr(pages, "ProjectShareStore", lambda _dsn: shares)
+    app.dependency_overrides[current_user] = lambda: "github:owner"
+    app.dependency_overrides[project_runs.get_run_queue] = lambda: SavedQueue()
+    app.dependency_overrides[project_runs.get_share_store] = lambda: shares
+    try:
+        client = TestClient(app)
+        base = f"/api/project-runs/{job_id}"
+        assert client.post(base + "/shares", json={
+            "acknowledge_public_share": False}).status_code == 422
+        preview = client.get(base + "/share-preview")
+        assert preview.status_code == 200
+        assert "private-input-marker" not in preview.text
+        assert "0.125" not in preview.text
+        created = client.post(base + "/shares", json={"acknowledge_public_share": True})
+        assert created.status_code == 201
+        assert shares.copy == preview.json()
+        url = created.json()["url"]
+        assert url == f"/shared/{token}"
+        data_url = f"/api/project-runs/shares/{token}"
+        app.dependency_overrides[current_user] = lambda: "github:other"
+        assert client.get(base + "/share-preview").status_code == 404
+        assert client.get(base + "/shares").status_code == 404
+        assert client.delete(base + f"/shares/{share_id}").status_code == 404
+        public = client.get(data_url)
+        assert public.status_code == 200
+        assert public.headers["cache-control"] == "no-store"
+        assert public.headers["x-robots-tag"] == "noindex"
+        page = client.get(url, headers={"accept": "text/html"})
+        assert page.status_code == 200
+        assert "A changed conclusion was observed" in page.text
+        assert "private-input-marker" not in page.text
+        assert page.headers["x-robots-tag"] == "noindex"
+        app.dependency_overrides[current_user] = lambda: "github:owner"
+        assert client.delete(base + f"/shares/{share_id}").status_code == 204
+        assert client.get(data_url).status_code == 404
+        assert client.get(url, headers={"accept": "text/html"}).status_code == 404
     finally:
         app.dependency_overrides.clear()

@@ -99,8 +99,10 @@ it on both the API and the separate worker service.
    and on two reviewed projects. Source snapshots are fetched by immutable commit
    and hashed before upload. The pilot snapshot store encrypts source per owner
    under `PROJECT_SNAPSHOT_KEY`, addresses it by digest and expires it after seven
-   days. Wire the worker to this store and verify deletion before enabling private
-   projects. Show explicit private-source transfer consent.
+   days. The separate worker now removes expired ciphertext at startup and then
+   hourly; a database outage retries cleanup after one minute. Verify this on a
+   live private-project run before enabling private projects. Show explicit
+   private-source transfer consent.
 3. Verify the leased Postgres queue and worker in an isolated database and
    deploy the separate Railway worker. Set a verified
    `E2B_SANDBOX_USD_PER_SECOND` and `E2B_PROJECT_RUN_COST_CEILING_USD` before
@@ -115,7 +117,7 @@ it on both the API and the separate worker service.
    confirms a documented NumPy behavior in isolation; the full project pipeline
    has not yet run it.
 
-The E2B key belongs only in Railway environment variables or a local secret
+The E2B key belongs only in the worker environment or a local secret
 store. Never add it to source, logs, browser JavaScript or profile records.
 `PROJECT_SNAPSHOT_KEY` is a separate random 32-byte key encoded with URL-safe
 base64 and belongs only in the worker's secret store. Losing or rotating it

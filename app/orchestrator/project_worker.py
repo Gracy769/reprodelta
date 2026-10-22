@@ -43,6 +43,9 @@ from app.storage.project_snapshots import ProjectSnapshotStore
 
 log = logging.getLogger(__name__)
 
+SNAPSHOT_PURGE_INTERVAL_SECONDS = 60 * 60
+SNAPSHOT_PURGE_RETRY_SECONDS = 60
+
 
 class RunRejected(Exception):
     """An expected admission failure with a stable, non-sensitive error code."""
@@ -50,6 +53,29 @@ class RunRejected(Exception):
     def __init__(self, code: str):
         self.code = code
         super().__init__(code)
+
+
+class SnapshotJanitor:
+    """Remove expired encrypted source snapshots while the worker is alive."""
+
+    def __init__(self, store: ProjectSnapshotStore, *, clock=time.monotonic):
+        self.store = store
+        self.clock = clock
+        self.next_due = 0.0
+
+    def sweep_due(self) -> None:
+        now = self.clock()
+        if now < self.next_due:
+            return
+        try:
+            deleted = self.store.purge_expired()
+        except Exception:
+            # A transient database failure must not stop job recovery. Retry soon.
+            log.warning("Expired snapshot cleanup failed")
+            self.next_due = now + SNAPSHOT_PURGE_RETRY_SECONDS
+        else:
+            log.info("Removed %d expired project source snapshots", deleted)
+            self.next_due = now + SNAPSHOT_PURGE_INTERVAL_SECONDS
 
 
 async def _fetch_verified_source(spec: ProjectRunSpec, owner_id: str):
@@ -554,7 +580,9 @@ def main() -> None:
         raise SystemExit("PROJECT_SNAPSHOT_KEY is required for the project worker")
     queue = ProjectRunQueue(settings.database_url)
     profiles = ProjectProfileStore(settings.database_url)
+    janitor = SnapshotJanitor(ProjectSnapshotStore(settings.database_url, settings.project_snapshot_key))
     while True:
+        janitor.sweep_due()
         job = queue.claim(allowed_kinds=allowed_kinds)
         if job is None:
             time.sleep(5)

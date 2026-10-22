@@ -172,9 +172,9 @@ def test_batch_reuses_one_offline_sandbox_for_bounded_inputs():
 
 def test_batch_rejects_too_many_inputs_before_sandbox_creation():
     factory = _Factory(_Sandbox())
-    with pytest.raises(ValueError, match="1–32"):
+    with pytest.raises(ValueError, match="1–64"):
         execute_environment_batch(
-            files={"adapter.py": b"pass"}, inputs_json=[{}] * 33,
+            files={"adapter.py": b"pass"}, inputs_json=[{}] * 65,
             adapter=ProjectAdapter(module="adapter", function="run"),
             template_id="approved-numpy-old", expected_numpy="1.26.4",
             sandbox_factory=factory,

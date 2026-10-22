@@ -21,6 +21,7 @@ MAX_FILE_BYTES = 1_000_000
 MAX_SNAPSHOT_BYTES = 10_000_000
 MAX_INPUT_BYTES = 128_000
 MAX_OUTPUT_BYTES = 131_072
+MAX_BATCH_INPUTS = 64
 SANDBOX_TIMEOUT_SECONDS = 900
 _IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 
@@ -111,8 +112,8 @@ def execute_environment_batch(
     """Run bounded inputs against one snapshot in one sandbox, then destroy it."""
     source_sha256 = validate_snapshot(files)
     adapter.validate()
-    if not isinstance(inputs_json, list) or not 1 <= len(inputs_json) <= 32:
-        raise ValueError("Batch must contain 1–32 JSON inputs")
+    if not isinstance(inputs_json, list) or not 1 <= len(inputs_json) <= MAX_BATCH_INPUTS:
+        raise ValueError("Batch must contain 1–64 JSON inputs")
     input_bytes = []
     for input_json in inputs_json:
         if not isinstance(input_json, dict):

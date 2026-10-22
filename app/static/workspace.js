@@ -401,7 +401,7 @@
         [["Source", `${plan.repository} · ${plan.base_sha.slice(0, 12)} → ${plan.head_sha.slice(0, 12)}`],
           ["Environment", `NumPy ${plan.old_environment.numpy_version} → ${plan.new_environment.numpy_version}`],
           ["Code", plan.source_scope], ["Contract SHA-256", plan.contract_hash],
-          ["Search", `Up to ${plan.candidate_budget} contract-valid input${plan.candidate_budget === 1 ? "" : "s"} · ${plan.candidate_strategy}`],
+          ["Search", `Up to ${plan.candidate_budget} contract-valid input${plan.candidate_budget === 1 ? "" : "s"} · ${plan.candidate_strategy}${plan.candidate_budget > 1 ? " · two repeats in each environment" : ""}`],
           ["Sandbox time", `${plan.max_sandbox_seconds || 0}s total · ${plan.max_wall_seconds}s wall limit`],
           ["Cost ceiling", plan.rate_configured ? `Up to $${plan.cost_ceiling_usd.toFixed(4)} estimated sandbox cost` : "Not configured"]]
           .forEach(([name, value]) => fields.append(text("dt", name), text("dd", value)));
@@ -441,16 +441,16 @@
   }
   function renderApprovedFinding(card, finding, job) {
     const search = finding.kind === "approved_project_search";
-    const shown = search ? (finding.witness || finding.observations?.[0] || {}) : finding;
+    const shown = search ? (finding.witness || finding.observations?.find((item) => !item.repeatable) || finding.observations?.[0] || {}) : finding;
     const tested = search ? Number(finding.attempted) || 0 : 1;
     const result = text("section", "", "approved-finding");
     result.setAttribute("aria-label", "Executed project evidence");
     result.append(text("span", search ? `EXECUTED SEARCH / ${tested} INPUTS` : "EXECUTED SAMPLE / ONE INPUT", "review-kicker"));
     result.append(text("h4", finding.changed_conclusion
       ? (search ? "A changed outcome was found" : "The declared outcome changed for this sample")
-      : (search ? "No violation found within tested scope" : "No outcome change for this sample")));
+      : (search ? (finding.inconclusive ? "Inconclusive: repeat runs disagreed" : "No violation found within tested scope") : "No outcome change for this sample")));
     result.append(text("p", search
-      ? `${tested} contract-valid input${tested === 1 ? "" : "s"} ran against the same source snapshot in two pinned environments. ${finding.witness ? "The comparison below is the first observed witness." : "The comparison below is the first tested input."}`
+      ? `${tested} contract-valid input${tested === 1 ? "" : "s"} ran against the same source snapshot in two pinned environments. ${finding.witness ? "The comparison below is the first observed witness." : finding.inconclusive ? "The comparison below is an input whose repeats disagreed." : "The comparison below is the first tested input."}`
       : "These measurements came from the same source snapshot in two pinned environments. They describe this input only."));
     const comparison = text("div", "", "approved-comparison");
     [["Before", shown.old, job.spec_json?.old_environment_lock_sha256],
@@ -464,12 +464,12 @@
     result.append(comparison);
     const ladder = text("ol", "", "approved-evidence-ladder");
     const steps = [
-      ["01", "Outcome", finding.changed_conclusion ? "The declared decision differs between environments for this input." : `No declared decision difference was found across ${tested} tested input${tested === 1 ? "" : "s"}.`],
+      ["01", "Outcome", finding.changed_conclusion ? "The declared decision differs between environments for this input." : finding.inconclusive ? "One or more within-environment repeats disagreed, so no negative finding is claimed." : `No declared decision difference was found across ${tested} tested input${tested === 1 ? "" : "s"}.`],
       ["02", finding.changed_conclusion ? "Exact witness" : "Example input", `Input SHA-256: ${shown.input_sha256 || "Not recorded"}. Source SHA-256: ${finding.source_sha256 || "Not recorded"}.`],
-      ["03", "Repeatability", "Not tested. One paired execution cannot establish whether this repeats."],
+      ["03", "Repeatability", search ? (finding.inconclusive ? "Some repeated inputs disagreed within an environment. Review those observations before drawing conclusions." : "Each tested input ran twice in each environment; within-environment decisions and measurements agreed within the approved tolerance.") : "Not tested. One paired execution cannot establish whether this repeats."],
       ["04", "Mechanism", "Not tested. The run does not isolate which dependency behavior caused the measurement."],
       ["05", "Repair", "Not tested. No candidate repair was executed for this project run."],
-      ["06", "Limits", `${Number.isFinite(finding.sandbox_seconds) ? finding.sandbox_seconds + "s" : "Unrecorded"} of sandbox time; estimated cost ${Number.isFinite(finding.estimated_sandbox_cost_usd) ? "$" + finding.estimated_sandbox_cost_usd : "not recorded"}. ${search ? `Search used ${finding.strategy} with seed ${finding.seed}; ${tested} of ${finding.candidate_budget} permitted inputs ran.` : "One sample ran."} This is not a general regression verdict.`],
+      ["06", "Limits", `${Number.isFinite(finding.sandbox_seconds) ? finding.sandbox_seconds + "s" : "Unrecorded"} of sandbox time; estimated cost ${Number.isFinite(finding.estimated_sandbox_cost_usd) ? "$" + finding.estimated_sandbox_cost_usd : "not recorded"}. ${search ? `Search used ${finding.strategy} with seed ${finding.seed}; ${tested} of ${finding.candidate_budget} permitted inputs ran, twice per environment.` : "One sample ran."} This is not a general regression verdict.`],
     ];
     steps.forEach(([number, title, description]) => {
       const item = document.createElement("li");

@@ -136,8 +136,12 @@ def test_owner_cancellation_prevents_any_sandbox(monkeypatch):
     assert queue.final == ("cancelled", None, None)
 
 
-@pytest.mark.parametrize("changed", [True, False])
-def test_candidate_search_uses_one_batch_per_environment_and_scopes_result(monkeypatch, changed):
+@pytest.mark.parametrize(("changed", "unstable"), [
+    (True, False), (False, False), (True, True),
+])
+def test_candidate_search_uses_controls_before_claiming_witness(
+    monkeypatch, changed, unstable,
+):
     job = _job(candidate_budget=3)
     queue = Queue()
     spec = ProjectRunSpec.model_validate(job["spec_json"])
@@ -167,15 +171,17 @@ def test_candidate_search_uses_one_batch_per_environment_and_scopes_result(monke
     def execute_batch(**kwargs):
         calls.append(kwargs)
         inputs = kwargs["inputs_json"]
-        assert len(inputs) == 3
-        ratios = ([0.4, 0.4, 0.4] if kwargs["expected_numpy"] == "1.26.4"
-                  else [0.4, 0.6 if changed else 0.4, 0.4])
+        assert len(inputs) == 6
+        assert inputs[0] == inputs[1] and inputs[2] == inputs[3]
+        ratios = ([0.4] * 6 if kwargs["expected_numpy"] == "1.26.4"
+                  else [0.4, 0.4, 0.6 if changed else 0.4,
+                        0.4 if unstable else (0.6 if changed else 0.4), 0.4, 0.4])
         return EnvironmentBatchResult(
             version=kwargs["expected_numpy"], sandbox_id="sandbox", duration_seconds=2,
             source_sha256=spec.source_sha256,
             input_sha256=[hashlib.sha256(json.dumps(value, sort_keys=True,
                 allow_nan=False).encode()).hexdigest() for value in inputs],
-            outputs=[{"result": {"ratio": ratio}} for ratio in ratios], stderrs=[""] * 3,
+            outputs=[{"result": {"ratio": ratio}} for ratio in ratios], stderrs=[""] * 6,
         )
 
     assert project_worker.run_claimed_job(
@@ -186,6 +192,7 @@ def test_candidate_search_uses_one_batch_per_environment_and_scopes_result(monke
     assert (status, error) == ("completed", None)
     assert len(calls) == 2
     assert result["attempted"] == 3
-    assert result["changed_conclusion"] is changed
-    assert result["witness"] == (result["observations"][1] if changed else None)
+    assert result["changed_conclusion"] is (changed and not unstable)
+    assert result["witness"] == (result["observations"][1] if changed and not unstable else None)
+    assert result["inconclusive"] is unstable
     assert result["estimated_sandbox_cost_usd"] == 0.0004

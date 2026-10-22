@@ -66,7 +66,9 @@ Provider configuration must match the new origin:
 
 The curated workers receive no provider or database credentials, have no
 public ports, and use an internal Docker network. The E2B worker receives
-database and E2B credentials only when enabled. Repository code is never
+database, snapshot-encryption, and E2B credentials only when enabled. It purges
+expired encrypted source snapshots on startup and then hourly; if it is stopped,
+expired rows remain until it starts again. Repository code is never
 executed in the API container; approved project execution belongs in E2B.
 
 ## Cutover and verification

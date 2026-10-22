@@ -1,7 +1,7 @@
 """Unit tests for app/domain/validator.py."""
 from __future__ import annotations
 
-from app.domain.contract import FIXTURE_CONTRACT
+from app.domain.contract import FIXTURE_CONTRACT, InputField, InputSchema
 from app.domain.validator import validate_input
 
 VALID_SIGNAL = [1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 0.5, 0.5]
@@ -111,3 +111,27 @@ class TestInf:
         signal = [float("-inf")] + VALID_SIGNAL[1:]
         result = validate_input(FIXTURE_CONTRACT, {"signal": signal})
         assert result.valid is False
+
+
+def test_declared_integer_dtype_rejects_fractional_and_out_of_range_values():
+    contract = FIXTURE_CONTRACT.model_copy(update={
+        "input_schema": InputSchema(fields=[
+            InputField(name="count", dtype="int32", shape=[], min_value=-1e100, max_value=1e100)
+        ])
+    })
+    assert validate_input(contract, {"count": 3}).valid
+    for value in (3.0, 3.5, 2**31, -(2**31) - 1):
+        result = validate_input(contract, {"count": value})
+        assert not result.valid
+        assert "int32" in result.reason
+
+
+def test_extreme_numeric_input_is_rejected_without_overflow():
+    contract = FIXTURE_CONTRACT.model_copy(update={
+        "input_schema": InputSchema(fields=[
+            InputField(name="value", dtype="float32", shape=[])
+        ])
+    })
+    for value in (10**400, 1e100):
+        assert not validate_input(contract, {"value": value}).valid
+    assert not validate_input(contract, [1.0]).valid

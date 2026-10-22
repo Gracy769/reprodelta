@@ -78,7 +78,10 @@ it on both the API and the separate worker service.
    changes labelled “Diff review only.”
 5. Pass malicious-source, network, timeout, cleanup, tenant isolation and
    budget-exhaustion checks, then run one independent public and one private
-   approved project before pilot rollout.
+   approved project before pilot rollout. The
+   [independent isce3 mask-shift reproduction](independent-defect-evaluation.md)
+   confirms a documented NumPy behavior in isolation; the full project pipeline
+   has not yet run it.
 
 The E2B key belongs only in Railway environment variables or a local secret
 store. Never add it to source, logs, browser JavaScript or profile records.

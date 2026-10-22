@@ -75,8 +75,17 @@ class ProjectRunQueue:
 
     @staticmethod
     def _check_kind(kind: str) -> None:
-        if kind not in {"investigation", "profile_validation"}:
+        if kind not in {"investigation", "profile_validation",
+                        "investigation:oracle_docker", "profile_validation:oracle_docker"}:
             raise ValueError("Unsupported project job kind")
+
+    @staticmethod
+    def capability(kind: str, provider: str) -> str:
+        if kind not in {"investigation", "profile_validation"} or provider not in {
+            "e2b", "oracle_docker"
+        }:
+            raise ValueError("Unsupported project worker capability")
+        return kind if provider == "e2b" else f"{kind}:oracle_docker"
 
     def worker_heartbeat(self, worker_id: uuid.UUID, allowed_kinds: tuple[str, ...]) -> None:
         """Publish a short-lived capability signal for admission and readiness."""
@@ -181,11 +190,12 @@ class ProjectRunQueue:
             ).fetchall()
             return [self._row(row) for row in rows]
 
-    def claim(self, allowed_kinds: tuple[str, ...] = ("investigation",)) -> dict | None:
+    def claim(self, allowed_kinds: tuple[str, ...] = ("investigation",),
+              *, provider: str = "e2b") -> dict | None:
         """Atomically claim one job, allowing one running per owner and two global."""
         if not allowed_kinds or any(
             kind not in {"investigation", "profile_validation"} for kind in allowed_kinds
-        ):
+        ) or provider not in {"e2b", "oracle_docker"}:
             raise ValueError("At least one supported job kind is required")
         with self._connect() as conn:
             self._ensure(conn)
@@ -199,11 +209,13 @@ class ProjectRunQueue:
             if active >= 2:
                 return None
             row = conn.execute("""SELECT q.id FROM project_run_jobs q
-                WHERE q.status='queued' AND q.job_kind=ANY(%s) AND NOT EXISTS (
+                WHERE q.status='queued' AND q.job_kind=ANY(%s)
+                    AND COALESCE(q.spec_json->>'sandbox_provider','e2b')=%s
+                    AND NOT EXISTS (
                     SELECT 1 FROM project_run_jobs r
                     WHERE r.owner_id=q.owner_id AND r.status='running')
                 ORDER BY q.created_at, q.id FOR UPDATE OF q SKIP LOCKED LIMIT 1""",
-                (list(allowed_kinds),),
+                (list(allowed_kinds), provider),
             ).fetchone()
             if row is None:
                 return None

@@ -1,0 +1,11 @@
+# Build twice with the two reviewed NumPy versions. The source snapshot is
+# transferred only to a disposable runtime container, never baked into an image.
+FROM python:3.12-slim
+ARG NUMPY_VERSION
+RUN test "$NUMPY_VERSION" = "1.26.4" || test "$NUMPY_VERSION" = "2.0.2"
+RUN apt-get update && apt-get install -y --no-install-recommends tar \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir "numpy==$NUMPY_VERSION" \
+    && printf 'python==3.12\nnumpy==%s\n' "$NUMPY_VERSION" > /opt/reprodelta-environment.lock \
+    && chmod 444 /opt/reprodelta-environment.lock
+USER 65534:65534

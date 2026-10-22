@@ -242,6 +242,22 @@ def test_worker_presence_is_kind_scoped_and_expires(local_queue):
     assert not queue.has_live_worker("investigation")
 
 
+def test_oracle_worker_cannot_claim_e2b_job_or_advertise_e2b_presence(local_queue):
+    queue, _ = local_queue
+    e2b = queue.submit("github:e2b", "e2b-job", _spec())
+    oracle = queue.submit(
+        "github:oracle", "oracle-job",
+        _spec().model_copy(update={"sandbox_provider": "oracle_docker"}),
+    )
+    worker_id = uuid.uuid4()
+    capability = queue.capability("investigation", "oracle_docker")
+    queue.worker_heartbeat(worker_id, (capability,))
+    assert queue.has_live_worker(capability)
+    assert not queue.has_live_worker("investigation")
+    assert queue.claim(provider="oracle_docker")["id"] == oracle["id"]
+    assert queue.claim(provider="e2b")["id"] == e2b["id"]
+
+
 def test_postgres_operator_queue_tracks_only_pending_versions(local_queue):
     _, dsn = local_queue
     store = ProjectProfileStore(dsn)

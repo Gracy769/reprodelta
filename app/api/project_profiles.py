@@ -68,6 +68,8 @@ async def create_profile(
     owner_id: Annotated[str, Depends(current_user)],
     store: Annotated[ProjectProfileStore, Depends(get_profile_store)],
 ):
+    if body.sandbox_provider != get_settings().project_sandbox_provider:
+        raise HTTPException(422, "Profile execution location differs from this deployment")
     return await asyncio.to_thread(store.create, owner_id, body)
 
 
@@ -123,7 +125,7 @@ async def change_eligibility(
     result = check_eligibility(profile, review)
     return {
         **result,
-        "pilot_enabled": get_settings().e2b_project_runs_enabled,
+        "pilot_enabled": get_settings().project_runs_enabled,
         "changed_file_count": review["changed_file_count_checked"],
         "dependency_changes": review["dependency_changes"],
     }
@@ -143,8 +145,10 @@ async def approve_profile(
         raise HTTPException(404, "Profile not found")
     if profile["draft_json"].get("source_transfer_consent") is not True:
         raise HTTPException(
-            409, "Owner must consent to source transfer to E2B in a new profile version"
+            409, "Owner must consent to source transfer in a new profile version"
         )
+    if profile["draft_json"].get("sandbox_provider", "e2b") != get_settings().project_sandbox_provider:
+        raise HTTPException(409, "Create a new profile with consent for this execution location")
     try:
         result = await asyncio.to_thread(
             store.approve, profile["owner_id"], profile_id, approver, body
@@ -165,10 +169,13 @@ async def request_validation(
     settings = get_settings()
     if approver not in _approvers():
         raise HTTPException(403, "Only a configured project approver may validate execution")
-    if not settings.e2b_profile_validation_enabled:
+    if not settings.profile_validation_enabled:
         raise HTTPException(503, "Approved-project sample validation is not enabled")
     try:
-        worker_available = await asyncio.to_thread(queue.has_live_worker, "profile_validation")
+        worker_available = await asyncio.to_thread(
+            queue.has_live_worker,
+            ProjectRunQueue.capability("profile_validation", settings.project_sandbox_provider),
+        )
     except PostgresError as exc:
         raise HTTPException(503, "Validation worker status is unavailable") from exc
     if not worker_available:
@@ -179,10 +186,11 @@ async def request_validation(
     if profile["status"] != "draft":
         raise HTTPException(409, "Only a draft profile can be validated")
     draft = ProjectProfileDraft.model_validate(profile["draft_json"])
-    if not draft.source_transfer_consent or draft.digest != profile["profile_digest"]:
+    if (not draft.source_transfer_consent or draft.digest != profile["profile_digest"]
+            or draft.sandbox_provider != settings.project_sandbox_provider):
         raise HTTPException(409, "Owner consent or immutable profile digest is missing")
-    rate = settings.e2b_sandbox_usd_per_second
-    ceiling = settings.e2b_project_run_cost_ceiling_usd
+    rate = settings.project_sandbox_rate
+    ceiling = settings.project_cost_ceiling
     if not math.isfinite(rate) or not math.isfinite(ceiling) or rate <= 0 or ceiling <= 0:
         raise HTTPException(503, "A verified sandbox rate and cost ceiling are required")
     allowed_seconds = min(600, math.floor(ceiling / rate))
@@ -190,7 +198,8 @@ async def request_validation(
         raise HTTPException(503, "Cost ceiling is too small for paired sample validation")
     try:
         spec = ProfileValidationSpec(
-            profile_id=profile_id, provider=draft.provider, repository=draft.repository,
+            profile_id=profile_id, sandbox_provider=settings.project_sandbox_provider,
+            provider=draft.provider, repository=draft.repository,
             source_sha=body.source_sha, profile_digest=draft.digest,
             contract_hash=draft.contract_hash, old=body.old, new=body.new,
             max_sandbox_seconds=allowed_seconds,

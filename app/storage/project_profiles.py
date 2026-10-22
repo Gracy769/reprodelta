@@ -28,6 +28,9 @@ def validation_matches_approval(profile: dict, approval: ProfileApproval, job: d
         and spec.get("contract_hash") == profile.get("contract_hash")
         and spec.get("provider") == profile.get("provider")
         and spec.get("repository") == profile.get("repository")
+        and spec.get("sandbox_provider", "e2b") == profile.get("draft_json", {}).get(
+            "sandbox_provider", "e2b"
+        )
         and spec.get("old") == approval.old.model_dump(mode="json")
         and spec.get("new") == approval.new.model_dump(mode="json")
         and result.get("sample_validated") is True

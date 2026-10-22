@@ -15,6 +15,7 @@ class ProjectRunSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     profile_id: uuid.UUID
+    sandbox_provider: Literal["e2b", "oracle_docker"] = "e2b"
     provider: Literal["github", "gitlab"]
     repository: str = Field(min_length=3, max_length=255)
     change_number: int = Field(ge=1, le=10_000_000)

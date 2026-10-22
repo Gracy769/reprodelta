@@ -6,6 +6,11 @@ path. `E2B_PROJECT_RUNS_ENABLED` defaults to `false`; the project-run start
 endpoint returns 503 until the release gate is passed and the operator enables
 it on both the API and the separate worker service.
 
+An opt-in Oracle Docker backend now shares the approved-project queue and
+contract path. It uses separate `ORACLE_*` enable flags and pinned local images;
+see [Oracle VM deployment](oracle-vm-deployment.md). It has not been exercised
+on an Oracle VM and must remain disabled until its live security gates pass.
+
 ## Current pilot boundary
 
 - A signed-in owner can create versioned project profiles through

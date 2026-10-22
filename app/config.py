@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -66,6 +68,33 @@ class Settings(BaseSettings):
     e2b_profile_validation_enabled: bool = False
     e2b_sandbox_usd_per_second: float = Field(default=0.0, ge=0.0)
     e2b_project_run_cost_ceiling_usd: float = Field(default=0.0, ge=0.0, le=100.0)
+    project_sandbox_provider: Literal["e2b", "oracle_docker"] = "e2b"
+    oracle_project_runs_enabled: bool = False
+    oracle_profile_validation_enabled: bool = False
+    oracle_sandbox_usd_per_second: float = Field(default=0.0, ge=0.0)
+    oracle_project_run_cost_ceiling_usd: float = Field(default=0.0, ge=0.0, le=100.0)
+
+    @property
+    def project_runs_enabled(self) -> bool:
+        return (self.oracle_project_runs_enabled if self.project_sandbox_provider == "oracle_docker"
+                else self.e2b_project_runs_enabled)
+
+    @property
+    def profile_validation_enabled(self) -> bool:
+        return (self.oracle_profile_validation_enabled
+                if self.project_sandbox_provider == "oracle_docker"
+                else self.e2b_profile_validation_enabled)
+
+    @property
+    def project_sandbox_rate(self) -> float:
+        return (self.oracle_sandbox_usd_per_second if self.project_sandbox_provider == "oracle_docker"
+                else self.e2b_sandbox_usd_per_second)
+
+    @property
+    def project_cost_ceiling(self) -> float:
+        return (self.oracle_project_run_cost_ceiling_usd
+                if self.project_sandbox_provider == "oracle_docker"
+                else self.e2b_project_run_cost_ceiling_usd)
 
     @field_validator("log_level")
     @classmethod

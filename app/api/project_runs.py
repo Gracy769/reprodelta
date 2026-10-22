@@ -100,6 +100,7 @@ async def _plan(
         or draft.contract_hash != profile["contract_hash"]
         or approval.profile_digest != draft.digest
         or not draft.source_transfer_consent
+        or draft.sandbox_provider != get_settings().project_sandbox_provider
     ):
         raise HTTPException(409, "Approved project profile changed or lacks transfer consent")
     provider, repository = profile["provider"], profile["repository"]
@@ -110,8 +111,8 @@ async def _plan(
     )
     eligibility = check_eligibility(profile, review)
     settings = get_settings()
-    rate = settings.e2b_sandbox_usd_per_second
-    ceiling = settings.e2b_project_run_cost_ceiling_usd
+    rate = settings.project_sandbox_rate
+    ceiling = settings.project_cost_ceiling
     rate_ready = math.isfinite(rate) and math.isfinite(ceiling) and rate > 0 and ceiling > 0
     max_sandbox_seconds = min(1800, math.floor(ceiling / rate)) if rate_ready else 0
     # Two version checks and two bounded adapter calls need enough room to
@@ -130,6 +131,9 @@ async def _plan(
         "new_environment": approval.new.model_dump(mode="json"),
         "source_scope": "same immutable base source snapshot in both prepared NumPy environments",
         "source_transfer_notice": (
+            "The selected source snapshot runs in an offline container on the operator's Oracle VM. "
+            "Docker containers share the VM kernel; only reviewed projects are admitted."
+            if settings.project_sandbox_provider == "oracle_docker" else
             "The selected source snapshot is sent to E2B for isolated execution. "
             "Review the provider's retention and deletion policy before approving."
         ),
@@ -139,7 +143,7 @@ async def _plan(
         if rate_ready else None,
         "cost_ceiling_usd": ceiling if rate_ready else None,
         "rate_configured": rate_ready,
-        "execution_enabled": settings.e2b_project_runs_enabled,
+        "execution_enabled": settings.project_runs_enabled,
         "candidate_strategy": candidate_strategy,
         "candidate_budget": candidate_budget,
         "candidate_seed": candidate_seed,
@@ -156,6 +160,7 @@ async def _plan(
     plan["source_sha256"] = source_digest
     spec = ProjectRunSpec(
         profile_id=profile_id,
+        sandbox_provider=settings.project_sandbox_provider,
         provider=provider,
         repository=repository,
         change_number=change_number,
@@ -200,7 +205,8 @@ async def run_plan(
     if plan["execution_enabled"]:
         try:
             plan["worker_available"] = await asyncio.to_thread(
-                queue.has_live_worker, "investigation"
+                queue.has_live_worker,
+                ProjectRunQueue.capability("investigation", get_settings().project_sandbox_provider)
             )
         except PostgresError:
             plan["worker_available"] = False
@@ -217,16 +223,19 @@ async def start_run(
     profiles: Annotated[ProjectProfileStore, Depends(get_profile_store)],
     queue: Annotated[ProjectRunQueue, Depends(get_run_queue)],
 ):
-    if not get_settings().e2b_project_runs_enabled:
+    if not get_settings().project_runs_enabled:
         raise HTTPException(503, "Approved-project execution is not enabled")
     try:
-        worker_available = await asyncio.to_thread(queue.has_live_worker, "investigation")
+        worker_available = await asyncio.to_thread(
+            queue.has_live_worker,
+            ProjectRunQueue.capability("investigation", get_settings().project_sandbox_provider),
+        )
     except PostgresError as exc:
         raise HTTPException(503, "Investigation worker status is unavailable") from exc
     if not worker_available:
         raise HTTPException(503, "Investigation worker is unavailable; try again later")
     if not body.source_transfer_approved:
-        raise HTTPException(422, "Approve source transfer to E2B before starting")
+        raise HTTPException(422, "Approve the displayed execution location before starting")
     plan, spec = await _plan(
         owner_id, body.profile_id, body.change_number, profiles, snapshot=True,
         candidate_strategy=body.candidate_strategy, candidate_budget=body.candidate_budget,

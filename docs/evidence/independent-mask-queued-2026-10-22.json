@@ -1,0 +1,53 @@
+{
+  "scope": "Public-project backend pipeline in isolated local PostgreSQL and live E2B; not Railway or browser validation",
+  "repository": "Gracy769/reprodelta-isce3-mask-evaluation",
+  "pull_request": 1,
+  "base_sha": "34e1dcd88dc2def1fd8e736313817f070c003a36",
+  "head_sha": "5c4c09cdef28716485d78ad1fe4db564d935506f",
+  "source_sha256": "4a5ef877826342c5d5d5ae3d75ca003b087b9cae6fec5461178c93ef1f2b3705",
+  "contract_hash": "63ba857d5bd001468bd5193b8b1b89d917601e1ff056dc745b5c43d41cf8252b",
+  "input_sha256": "515f4eede54239baf64904c96c6526c1f8ceab4d0201e6b41bdee07691a0208b",
+  "environment_lock_sha256": [
+    "6e05463defe47c155b59f05b01fcdb0752ddba2cd58538e330f42e8ddf70b5e5",
+    "0f977035ee9fa346c26b609f63a6656650dc35b088746df63338cf20574a23e0"
+  ],
+  "validation": {
+    "job_id": "49b39d84-0af7-4338-b584-806d2bd788bb",
+    "status": "completed",
+    "sample_validated": true,
+    "old_measurement": 196869,
+    "new_measurement": 5,
+    "changed_conclusion": true,
+    "sandbox_seconds": 19.235,
+    "estimated_sandbox_cost_usd": 0.000885,
+    "sandbox_ids": ["iiis13rmf0tu3ecgi0mz8", "i2get7qisxiim9m02ej57"]
+  },
+  "profile": {
+    "local_profile_id": "9dafa7d8-0dd0-4870-97f9-bfeaadf34233",
+    "status": "approved",
+    "review_note": "Reviewed public expression and exact NumPy pins",
+    "approver": "operator:local"
+  },
+  "investigation": {
+    "job_id": "020b2891-4108-407a-99f6-729c36891552",
+    "status": "completed",
+    "kind": "approved_project_sample",
+    "old_measurements": [196869, 196869],
+    "new_measurements": [5, 5],
+    "repeatable": true,
+    "inconclusive": false,
+    "changed_conclusion": true,
+    "sandbox_seconds": 18.797,
+    "estimated_sandbox_cost_usd": 0.000865,
+    "sandbox_ids": ["ibavpm40alftsdxkkciqm", "iuw9jke9p371i88wjo1ht"]
+  },
+  "cleanup": "Connecting to each of the four sandbox IDs returned SandboxNotFoundException",
+  "database": "Temporary embedded PostgreSQL 18 database deleted after the run",
+  "usage": {
+    "total_observed_sandbox_seconds": 38.032,
+    "total_estimated_sandbox_cost_usd": 0.00175,
+    "rate_usd_per_second": 0.000046,
+    "per_job_cost_ceiling_usd": 0.01,
+    "per_job_sandbox_second_ceiling": 120
+  }
+}

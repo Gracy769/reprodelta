@@ -55,8 +55,29 @@ def test_postgres_queue_recovery_and_owner_isolation(local_queue):
     claimed = queue.claim()
     assert claimed["id"] == first["id"] and claimed["status"] == "running"
     assert queue.claim() is None  # One active job per owner.
+    assert queue.record_usage(
+        uuid.UUID(first["id"]), uuid.UUID(claimed["lease_token"]),
+        seconds=2.5, usd_per_second=0.0001,
+    )
+    assert queue.record_usage(
+        uuid.UUID(first["id"]), uuid.UUID(claimed["lease_token"]),
+        seconds=1, usd_per_second=0.0001, uncertain=True,
+    )
+    assert not queue.record_usage(
+        uuid.UUID(first["id"]), uuid.uuid4(),
+        seconds=1, usd_per_second=0.0001,
+    )
+    with pytest.raises(ValueError, match="usage"):
+        queue.record_usage(
+            uuid.UUID(first["id"]), uuid.UUID(claimed["lease_token"]),
+            seconds=float("nan"), usd_per_second=0.0001,
+        )
     restarted = ProjectRunQueue(dsn)
-    assert restarted.get("github:one", uuid.UUID(first["id"]))["status"] == "running"
+    running = restarted.get("github:one", uuid.UUID(first["id"]))
+    assert running["status"] == "running"
+    assert running["sandbox_seconds"] == 3.5
+    assert running["estimated_sandbox_cost_usd"] == pytest.approx(0.00035)
+    assert running["usage_uncertain"] is True
     assert not restarted.finish(
         uuid.UUID(first["id"]), uuid.uuid4(), status="completed", result={"ok": True}
     )

@@ -125,6 +125,25 @@ def _stored_snapshot(owner_id: str, files: dict[str, bytes], expected_digest: st
     return restored
 
 
+def _run_metered(queue, job_id, lease, rate, runner, **kwargs):
+    """Record observed usage or a conservative uncertain bound on failure."""
+    try:
+        observed = runner(**kwargs)
+    except Exception:
+        if not queue.record_usage(
+            job_id, lease, seconds=kwargs["timeout_seconds"],
+            usd_per_second=rate, uncertain=True,
+        ):
+            raise RunRejected("lease_lost") from None
+        raise
+    if not queue.record_usage(
+        job_id, lease, seconds=observed.duration_seconds,
+        usd_per_second=rate,
+    ):
+        raise RunRejected("lease_lost")
+    return observed
+
+
 def run_validation_job(
     job: dict,
     queue: ProjectRunQueue,
@@ -198,7 +217,7 @@ def run_validation_job(
             )
             if remaining < 1:
                 raise RunRejected("wall_budget_exhausted")
-            observed = execute(
+            observed = _run_metered(queue, job_id, lease, spec.sandbox_usd_per_second, execute,
                 files=files,
                 input_json=draft.sample_input,
                 adapter=adapter,
@@ -341,9 +360,11 @@ def run_claimed_job(
                 timeout_seconds=remaining,
             )
             observed = (
-                execute_batch(inputs_json=execution_inputs, **runner_args)
+                _run_metered(queue, job_id, lease, spec.sandbox_usd_per_second,
+                             execute_batch, inputs_json=execution_inputs, **runner_args)
                 if spec.candidate_budget > 1
-                else execute(input_json=candidates[0], **runner_args)
+                else _run_metered(queue, job_id, lease, spec.sandbox_usd_per_second,
+                                  execute, input_json=candidates[0], **runner_args)
             )
             if observed.source_sha256 != spec.source_sha256:
                 raise RunRejected("snapshot_changed")

@@ -1,16 +1,19 @@
 """The project worker does not manufacture findings on preflight failure."""
 
 import hashlib
+import json
 import uuid
 from types import SimpleNamespace
+
+import pytest
 
 from app.domain.contract import FIXTURE_CONTRACT, OutputSelector
 from app.domain.project_run import ProjectRunSpec
 from app.orchestrator import project_worker
-from app.providers.e2b_runner import EnvironmentResult
+from app.providers.e2b_runner import EnvironmentBatchResult, EnvironmentResult
 
 
-def _job():
+def _job(candidate_budget=1):
     spec = ProjectRunSpec(
         profile_id=uuid.uuid4(),
         provider="github",
@@ -25,6 +28,7 @@ def _job():
         new_environment_lock_sha256="0" * 64,
         sandbox_usd_per_second=0.0001,
         max_cost_usd=0.2,
+        candidate_budget=candidate_budget,
     )
     return {"id": str(uuid.uuid4()), "lease_token": str(uuid.uuid4()),
             "owner_id": "github:123", "spec_json": spec.model_dump(mode="json")}
@@ -130,3 +134,58 @@ def test_owner_cancellation_prevents_any_sandbox(monkeypatch):
         _job(), queue, None, execute=forbidden, fetch_source=forbidden
     )
     assert queue.final == ("cancelled", None, None)
+
+
+@pytest.mark.parametrize("changed", [True, False])
+def test_candidate_search_uses_one_batch_per_environment_and_scopes_result(monkeypatch, changed):
+    job = _job(candidate_budget=3)
+    queue = Queue()
+    spec = ProjectRunSpec.model_validate(job["spec_json"])
+    contract = FIXTURE_CONTRACT.model_copy(
+        update={"output_selector": OutputSelector(field_name="ratio")}
+    )
+    draft = SimpleNamespace(
+        adapter_module="package.adapter", adapter_function="run",
+        sample_input={"signal": [1.0] * 8}, contract=contract,
+    )
+    approval = SimpleNamespace(
+        old=SimpleNamespace(template_id="old", numpy_version="1.26.4",
+                            lock_sha256=spec.old_environment_lock_sha256),
+        new=SimpleNamespace(template_id="new", numpy_version="2.0.2",
+                            lock_sha256=spec.new_environment_lock_sha256),
+    )
+    monkeypatch.setattr(project_worker, "get_settings", lambda: SimpleNamespace(
+        e2b_project_runs_enabled=True))
+    monkeypatch.setattr(project_worker, "_approved_inputs", lambda *_: ({}, draft, approval))
+    monkeypatch.setattr(project_worker, "check_eligibility", lambda *_: {"eligible": True})
+
+    async def source(*_):
+        return {}, {"package/adapter.py": b"trusted test bytes"}
+
+    calls = []
+
+    def execute_batch(**kwargs):
+        calls.append(kwargs)
+        inputs = kwargs["inputs_json"]
+        assert len(inputs) == 3
+        ratios = ([0.4, 0.4, 0.4] if kwargs["expected_numpy"] == "1.26.4"
+                  else [0.4, 0.6 if changed else 0.4, 0.4])
+        return EnvironmentBatchResult(
+            version=kwargs["expected_numpy"], sandbox_id="sandbox", duration_seconds=2,
+            source_sha256=spec.source_sha256,
+            input_sha256=[hashlib.sha256(json.dumps(value, sort_keys=True,
+                allow_nan=False).encode()).hexdigest() for value in inputs],
+            outputs=[{"result": {"ratio": ratio}} for ratio in ratios], stderrs=[""] * 3,
+        )
+
+    assert project_worker.run_claimed_job(
+        job, queue, None, execute_batch=execute_batch, fetch_source=source,
+        store_snapshot=lambda owner, files, digest: files,
+    )
+    status, result, error = queue.final
+    assert (status, error) == ("completed", None)
+    assert len(calls) == 2
+    assert result["attempted"] == 3
+    assert result["changed_conclusion"] is changed
+    assert result["witness"] == (result["observations"][1] if changed else None)
+    assert result["estimated_sandbox_cost_usd"] == 0.0004

@@ -360,21 +360,36 @@
       option.value = profile.id; select.append(option);
     });
     profileLabel.append(select);
+    const searchLabel = text("label", "Search scope");
+    const searchSelect = document.createElement("select");
+    [["1", "One sample"], ["8", "Up to 8 inputs"], ["16", "Up to 16 inputs"], ["32", "Up to 32 inputs"]]
+      .forEach(([value, label]) => { const option = text("option", label); option.value = value; searchSelect.append(option); });
+    searchLabel.append(searchSelect);
+    const strategyLabel = text("label", "Input selection");
+    const strategySelect = document.createElement("select");
+    [["sweep", "Range sweep"], ["seeded_random", "Seeded random"]]
+      .forEach(([value, label]) => { const option = text("option", label); option.value = value; strategySelect.append(option); });
+    strategyLabel.append(strategySelect);
     const checkButton = text("button", "Check this run ↗", "review-button review-button-primary");
     checkButton.type = "button";
     const message = text("p", "Review the exact change before spending sandbox time.");
     message.setAttribute("role", "status");
     const details = document.createElement("div");
-    panel.append(profileLabel, checkButton, message, details);
+    panel.append(profileLabel, searchLabel, strategyLabel, checkButton, message, details);
     parent.append(panel);
     select.addEventListener("change", () => { clear(details); message.textContent = "Check the selected profile again."; });
+    searchSelect.addEventListener("change", () => { clear(details); message.textContent = "Check the selected search scope again."; });
+    strategySelect.addEventListener("change", () => { clear(details); message.textContent = "Check the input selection again."; });
     checkButton.addEventListener("click", async () => {
+      const checkedProfile = select.value;
+      const checkedBudget = searchSelect.value;
+      const checkedStrategy = strategySelect.value;
       checkButton.disabled = true;
       clear(details);
       message.textContent = "Checking the current commits, dependency pins and approved profile…";
       try {
-        const plan = await projectApi(`/project-runs/profiles/${encodeURIComponent(select.value)}/changes/${change.number}/plan`);
-        if (state.selectedChange?.repoKey !== change.repoKey || state.selectedChange?.number !== change.number) return;
+        const plan = await projectApi(`/project-runs/profiles/${encodeURIComponent(checkedProfile)}/changes/${change.number}/plan?candidate_budget=${encodeURIComponent(checkedBudget)}&candidate_strategy=${encodeURIComponent(checkedStrategy)}`);
+        if (state.selectedChange?.repoKey !== change.repoKey || state.selectedChange?.number !== change.number || select.value !== checkedProfile || searchSelect.value !== checkedBudget || strategySelect.value !== checkedStrategy) return;
         if (!plan.eligible) {
           message.textContent = "Diff review only: " + plan.reasons.join(" ");
           return;
@@ -386,6 +401,7 @@
         [["Source", `${plan.repository} · ${plan.base_sha.slice(0, 12)} → ${plan.head_sha.slice(0, 12)}`],
           ["Environment", `NumPy ${plan.old_environment.numpy_version} → ${plan.new_environment.numpy_version}`],
           ["Code", plan.source_scope], ["Contract SHA-256", plan.contract_hash],
+          ["Search", `Up to ${plan.candidate_budget} contract-valid input${plan.candidate_budget === 1 ? "" : "s"} · ${plan.candidate_strategy}`],
           ["Sandbox time", `${plan.max_sandbox_seconds || 0}s total · ${plan.max_wall_seconds}s wall limit`],
           ["Cost ceiling", plan.rate_configured ? `Up to $${plan.cost_ceiling_usd.toFixed(4)} estimated sandbox cost` : "Not configured"]]
           .forEach(([name, value]) => fields.append(text("dt", name), text("dd", value)));
@@ -407,10 +423,12 @@
           start.disabled = true; runState.textContent = "Recording approval and queuing this exact revision…";
           try {
             const job = await projectApi("/project-runs", { method: "POST", body: JSON.stringify({
-              profile_id: select.value, change_number: change.number,
+              profile_id: checkedProfile, change_number: change.number,
               expected_base_sha: plan.base_sha, expected_head_sha: plan.head_sha,
               approved_contract_hash: plan.contract_hash,
               approved_cost_ceiling_usd: plan.cost_ceiling_usd,
+              candidate_strategy: plan.candidate_strategy, candidate_budget: plan.candidate_budget,
+              candidate_seed: plan.candidate_seed,
               source_transfer_approved: true, idempotency_key: crypto.randomUUID(),
             }) });
             start.hidden = true; consent.disabled = true;
@@ -422,16 +440,21 @@
     });
   }
   function renderApprovedFinding(card, finding, job) {
+    const search = finding.kind === "approved_project_search";
+    const shown = search ? (finding.witness || finding.observations?.[0] || {}) : finding;
+    const tested = search ? Number(finding.attempted) || 0 : 1;
     const result = text("section", "", "approved-finding");
-    result.setAttribute("aria-label", "Executed sample evidence");
-    result.append(text("span", "EXECUTED SAMPLE / ONE INPUT", "review-kicker"));
+    result.setAttribute("aria-label", "Executed project evidence");
+    result.append(text("span", search ? `EXECUTED SEARCH / ${tested} INPUTS` : "EXECUTED SAMPLE / ONE INPUT", "review-kicker"));
     result.append(text("h4", finding.changed_conclusion
-      ? "The declared outcome changed for this sample"
-      : "No outcome change for this sample"));
-    result.append(text("p", "These measurements came from the same source snapshot in two pinned environments. They describe this input only."));
+      ? (search ? "A changed outcome was found" : "The declared outcome changed for this sample")
+      : (search ? "No violation found within tested scope" : "No outcome change for this sample")));
+    result.append(text("p", search
+      ? `${tested} contract-valid input${tested === 1 ? "" : "s"} ran against the same source snapshot in two pinned environments. ${finding.witness ? "The comparison below is the first observed witness." : "The comparison below is the first tested input."}`
+      : "These measurements came from the same source snapshot in two pinned environments. They describe this input only."));
     const comparison = text("div", "", "approved-comparison");
-    [["Before", finding.old, job.spec_json?.old_environment_lock_sha256],
-      ["After", finding.new, job.spec_json?.new_environment_lock_sha256]].forEach(([label, observation, lock]) => {
+    [["Before", shown.old, job.spec_json?.old_environment_lock_sha256],
+      ["After", shown.new, job.spec_json?.new_environment_lock_sha256]].forEach(([label, observation, lock]) => {
       const column = text("div", "", "approved-observation");
       column.append(text("small", label), text("strong", Number.isFinite(observation?.ratio) ? String(observation.ratio) : "Not recorded"));
       column.append(text("span", observation?.conclusion || "No decision recorded"));
@@ -441,12 +464,12 @@
     result.append(comparison);
     const ladder = text("ol", "", "approved-evidence-ladder");
     const steps = [
-      ["01", "Outcome", finding.changed_conclusion ? "The declared decision differs between environments for this input." : "The declared decision matched for this input."],
-      ["02", "Exact witness", `Input SHA-256: ${finding.input_sha256 || "Not recorded"}. Source SHA-256: ${finding.source_sha256 || "Not recorded"}.`],
+      ["01", "Outcome", finding.changed_conclusion ? "The declared decision differs between environments for this input." : `No declared decision difference was found across ${tested} tested input${tested === 1 ? "" : "s"}.`],
+      ["02", finding.changed_conclusion ? "Exact witness" : "Example input", `Input SHA-256: ${shown.input_sha256 || "Not recorded"}. Source SHA-256: ${finding.source_sha256 || "Not recorded"}.`],
       ["03", "Repeatability", "Not tested. One paired execution cannot establish whether this repeats."],
       ["04", "Mechanism", "Not tested. The run does not isolate which dependency behavior caused the measurement."],
       ["05", "Repair", "Not tested. No candidate repair was executed for this project run."],
-      ["06", "Limits", `${Number.isFinite(finding.sandbox_seconds) ? finding.sandbox_seconds + "s" : "Unrecorded"} of sandbox time; estimated cost ${Number.isFinite(finding.estimated_sandbox_cost_usd) ? "$" + finding.estimated_sandbox_cost_usd : "not recorded"}. This is not a general regression verdict.`],
+      ["06", "Limits", `${Number.isFinite(finding.sandbox_seconds) ? finding.sandbox_seconds + "s" : "Unrecorded"} of sandbox time; estimated cost ${Number.isFinite(finding.estimated_sandbox_cost_usd) ? "$" + finding.estimated_sandbox_cost_usd : "not recorded"}. ${search ? `Search used ${finding.strategy} with seed ${finding.seed}; ${tested} of ${finding.candidate_budget} permitted inputs ran.` : "One sample ran."} This is not a general regression verdict.`],
     ];
     steps.forEach(([number, title, description]) => {
       const item = document.createElement("li");
@@ -470,7 +493,7 @@
       if (job.status === "completed") {
         cancel.remove();
         const finding = job.result_json || {};
-        message.textContent = "The bounded sample completed. Read what was observed and what remains untested.";
+        message.textContent = "The bounded run completed. Read what was observed and what remains untested.";
         renderApprovedFinding(card, finding, job); return;
       }
       if (["failed", "cancelled"].includes(job.status)) {

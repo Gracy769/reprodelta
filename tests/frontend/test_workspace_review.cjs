@@ -127,6 +127,7 @@ test('approved project run requires exact plan acknowledgement', async () => {
   const plan={eligible:true, rate_configured:true, execution_enabled:true,
     repository:'lab/project',base_sha:'a'.repeat(40),head_sha:'b'.repeat(40),
     contract_hash:'c'.repeat(64), max_sandbox_seconds:1800,max_wall_seconds:900,
+    candidate_budget:1,candidate_strategy:'sweep',candidate_seed:0,
     cost_ceiling_usd:0.2, source_scope:'same source', source_transfer_notice:'Source sent to E2B',
     old_environment:{numpy_version:'1.26.4'},new_environment:{numpy_version:'2.0.2'}};
   const ctx=boot(async (url,options) => {requests.push({url,options}); return {ok:true,json:async () =>
@@ -137,7 +138,8 @@ test('approved project run requires exact plan acknowledgement', async () => {
   ctx.reviewTest.state.selectedChange=change;
   const parent=new Element();
   ctx.reviewTest.configureApprovedRun(change,[{id:profileId,version:1,repository:'lab/project',draft_json:{name:'Numeric decision'}}],parent);
-  const select=all(parent).find(n => n.tagName==='select'); select.value=profileId;
+  const selects=all(parent).filter(n => n.tagName==='select');
+  selects[0].value=profileId; selects[1].value='1'; selects[2].value='sweep';
   const check=all(parent).find(n => n.textContent==='Check this run ↗');
   await check.listeners.click();
   const form=all(parent).find(n => n.tagName==='form');
@@ -152,6 +154,8 @@ test('approved project run requires exact plan acknowledgement', async () => {
   assert.equal(body.expected_head_sha,plan.head_sha);
   assert.equal(body.approved_contract_hash,plan.contract_hash);
   assert.equal(body.approved_cost_ceiling_usd,plan.cost_ceiling_usd);
+  assert.equal(body.candidate_budget,1);
+  assert.equal(body.candidate_strategy,'sweep');
   assert.equal(body.source_transfer_approved,true);
   assert(all(parent).some(n => n.textContent?.includes('outcome changed for this sample')));
   assert(all(parent).some(n => n.textContent?.includes('Repeatability')));

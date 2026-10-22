@@ -7,6 +7,8 @@ credentials and the E2B key. No credential is sent to a project sandbox.
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import logging
 import math
 import os
@@ -25,10 +27,15 @@ from app.api.source_analysis import analyze, change_refs, immutable_snapshot
 from app.config import get_settings
 from app.domain.comparison import evaluate_output, numeric_matches
 from app.domain.profile_validation import ProfileValidationSpec
+from app.domain.project_candidates import candidate_inputs
 from app.domain.project_eligibility import check_eligibility
 from app.domain.project_profile import ProfileApproval, ProjectProfileDraft
 from app.domain.project_run import ProjectRunSpec
-from app.providers.e2b_runner import ProjectAdapter, execute_environment
+from app.providers.e2b_runner import (
+    ProjectAdapter,
+    execute_environment,
+    execute_environment_batch,
+)
 from app.storage.project_profiles import ProjectProfileStore
 from app.storage.project_run_queue import ProjectRunQueue
 from app.storage.project_snapshots import ProjectSnapshotStore
@@ -251,6 +258,7 @@ def run_claimed_job(
     profiles: ProjectProfileStore,
     *,
     execute=execute_environment,
+    execute_batch=execute_environment_batch,
     fetch_source=_fetch_verified_source,
     store_snapshot=_stored_snapshot,
 ) -> bool:
@@ -295,6 +303,15 @@ def run_claimed_job(
             raise RunRejected("cancelled")
         files = store_snapshot(job["owner_id"], files, spec.source_sha256)
         adapter = ProjectAdapter(draft.adapter_module, draft.adapter_function)
+        candidates = candidate_inputs(
+            draft.contract, draft.sample_input,
+            strategy=spec.candidate_strategy, budget=spec.candidate_budget,
+            seed=spec.candidate_seed,
+        )
+        expected_inputs = [
+            hashlib.sha256(json.dumps(value, sort_keys=True, allow_nan=False).encode()).hexdigest()
+            for value in candidates
+        ]
         results = []
         for environment in (approval.old, approval.new):
             if cancelled():
@@ -312,9 +329,8 @@ def run_claimed_job(
             )
             if remaining < 1:
                 raise RunRejected("wall_budget_exhausted")
-            observed = execute(
+            runner_args = dict(
                 files=files,
-                input_json=draft.sample_input,
                 adapter=adapter,
                 template_id=environment.template_id,
                 expected_numpy=environment.numpy_version,
@@ -322,8 +338,18 @@ def run_claimed_job(
                 should_abort=cancelled,
                 timeout_seconds=remaining,
             )
+            observed = (
+                execute_batch(inputs_json=candidates, **runner_args)
+                if spec.candidate_budget > 1
+                else execute(input_json=candidates[0], **runner_args)
+            )
             if observed.source_sha256 != spec.source_sha256:
                 raise RunRejected("snapshot_changed")
+            if spec.candidate_budget > 1 and (
+                observed.input_sha256 != expected_inputs
+                or len(observed.outputs) != len(candidates)
+            ):
+                raise RunRejected("candidate_result_mismatch")
             results.append(observed)
             if sum(item.duration_seconds for item in results) > spec.max_sandbox_seconds:
                 raise RunRejected("sandbox_budget_exhausted")
@@ -336,6 +362,45 @@ def run_claimed_job(
             raise RunRejected("cancelled")
         if time.monotonic() - started > spec.max_wall_seconds:
             raise RunRejected("wall_budget_exhausted")
+        if spec.candidate_budget > 1:
+            observations = []
+            for index, input_digest in enumerate(expected_inputs):
+                old = evaluate_output(results[0].outputs[index], draft.contract)
+                new = evaluate_output(results[1].outputs[index], draft.contract)
+                observations.append({
+                    "input_sha256": input_digest,
+                    "old": old,
+                    "new": new,
+                    "changed_conclusion": old["conclusion"] != new["conclusion"],
+                    "measurement_matches_tolerance": numeric_matches(
+                        old["ratio"], new["ratio"], draft.contract
+                    ),
+                })
+            witness = next((item for item in observations if item["changed_conclusion"]), None)
+            spent = sum(item.duration_seconds for item in results)
+            finding = {
+                "kind": "approved_project_search",
+                "scope": f"{len(observations)} contract-valid inputs at one dependency-only PR revision",
+                "strategy": spec.candidate_strategy,
+                "seed": spec.candidate_seed,
+                "candidate_budget": spec.candidate_budget,
+                "attempted": len(observations),
+                "observations": observations,
+                "witness": witness,
+                "changed_conclusion": witness is not None,
+                "source_sha256": spec.source_sha256,
+                "base_sha": spec.base_sha,
+                "head_sha": spec.head_sha,
+                "contract_hash": spec.contract_hash,
+                "environment_lock_sha256": [
+                    spec.old_environment_lock_sha256, spec.new_environment_lock_sha256
+                ],
+                "sandbox_seconds": round(spent, 3),
+                "estimated_sandbox_cost_usd": round(spent * spec.sandbox_usd_per_second, 6),
+                "approved_cost_ceiling_usd": spec.max_cost_usd,
+                "sandbox_ids": [item.sandbox_id for item in results],
+            }
+            return queue.finish(job_id, lease, status="completed", result=finding)
         old, new = [evaluate_output(item.output, draft.contract) for item in results]
         finding = {
             "kind": "approved_project_sample",

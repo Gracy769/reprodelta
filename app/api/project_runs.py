@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import math
 import uuid
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
@@ -40,6 +40,9 @@ class StartProjectRun(BaseModel):
     approved_cost_ceiling_usd: float = Field(gt=0, le=100)
     source_transfer_approved: bool
     idempotency_key: str = Field(min_length=8, max_length=128)
+    candidate_strategy: Literal["sweep", "seeded_random"] = "sweep"
+    candidate_budget: int = Field(default=1, ge=1, le=32)
+    candidate_seed: int = Field(default=0, ge=0, le=2_147_483_647)
 
 
 def get_run_queue() -> ProjectRunQueue:
@@ -65,6 +68,9 @@ async def _plan(
     profiles: ProjectProfileStore,
     *,
     snapshot: bool,
+    candidate_strategy: Literal["sweep", "seeded_random"] = "sweep",
+    candidate_budget: int = 1,
+    candidate_seed: int = 0,
 ) -> tuple[dict, ProjectRunSpec | None]:
     profile = await asyncio.to_thread(profiles.get, owner_id, profile_id)
     if profile is None:
@@ -121,6 +127,9 @@ async def _plan(
         "cost_ceiling_usd": ceiling if rate_ready else None,
         "rate_configured": rate_ready,
         "execution_enabled": settings.e2b_project_runs_enabled,
+        "candidate_strategy": candidate_strategy,
+        "candidate_budget": candidate_budget,
+        "candidate_seed": candidate_seed,
     }
     if not eligibility["eligible"] or not snapshot or not rate_ready:
         return plan, None
@@ -147,6 +156,9 @@ async def _plan(
         max_sandbox_seconds=max_sandbox_seconds,
         sandbox_usd_per_second=rate,
         max_cost_usd=ceiling,
+        candidate_strategy=candidate_strategy,
+        candidate_budget=candidate_budget,
+        candidate_seed=candidate_seed,
     )
     return plan, spec
 
@@ -157,10 +169,19 @@ async def run_plan(
     change_number: int,
     owner_id: Annotated[str, Depends(current_user)],
     profiles: Annotated[ProjectProfileStore, Depends(get_profile_store)],
+    candidate_strategy: Literal["sweep", "seeded_random"] = "sweep",
+    candidate_budget: int = 1,
+    candidate_seed: int = 0,
 ):
     if not 1 <= change_number <= 10_000_000:
         raise HTTPException(422, "Invalid change number")
-    plan, _ = await _plan(owner_id, profile_id, change_number, profiles, snapshot=False)
+    if not 1 <= candidate_budget <= 32 or not 0 <= candidate_seed <= 2_147_483_647:
+        raise HTTPException(422, "Invalid candidate budget or seed")
+    plan, _ = await _plan(
+        owner_id, profile_id, change_number, profiles, snapshot=False,
+        candidate_strategy=candidate_strategy, candidate_budget=candidate_budget,
+        candidate_seed=candidate_seed,
+    )
     return plan
 
 
@@ -176,7 +197,9 @@ async def start_run(
     if not body.source_transfer_approved:
         raise HTTPException(422, "Approve source transfer to E2B before starting")
     plan, spec = await _plan(
-        owner_id, body.profile_id, body.change_number, profiles, snapshot=True
+        owner_id, body.profile_id, body.change_number, profiles, snapshot=True,
+        candidate_strategy=body.candidate_strategy, candidate_budget=body.candidate_budget,
+        candidate_seed=body.candidate_seed,
     )
     if not plan["rate_configured"]:
         raise HTTPException(503, "A verified sandbox rate and cost ceiling are required")

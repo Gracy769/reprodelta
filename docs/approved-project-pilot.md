@@ -44,9 +44,14 @@ it on both the API and the separate worker service.
   checked numeric scalar or one-dimensional array inputs by sweep or seeded
   random search. The E2B adapter can execute a bounded batch in one offline
   sandbox per environment, verifying the template before uploading source and
-  destroying it on exit. The project worker still invokes the one-sample path
-  until a shared execution/cost ledger is wired and verified; no broader search
-  result is claimed yet.
+  destroying it on exit. The run plan offers one sample (default) or a bounded
+  search of up to 8, 16, or 32 contract-valid inputs. The approved strategy,
+  seed, and budget enter the immutable job spec; both environments execute the
+  same ordered inputs. The worker checks returned input hashes and combined
+  sandbox time against the approved cost ceiling. Results list each measured
+  decision and show the first changed decision as a witness. An exhausted
+  search says no violation was found within the tested scope. Repeatability,
+  mechanism, and repair remain untested for approved project runs.
 
 ## Release gate before enabling project runs
 

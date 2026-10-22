@@ -67,7 +67,10 @@ def test_disabled_worker_never_fetches_source_or_executes(monkeypatch):
     assert queue.final == ("failed", None, "execution_disabled")
 
 
-def test_approved_sample_records_observations_not_a_general_verdict(monkeypatch):
+@pytest.mark.parametrize("tamper", [None, "input", "version"])
+def test_approved_sample_records_observations_not_a_general_verdict(
+    monkeypatch, tamper,
+):
     job = _job()
     queue = Queue()
     spec = ProjectRunSpec.model_validate(job["spec_json"])
@@ -108,9 +111,12 @@ def test_approved_sample_records_observations_not_a_general_verdict(monkeypatch)
         )
         version = kwargs["expected_numpy"]
         return EnvironmentResult(
-            version=version, sandbox_id=version.replace(".", ""), duration_seconds=1,
+            version="0.0.0" if tamper == "version" and version == "2.0.2" else version,
+            sandbox_id=version.replace(".", ""), duration_seconds=1,
             source_sha256=spec.source_sha256,
-            input_sha256=hashlib.sha256(b"sample").hexdigest(),
+            input_sha256=("f" * 64 if tamper == "input" and version == "2.0.2"
+                          else hashlib.sha256(json.dumps(kwargs["input_json"],
+                              sort_keys=True).encode()).hexdigest()),
             output={"result": {"ratio": versions[version]}}, stderr="",
         )
 
@@ -119,6 +125,13 @@ def test_approved_sample_records_observations_not_a_general_verdict(monkeypatch)
         store_snapshot=lambda owner, files, digest: files,
     )
     status, result, error = queue.final
+    if tamper:
+        assert (status, result, error) == (
+            "failed", None,
+            "environment_result_mismatch" if tamper == "version" else "candidate_result_mismatch",
+        )
+        assert queue.usage == [(1, 0.0001, False), (1, 0.0001, False)]
+        return
     assert (status, error) == ("completed", None)
     assert result["changed_conclusion"] is True
     assert result["scope"] == "one approved sample input at one dependency-only PR revision"

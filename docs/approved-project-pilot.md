@@ -15,7 +15,8 @@ it on both the API and the separate worker service.
 - A configured operator subject can queue sample validation against one immutable
   source commit and two fixed NumPy pilot templates. The separate E2B worker
   rechecks the draft and consent, executes the sample in both templates, and
-  records bounded observations and cost. Approval requires that exact completed
+  checks the returned input hash and environment version before recording
+  bounded observations and cost. Approval requires that exact completed
   validation job ID and matching profile, contract, and environment digests.
   `E2B_PROFILE_VALIDATION_ENABLED` defaults to `false` on the API and worker.
   This preapproval run does not open the broader project-run gate.
@@ -50,7 +51,8 @@ it on both the API and the separate worker service.
   search of up to 8, 16, or 32 contract-valid inputs. The approved strategy,
   seed, and budget enter the immutable job spec; both environments execute the
   same ordered inputs twice per environment. The worker checks returned input
-  hashes, within-environment repeatability, and combined sandbox time against
+  hashes for both search and one-sample runs, reported environment versions,
+  within-environment repeatability, and combined sandbox time against
   the approved cost ceiling. Results list each measured decision and show the
   first repeatable changed decision as a witness. An exhausted, repeatable
   search says no violation was found within the tested scope. Conflicting

@@ -125,6 +125,10 @@ def _stored_snapshot(owner_id: str, files: dict[str, bytes], expected_digest: st
     return restored
 
 
+def _input_digest(value: dict) -> str:
+    return hashlib.sha256(json.dumps(value, sort_keys=True, allow_nan=False).encode()).hexdigest()
+
+
 def _run_metered(queue, job_id, lease, rate, runner, **kwargs):
     """Record observed usage or a conservative uncertain bound on failure."""
     try:
@@ -203,6 +207,7 @@ def run_validation_job(
         if draft.dependency_path not in files:
             raise RunRejected("dependency_manifest_missing")
         adapter = ProjectAdapter(draft.adapter_module, draft.adapter_function)
+        expected_input_sha256 = _input_digest(draft.sample_input)
         results = []
         for environment in (spec.old, spec.new):
             if cancelled():
@@ -229,6 +234,10 @@ def run_validation_job(
             )
             if observed.source_sha256 != source_digest:
                 raise RunRejected("snapshot_changed")
+            if observed.version != environment.numpy_version:
+                raise RunRejected("environment_result_mismatch")
+            if observed.input_sha256 != expected_input_sha256:
+                raise RunRejected("sample_result_mismatch")
             results.append(observed)
             spent = sum(item.duration_seconds for item in results)
             if spent > spec.max_sandbox_seconds:
@@ -327,10 +336,7 @@ def run_claimed_job(
             strategy=spec.candidate_strategy, budget=spec.candidate_budget,
             seed=spec.candidate_seed,
         )
-        expected_inputs = [
-            hashlib.sha256(json.dumps(value, sort_keys=True, allow_nan=False).encode()).hexdigest()
-            for value in candidates
-        ]
+        expected_inputs = [_input_digest(value) for value in candidates]
         execution_inputs = [value for candidate in candidates for value in (candidate, candidate)]
         execution_hashes = [digest for digest in expected_inputs for _ in (0, 1)]
         results = []
@@ -368,10 +374,14 @@ def run_claimed_job(
             )
             if observed.source_sha256 != spec.source_sha256:
                 raise RunRejected("snapshot_changed")
+            if observed.version != environment.numpy_version:
+                raise RunRejected("environment_result_mismatch")
             if spec.candidate_budget > 1 and (
                 observed.input_sha256 != execution_hashes
                 or len(observed.outputs) != len(execution_inputs)
             ):
+                raise RunRejected("candidate_result_mismatch")
+            if spec.candidate_budget == 1 and observed.input_sha256 != expected_inputs[0]:
                 raise RunRejected("candidate_result_mismatch")
             results.append(observed)
             if sum(item.duration_seconds for item in results) > spec.max_sandbox_seconds:

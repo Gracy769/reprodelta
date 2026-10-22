@@ -25,14 +25,14 @@ def validate_input(contract: ContractBody, input_json: dict) -> ValidationResult
 
     Checks (in order):
     1. All required fields are present.
-    2. Each field value is a list (sequence).
-    3. Shape matches the declared shape.
-    4. All elements are numbers (int/float).
-    5. Value range (min_value / max_value).
-    6. NaN policy.
-    7. Inf policy.
+    2. Each field matches the declared shape.
+    3. All elements are numeric and fit the declared dtype.
+    4. Values satisfy the range, NaN and Inf policy.
     """
     checked: list[str] = []
+
+    if not isinstance(input_json, dict):
+        return ValidationResult(valid=False, reason="Input must be a JSON object")
 
     for field in contract.input_schema.fields:
         fname = field.name
@@ -83,9 +83,36 @@ def validate_input(contract: ContractBody, input_json: dict) -> ValidationResult
                     checked_fields=checked,
                 )
 
-        # 5/6/7. Per-element range + NaN + Inf
+        # A declared integer must not quietly accept a fractional float. This
+        # also prevents a later NumPy cast from changing the approved input.
+        integer_limits = {"int32": (-2**31, 2**31 - 1),
+                          "int64": (-2**63, 2**63 - 1)}
+        float32_limit = 3.4028234663852886e38
+
+        # 5/6. Dtype, representability, range, NaN and Inf.
         for i, elem in enumerate(value):
-            elem_f = float(elem)
+            if field.dtype in integer_limits:
+                low, high = integer_limits[field.dtype]
+                if type(elem) is not int or not low <= elem <= high:
+                    return ValidationResult(
+                        valid=False,
+                        reason=f"Field '{fname}' element [{i}] is not a representable {field.dtype}",
+                        checked_fields=checked,
+                    )
+            try:
+                elem_f = float(elem)
+            except OverflowError:
+                return ValidationResult(
+                    valid=False,
+                    reason=f"Field '{fname}' element [{i}] exceeds the numeric dtype",
+                    checked_fields=checked,
+                )
+            if field.dtype == "float32" and math.isfinite(elem_f) and abs(elem_f) > float32_limit:
+                return ValidationResult(
+                    valid=False,
+                    reason=f"Field '{fname}' element [{i}] exceeds float32 range",
+                    checked_fields=checked,
+                )
 
             if not field.allow_nan and math.isnan(elem_f):
                 return ValidationResult(

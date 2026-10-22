@@ -1,0 +1,166 @@
+name: reprodelta
+
+services:
+  proxy:
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:?Set PUBLIC_DOMAIN in deploy/oracle/.env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - edge
+
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: reprodelta
+      POSTGRES_USER: reprodelta
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in deploy/oracle/.env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reprodelta -d reprodelta"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - backend
+
+  api:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in deploy/oracle/.env}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in deploy/oracle/.env}
+      APP_URL: https://${PUBLIC_DOMAIN:?Set PUBLIC_DOMAIN in deploy/oracle/.env}
+      AUTH_ALLOWED_ORIGIN: https://${PUBLIC_DOMAIN:?Set PUBLIC_DOMAIN in deploy/oracle/.env}
+      INVESTIGATION_STORE: postgres
+      PERSIST_INVESTIGATIONS: "true"
+      ARTIFACT_DIR: /data/artifacts
+      RUNNER_MODE: worker_http
+      WORKER_OLD_URL: http://worker-old:9000/run
+      WORKER_NEW_URL: http://worker-new:9000/run
+      GITHUB_OAUTH_CLIENT_ID: ${GITHUB_OAUTH_CLIENT_ID:-}
+      GITHUB_OAUTH_CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET:-}
+      GITLAB_OAUTH_CLIENT_ID: ${GITLAB_OAUTH_CLIENT_ID:-}
+      GITLAB_OAUTH_CLIENT_SECRET: ${GITLAB_OAUTH_CLIENT_SECRET:-}
+      FIREBASE_API_KEY: ${FIREBASE_API_KEY:-}
+      FIREBASE_AUTH_DOMAIN: ${FIREBASE_AUTH_DOMAIN:-}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
+      FIREBASE_APP_ID: ${FIREBASE_APP_ID:-}
+      NEON_AUTH_BASE_URL: ${NEON_AUTH_BASE_URL:-}
+      NEON_AUTH_JWKS_URL: ${NEON_AUTH_JWKS_URL:-}
+      NEBIUS_API_KEY: ${NEBIUS_API_KEY:-}
+      NEBIUS_MODEL_ID: ${NEBIUS_MODEL_ID:-nvidia/Nemotron-3-Ultra-550b-a55b}
+      NEBIUS_CALL_COST_CEILING_USD: ${NEBIUS_CALL_COST_CEILING_USD:-0}
+      PROFILE_APPROVER_SUBJECTS: ${PROFILE_APPROVER_SUBJECTS:-}
+      PROJECT_SNAPSHOT_KEY: ${PROJECT_SNAPSHOT_KEY:-}
+      E2B_PROJECT_RUNS_ENABLED: ${E2B_PROJECT_RUNS_ENABLED:-false}
+      E2B_PROFILE_VALIDATION_ENABLED: ${E2B_PROFILE_VALIDATION_ENABLED:-false}
+      E2B_SANDBOX_USD_PER_SECOND: ${E2B_SANDBOX_USD_PER_SECOND:-0}
+      E2B_PROJECT_RUN_COST_CEILING_USD: ${E2B_PROJECT_RUN_COST_CEILING_USD:-0}
+    volumes:
+      - artifacts:/data/artifacts
+    depends_on:
+      db:
+        condition: service_healthy
+      worker-old:
+        condition: service_healthy
+      worker-new:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=8)"]
+      interval: 20s
+      timeout: 10s
+      retries: 6
+      start_period: 30s
+    networks:
+      - edge
+      - backend
+      - runner
+
+  worker-old:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.runner-old
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 512m
+    pids_limit: 64
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    networks:
+      - runner
+
+  worker-new:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.runner-new
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 512m
+    pids_limit: 64
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    networks:
+      - runner
+
+  project-worker:
+    profiles: ["approved-projects"]
+    build:
+      context: ../..
+      dockerfile: Dockerfile.project-worker
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in deploy/oracle/.env}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in deploy/oracle/.env}
+      PROJECT_SNAPSHOT_KEY: ${PROJECT_SNAPSHOT_KEY:-}
+      E2B_API_KEY: ${E2B_API_KEY:-}
+      E2B_PROJECT_RUNS_ENABLED: ${E2B_PROJECT_RUNS_ENABLED:-false}
+      E2B_PROFILE_VALIDATION_ENABLED: ${E2B_PROFILE_VALIDATION_ENABLED:-false}
+      E2B_SANDBOX_USD_PER_SECOND: ${E2B_SANDBOX_USD_PER_SECOND:-0}
+      E2B_PROJECT_RUN_COST_CEILING_USD: ${E2B_PROJECT_RUN_COST_CEILING_USD:-0}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backend
+
+volumes:
+  postgres_data:
+  artifacts:
+  caddy_data:
+  caddy_config:
+
+networks:
+  edge:
+  backend:
+  runner:
+    internal: true

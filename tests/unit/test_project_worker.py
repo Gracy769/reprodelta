@@ -38,9 +38,14 @@ class Queue:
     def __init__(self):
         self.final = None
         self.cancelled = False
+        self.usage = []
 
     def cancellation_requested(self, *_):
         return self.cancelled
+
+    def record_usage(self, _job_id, _lease, *, seconds, usd_per_second, uncertain=False):
+        self.usage.append((seconds, usd_per_second, uncertain))
+        return True
 
     def finish(self, _job_id, _lease, *, status, result=None, error_code=None):
         self.final = (status, result, error_code)
@@ -118,6 +123,7 @@ def test_approved_sample_records_observations_not_a_general_verdict(monkeypatch)
     assert result["changed_conclusion"] is True
     assert result["scope"] == "one approved sample input at one dependency-only PR revision"
     assert result["sandbox_seconds"] == 2
+    assert queue.usage == [(1, 0.0001, False), (1, 0.0001, False)]
 
 
 def test_owner_cancellation_prevents_any_sandbox(monkeypatch):
@@ -196,3 +202,18 @@ def test_candidate_search_uses_controls_before_claiming_witness(
     assert result["witness"] == (result["observations"][1] if changed and not unstable else None)
     assert result["inconclusive"] is unstable
     assert result["estimated_sandbox_cost_usd"] == 0.0004
+    assert queue.usage == [(2, 0.0001, False), (2, 0.0001, False)]
+
+
+def test_failed_sandbox_attempt_records_uncertain_cost_bound():
+    queue = Queue()
+
+    def failed(**_kwargs):
+        raise RuntimeError("provider failure")
+
+    with pytest.raises(RuntimeError, match="provider failure"):
+        project_worker._run_metered(
+            queue, uuid.uuid4(), uuid.uuid4(), 0.0001,
+            failed, timeout_seconds=13,
+        )
+    assert queue.usage == [(13, 0.0001, True)]

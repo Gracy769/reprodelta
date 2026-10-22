@@ -22,6 +22,12 @@ The same owner and idempotency key can create only one job; a second request
 with different inputs fails. The queue stores this manifest in Postgres before
 any worker can claim it. A completed result is stored as bounded JSON with a
 canonical SHA-256 digest. Historical jobs without the digest remain readable.
+Each sandbox attempt also updates owner-scoped `sandbox_seconds` and
+`estimated_sandbox_cost_usd` under the current lease before the terminal write.
+On provider or cleanup failure, the worker records the full reserved timeout as
+a conservative upper bound and sets `usage_uncertain=true`; it does not claim
+that amount was actually billed. A process killed inside an attempt may leave
+an incomplete usage record and ends as `worker_lost`.
 
 ## State transitions
 
@@ -52,6 +58,7 @@ stop and destroy both sandboxes before marking it cancelled.
   profile, source digest, environment digests, transfer consent, and budget
   after claim. The worker implementation does these checks and heartbeats,
   but it still needs a live service setup.
-- Verify the bounded one-sample evidence and measured sandbox lifetime against
-  live E2B. Implement the five-stage browser flow and comprehensive search.
+- Verify sandbox lifetime and recorded cost against live E2B. The browser offers
+  a five-stage flow and bounded contract-valid search with repeat controls,
+  but the independent public/private pilot and live worker gates remain.
   Keep setup errors separate from a tested negative finding.

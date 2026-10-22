@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import uuid
 
@@ -34,6 +35,9 @@ class ProjectRunQueue:
             lease_token UUID, lease_expires_at TIMESTAMPTZ,
             cancel_requested_at TIMESTAMPTZ, result_json JSONB,
             result_sha256 TEXT,
+            sandbox_seconds DOUBLE PRECISION NOT NULL DEFAULT 0,
+            estimated_sandbox_cost_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
+            usage_uncertain BOOLEAN NOT NULL DEFAULT FALSE,
             error_code TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
             started_at TIMESTAMPTZ, finished_at TIMESTAMPTZ,
             updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -43,6 +47,12 @@ class ProjectRunQueue:
             job_kind TEXT NOT NULL DEFAULT 'investigation'""")
         conn.execute("""ALTER TABLE project_run_jobs ADD COLUMN IF NOT EXISTS
             result_sha256 TEXT""")
+        conn.execute("""ALTER TABLE project_run_jobs ADD COLUMN IF NOT EXISTS
+            sandbox_seconds DOUBLE PRECISION NOT NULL DEFAULT 0""")
+        conn.execute("""ALTER TABLE project_run_jobs ADD COLUMN IF NOT EXISTS
+            estimated_sandbox_cost_usd DOUBLE PRECISION NOT NULL DEFAULT 0""")
+        conn.execute("""ALTER TABLE project_run_jobs ADD COLUMN IF NOT EXISTS
+            usage_uncertain BOOLEAN NOT NULL DEFAULT FALSE""")
         conn.execute("""CREATE INDEX IF NOT EXISTS project_run_jobs_queue_idx
             ON project_run_jobs(created_at, id) WHERE status='queued'""")
         conn.execute("""CREATE INDEX IF NOT EXISTS project_run_jobs_owner_idx
@@ -155,6 +165,28 @@ class ProjectRunQueue:
                     AND lease_expires_at>now() AND cancel_requested_at IS NULL
                 RETURNING id""",
                 (job_id, lease_token),
+            ).fetchone()
+            return row is not None
+
+    def record_usage(
+        self, job_id: uuid.UUID, lease_token: uuid.UUID, *,
+        seconds: float, usd_per_second: float, uncertain: bool = False,
+    ) -> bool:
+        """Persist each sandbox attempt under its live lease before terminal write."""
+        if (
+            not math.isfinite(seconds) or not 0 <= seconds <= 1800
+            or not math.isfinite(usd_per_second) or usd_per_second <= 0
+        ):
+            raise ValueError("Invalid sandbox usage observation")
+        with self._connect() as conn:
+            self._ensure(conn)
+            row = conn.execute(
+                """UPDATE project_run_jobs SET sandbox_seconds=sandbox_seconds+%s,
+                    estimated_sandbox_cost_usd=estimated_sandbox_cost_usd+%s,
+                    usage_uncertain=usage_uncertain OR %s, updated_at=now()
+                WHERE id=%s AND lease_token=%s AND status='running'
+                    AND lease_expires_at>now() RETURNING id""",
+                (seconds, seconds * usd_per_second, uncertain, job_id, lease_token),
             ).fetchone()
             return row is not None
 

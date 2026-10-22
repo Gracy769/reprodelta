@@ -480,7 +480,11 @@ def run_claimed_job(
                         old["ratio"], new["ratio"], draft.contract
                     ),
                 })
-            witness = next((item for item in observations if item["changed_conclusion"]), None)
+            witness_index = next(
+                (index for index, item in enumerate(observations) if item["changed_conclusion"]),
+                None,
+            )
+            witness = observations[witness_index] if witness_index is not None else None
             inconclusive = any(not item["repeatable"] for item in observations)
             spent = sum(item.duration_seconds for item in results)
             finding = {
@@ -492,6 +496,7 @@ def run_claimed_job(
                 "attempted": len(observations),
                 "observations": observations,
                 "witness": witness,
+                "witness_input": candidates[witness_index] if witness_index is not None else None,
                 "changed_conclusion": witness is not None,
                 "inconclusive": inconclusive,
                 "source_sha256": spec.source_sha256,
@@ -523,6 +528,7 @@ def run_claimed_job(
             "kind": "approved_project_sample",
             "scope": "one approved sample input at one dependency-only PR revision",
             "changed_conclusion": repeatable and old["conclusion"] != new["conclusion"],
+            "witness_input": draft.sample_input if repeatable and old["conclusion"] != new["conclusion"] else None,
             "repeatable": repeatable,
             "inconclusive": not repeatable,
             "measurement_matches_tolerance": numeric_matches(

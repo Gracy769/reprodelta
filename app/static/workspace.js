@@ -495,7 +495,7 @@
     searchLabel.append(searchSelect);
     const strategyLabel = text("label", "Input selection");
     const strategySelect = document.createElement("select");
-    [["sweep", "Range sweep"], ["seeded_random", "Seeded random"]]
+    [["sweep", "Range sweep"], ["seeded_random", "Seeded random"], ["adaptive", "Measured boundary"]]
       .forEach(([value, label]) => { const option = text("option", label); option.value = value; strategySelect.append(option); });
     strategyLabel.append(strategySelect);
     const checkButton = text("button", "Check this run ↗", "review-button review-button-primary");

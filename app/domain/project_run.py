@@ -29,7 +29,7 @@ class ProjectRunSpec(BaseModel):
     max_sandbox_seconds: int = Field(default=1800, ge=1, le=1800)
     sandbox_usd_per_second: float = Field(default=0.0, ge=0.0)
     max_cost_usd: float = Field(default=0.0, ge=0.0, le=100.0)
-    candidate_strategy: Literal["sweep", "seeded_random"] = "sweep"
+    candidate_strategy: Literal["sweep", "seeded_random", "adaptive"] = "sweep"
     candidate_budget: int = Field(default=1, ge=1, le=32)
     candidate_seed: int = Field(default=0, ge=0, le=2_147_483_647)
 

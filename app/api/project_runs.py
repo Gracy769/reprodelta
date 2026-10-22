@@ -42,7 +42,7 @@ class StartProjectRun(BaseModel):
     approved_cost_ceiling_usd: float = Field(gt=0, le=100)
     source_transfer_approved: bool
     idempotency_key: str = Field(min_length=8, max_length=128)
-    candidate_strategy: Literal["sweep", "seeded_random"] = "sweep"
+    candidate_strategy: Literal["sweep", "seeded_random", "adaptive"] = "sweep"
     candidate_budget: int = Field(default=1, ge=1, le=32)
     candidate_seed: int = Field(default=0, ge=0, le=2_147_483_647)
 
@@ -80,7 +80,7 @@ async def _plan(
     profiles: ProjectProfileStore,
     *,
     snapshot: bool,
-    candidate_strategy: Literal["sweep", "seeded_random"] = "sweep",
+    candidate_strategy: Literal["sweep", "seeded_random", "adaptive"] = "sweep",
     candidate_budget: int = 1,
     candidate_seed: int = 0,
 ) -> tuple[dict, ProjectRunSpec | None]:
@@ -181,7 +181,7 @@ async def run_plan(
     change_number: int,
     owner_id: Annotated[str, Depends(current_user)],
     profiles: Annotated[ProjectProfileStore, Depends(get_profile_store)],
-    candidate_strategy: Literal["sweep", "seeded_random"] = "sweep",
+    candidate_strategy: Literal["sweep", "seeded_random", "adaptive"] = "sweep",
     candidate_budget: int = 1,
     candidate_seed: int = 0,
 ):

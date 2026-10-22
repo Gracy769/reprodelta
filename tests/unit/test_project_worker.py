@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.domain.contract import FIXTURE_CONTRACT, OutputSelector
+from app.domain.contract import FIXTURE_CONTRACT, InputField, InputSchema, OutputSelector
 from app.domain.project_run import ProjectRunSpec
 from app.orchestrator import project_worker
 from app.providers.e2b_runner import EnvironmentBatchResult
@@ -240,3 +240,66 @@ def test_failed_sandbox_attempt_records_uncertain_cost_bound():
             failed, timeout_seconds=13,
         )
     assert queue.usage == [(13, 0.0001, True)]
+
+
+@pytest.mark.parametrize("unstable", [False, True])
+def test_adaptive_project_search_uses_only_repeatable_feedback_and_accounts_sandboxes(
+    monkeypatch, unstable,
+):
+    job = _job(candidate_budget=4)
+    job["spec_json"]["candidate_strategy"] = "adaptive"
+    spec = ProjectRunSpec.model_validate(job["spec_json"])
+    contract = FIXTURE_CONTRACT.model_copy(update={
+        "input_schema": InputSchema(fields=[InputField(
+            name="x", dtype="float32", shape=[], min_value=0, max_value=1,
+        )]),
+        "output_selector": OutputSelector(field_name="ratio"),
+    })
+    draft = SimpleNamespace(adapter_module="probe", adapter_function="measure",
+                            sample_input={"x": 0.5}, contract=contract)
+    approval = SimpleNamespace(old=SimpleNamespace(template_id="old", numpy_version="1.26.4",
+        lock_sha256=spec.old_environment_lock_sha256),
+        new=SimpleNamespace(template_id="new", numpy_version="2.0.2",
+        lock_sha256=spec.new_environment_lock_sha256))
+    monkeypatch.setattr(project_worker, "get_settings", lambda: SimpleNamespace(
+        e2b_project_runs_enabled=True))
+    monkeypatch.setattr(project_worker, "_approved_inputs", lambda *_: ({}, draft, approval))
+    monkeypatch.setattr(project_worker, "check_eligibility", lambda *_: {"eligible": True})
+
+    async def source(*_):
+        return {}, {"probe.py": b"trusted"}
+
+    calls = []
+
+    def execute_batch(**kwargs):
+        inputs = kwargs["inputs_json"]
+        calls.append((kwargs["expected_numpy"], inputs))
+        version = kwargs["expected_numpy"]
+        outputs = [{"result": {"ratio": value["x"] +
+                    (0.2 if unstable and version == "2.0.2" and index == 1
+                     else 0.1 if version == "2.0.2" else -0.1)}}
+                   for index, value in enumerate(inputs)]
+        return EnvironmentBatchResult(
+            version=version, sandbox_id=f"sandbox-{len(calls)}", duration_seconds=2,
+            source_sha256=spec.source_sha256,
+            input_sha256=[project_worker._input_digest(value) for value in inputs],
+            outputs=outputs, stderrs=[""] * len(inputs),
+        )
+
+    queue = Queue()
+    assert project_worker.run_claimed_job(
+        job, queue, None, execute_batch=execute_batch, fetch_source=source,
+        store_snapshot=lambda _owner, files, _digest: files,
+    )
+    status, finding, error = queue.final
+    assert (status, error) == ("completed", None)
+    assert finding["strategy"] == "adaptive"
+    assert finding["attempted"] == (2 if unstable else 4)
+    assert finding["inconclusive"] is unstable
+    assert len(finding["sandbox_ids"]) == (2 if unstable else 4)
+    assert len(calls) == (2 if unstable else 4)
+    assert calls[0][1] == calls[1][1]
+    if not unstable:
+        assert calls[2][1] == calls[3][1]
+        assert calls[2][1] != calls[0][1]
+    assert queue.usage == [(2, 0.0001, False)] * len(calls)

@@ -69,6 +69,11 @@ def test_snapshot_rejects_traversal_and_oversize():
         validate_snapshot({"../secret.py": b"pass"})
     with pytest.raises(ValueError):
         validate_snapshot({"a.py": b"x" * 1_000_001})
+    for name in (".env", "config/.env.production", "secrets/token.txt",
+                 "deploy/private.pem", "credentials.json", "src/bad\nname.py"):
+        with pytest.raises(ValueError):
+            validate_snapshot({name: b"sensitive"})
+    assert len(validate_snapshot({".env.example": b"PLACEHOLDER=true"})) == 64
 
 
 def test_e2b_execution_disables_network_and_always_kills():

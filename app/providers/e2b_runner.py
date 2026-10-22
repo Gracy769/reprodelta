@@ -24,6 +24,26 @@ MAX_OUTPUT_BYTES = 131_072
 MAX_BATCH_INPUTS = 64
 SANDBOX_TIMEOUT_SECONDS = 900
 _IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
+_SENSITIVE_BASENAMES = {
+    "id_rsa", "id_ed25519", "credentials.json", "service-account.json",
+    "service_account.json", "secrets.json",
+}
+_SENSITIVE_SUFFIXES = (".pem", ".key", ".p12", ".pfx")
+
+
+def sensitive_snapshot_path(name: str) -> bool:
+    """Block common credential paths before copying a source tree to E2B."""
+    parts = name.lower().split("/")
+    basename = parts[-1]
+    return (
+        any(part in {".ssh", ".aws", "secrets"} for part in parts[:-1])
+        or basename == ".env"
+        or (basename.startswith(".env.") and not basename.endswith(
+            (".example", ".sample", ".template")
+        ))
+        or basename in _SENSITIVE_BASENAMES
+        or basename.endswith(_SENSITIVE_SUFFIXES)
+    )
 
 
 @dataclass(frozen=True)
@@ -77,7 +97,9 @@ def validate_snapshot(files: Mapping[str, bytes]) -> str:
             or len(name) > 512
             or path.is_absolute()
             or "\\" in name
+            or any(ord(char) < 32 or ord(char) == 127 for char in name)
             or any(part in {"", ".", ".."} for part in name.split("/"))
+            or sensitive_snapshot_path(name)
             or not isinstance(content, bytes)
             or len(content) > MAX_FILE_BYTES
         ):

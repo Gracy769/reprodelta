@@ -26,8 +26,10 @@ it on both the API and the separate worker service.
   at run start.
 - `immutable_snapshot` reads at most 200 regular files, 10 MB total, by commit
   SHA from the source-host API. It rejects truncated trees, symlinks, submodules,
-  oversized files and Git blob mismatches. The source token remains in the web
-  process and is never copied into the sandbox.
+  oversized files, Git blob mismatches, and common credential paths before
+  fetching their contents. The source token remains in the web process and is
+  never copied into the sandbox. Path screening cannot detect secrets embedded
+  in ordinary source files; the owner and operator still review transfer scope.
 - The E2B adapter creates one secure sandbox with internet disabled, uploads
   only bounded source and input bytes, verifies the installed NumPy version and
   approved template lock digest before any source upload,

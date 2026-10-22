@@ -50,6 +50,24 @@ resource accounting limit, not an Oracle charge quote; leave both at zero
 until a defensible allocation is chosen. Start the worker only after these
 values and image IDs are configured:
 
+Before enabling the flags, run the synthetic isolation probe from the VM. It
+checks both image locks and NumPy versions, executes a fixed numeric input,
+checks that service secrets and an outbound HTTPS response are absent, then
+checks container removal after normal completion, adapter failure, and timeout:
+
+```sh
+docker compose --env-file deploy/oracle/.env -f deploy/oracle/compose.yaml \
+  --profile oracle-projects run --build --rm project-worker-oracle \
+  python -m app.providers.oracle_probe
+```
+
+This is a necessary smoke test, not proof against kernel escape or every
+network destination. Record the output and image IDs in a private release log.
+Then review an approved public repository, a private repository with explicit
+consent, concurrent queue claims, restart recovery, and cancellation before
+turning on either flag. The VM and Docker daemon do not exist in this checkout,
+so these checks remain pending.
+
 ```sh
 docker compose --env-file deploy/oracle/.env -f deploy/oracle/compose.yaml \
   --profile oracle-projects up --build -d project-worker-oracle

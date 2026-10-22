@@ -59,6 +59,19 @@ These checks establish source identity and admission, not an E2B result.
 Local execution of that adapter gave `196869` on NumPy 1.26.4 and `5` on
 2.0.2 for the declared sample; a zero/zero control returned `5` in both.
 Those commands ran the harness directly on Windows, outside ReproDelta. The
-profile has not been approved or executed by the E2B worker, so no
-end-to-end finding is claimed. A full-isce3 result would require importing
-and running the actual upstream project and checking its output product.
+same base source was then executed directly through ReproDelta's E2B batch
+adapter in one prepared, offline sandbox per NumPy version. The two repeated
+sample outputs were `196869/196869` on 1.26.4 and `5/5` on 2.0.2; the
+zero-mask control returned `5` in both. The source digest, input hashes and
+template lock digests were checked, and reconnecting to each sandbox after
+cleanup returned `SandboxNotFoundException`. The bounded run used 17.875
+seconds of sandbox time, an estimated `$0.00082225` at E2B's published default
+[compute and memory rates](https://e2b.dev/pricing); the two 120-second
+timeouts capped the reserved estimate at `$0.01104`. See the
+[observation record](evidence/independent-mask-e2b-2026-10-22.json).
+
+This establishes a real sandbox-level reproduction of the narrow expression.
+The profile has not been approved or run through ReproDelta's Postgres queue,
+browser workflow, or saved finding path, so no end-to-end project finding is
+claimed. A full-isce3 result would require importing and running the actual
+upstream project and checking its output product.

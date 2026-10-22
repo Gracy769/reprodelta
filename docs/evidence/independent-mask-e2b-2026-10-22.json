@@ -1,0 +1,41 @@
+{
+  "scope": "Direct E2B execution of the public evaluation adapter; not a queued ReproDelta finding or full isce3 run",
+  "source_repository": "Gracy769/reprodelta-isce3-mask-evaluation",
+  "source_commit": "34e1dcd88dc2def1fd8e736313817f070c003a36",
+  "source_sha256": "4a5ef877826342c5d5d5ae3d75ca003b087b9cae6fec5461178c93ef1f2b3705",
+  "adapter": "mask_probe.measure",
+  "inputs": [
+    {"reference": 3, "secondary": 1},
+    {"reference": 3, "secondary": 1},
+    {"reference": 0, "secondary": 0}
+  ],
+  "sandboxes": [
+    {
+      "numpy_version": "1.26.4",
+      "template_id": "o0g0xd5k79nqzrgfk8bo",
+      "lock_sha256": "6e05463defe47c155b59f05b01fcdb0752ddba2cd58538e330f42e8ddf70b5e5",
+      "sandbox_id": "itaf4k2qqc5vq9avrevdk",
+      "duration_seconds": 8.812,
+      "packed_mask_outputs": [196869, 196869, 5],
+      "reconnect_after_kill": "SandboxNotFoundException"
+    },
+    {
+      "numpy_version": "2.0.2",
+      "template_id": "h993tf72q67zyzk1u4u8",
+      "lock_sha256": "0f977035ee9fa346c26b609f63a6656650dc35b088746df63338cf20574a23e0",
+      "sandbox_id": "ib9rqlhqijmogel6f32od",
+      "duration_seconds": 9.063,
+      "packed_mask_outputs": [5, 5, 5],
+      "reconnect_after_kill": "SandboxNotFoundException"
+    }
+  ],
+  "sandbox_settings": {
+    "secure": true,
+    "allow_internet_access": false,
+    "envs": {},
+    "timeout_seconds_each": 120
+  },
+  "estimated_usage_usd": 0.00082225,
+  "maximum_reserved_usage_usd": 0.01104,
+  "billing_note": "Estimate uses E2B's published default 2-vCPU plus 4-GiB rate of $0.000046/s; it is not an invoice."
+}

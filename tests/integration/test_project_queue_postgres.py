@@ -172,3 +172,19 @@ def test_postgres_snapshots_are_encrypted_owner_scoped_and_expire(local_queue):
             WHERE owner_id=%s AND source_sha256=%s""", ("github:owner", digest))
     assert store.get("github:owner", digest) is None
     assert store.purge_expired() == 1
+
+
+def test_postgres_operator_queue_tracks_only_pending_versions(local_queue):
+    _, dsn = local_queue
+    store = ProjectProfileStore(dsn)
+    first = store.create("github:one", _draft())
+    second = store.create("github:two", _draft())
+    pending = store.list_pending()
+    assert {row["id"] for row in pending} == {first["id"], second["id"]}
+    assert store.list("github:one")[0]["id"] == first["id"]
+    with psycopg.connect(dsn) as conn:
+        conn.execute(
+            "UPDATE project_profile_versions SET status='approved' WHERE id=%s",
+            (uuid.UUID(first["id"]),),
+        )
+    assert [row["id"] for row in store.list_pending()] == [second["id"]]

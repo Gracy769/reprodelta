@@ -78,6 +78,16 @@ async def list_profiles(
     return {"profiles": await asyncio.to_thread(store.list, owner_id)}
 
 
+@router.get("/operator/pending")
+async def pending_profiles(
+    approver: Annotated[str, Depends(current_user)],
+    store: Annotated[ProjectProfileStore, Depends(get_profile_store)],
+):
+    if approver not in _approvers():
+        raise HTTPException(403, "Only a configured project approver may review drafts")
+    return {"profiles": await asyncio.to_thread(store.list_pending)}
+
+
 @router.get("/{profile_id}")
 async def get_profile(
     profile_id: uuid.UUID,

@@ -60,6 +60,10 @@ it on both the API and the separate worker service.
   the current PR/MR base and head against the immutable recorded revision and
   warns if the source moved; the saved evidence remains tied to its original
   commits. The run list shows metered sandbox cost or an uncertain upper bound.
+- Configured approvers can review pending drafts in the workspace or through
+  `GET /api/project-profiles/operator/pending`. Other signed-in users receive
+  403 and cannot see another owner's draft. The queue is read-only; sample
+  validation and approval still require their separate gated API operations.
 
 ## Release gate before enabling project runs
 

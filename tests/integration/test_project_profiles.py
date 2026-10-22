@@ -94,6 +94,9 @@ class _Profiles:
     def list(self, owner_id):
         return [self.row] if self.row and self.row["owner_id"] == owner_id else []
 
+    def list_pending(self):
+        return [self.row] if self.row and self.row["status"] == "draft" else []
+
     def get(self, owner_id, profile_id):
         return (
             self.row
@@ -155,6 +158,27 @@ def test_profile_owner_access_and_operator_approval(monkeypatch):
             client.post(f"/api/project-profiles/{profile_id}/approve", json=approval).status_code
             == 200
         )
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_pending_profile_queue_is_operator_only(monkeypatch):
+    store = _Profiles()
+    store.create("github:owner", _draft())
+    app.dependency_overrides[current_user] = lambda: "github:owner"
+    app.dependency_overrides[project_profiles.get_profile_store] = lambda: store
+    monkeypatch.setattr(project_profiles, "get_settings", lambda: Settings(
+        profile_approver_subjects="github:approver",
+    ))
+    try:
+        client = TestClient(app)
+        assert client.get("/api/project-profiles/operator/pending").status_code == 403
+        app.dependency_overrides[current_user] = lambda: "github:approver"
+        response = client.get("/api/project-profiles/operator/pending")
+        assert response.status_code == 200
+        assert response.json()["profiles"][0]["owner_id"] == "github:owner"
+        store.row["status"] = "approved"
+        assert client.get("/api/project-profiles/operator/pending").json() == {"profiles": []}
     finally:
         app.dependency_overrides.clear()
 

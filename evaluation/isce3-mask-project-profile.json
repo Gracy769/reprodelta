@@ -1,0 +1,42 @@
+{
+  "provider": "github",
+  "repository": "Gracy769/reprodelta-isce3-mask-evaluation",
+  "name": "Reported uint8 mask-shift expression",
+  "adapter_module": "mask_probe",
+  "adapter_function": "measure",
+  "dependency_path": "requirements.txt",
+  "sample_input": {
+    "reference": 3,
+    "secondary": 1
+  },
+  "contract": {
+    "input_schema": {
+      "fields": [
+        {
+          "name": "reference",
+          "dtype": "int32",
+          "shape": [],
+          "min_value": 0,
+          "max_value": 255
+        },
+        {
+          "name": "secondary",
+          "dtype": "int32",
+          "shape": [],
+          "min_value": 0,
+          "max_value": 255
+        }
+      ]
+    },
+    "output_selector": {
+      "field_name": "packed_mask"
+    },
+    "conclusion": {
+      "operator": "gt",
+      "threshold": 65535,
+      "tie_behavior": "inconclusive"
+    },
+    "review_provenance": "Human-reviewed expression from isce3 issue 335"
+  },
+  "source_transfer_consent": true
+}

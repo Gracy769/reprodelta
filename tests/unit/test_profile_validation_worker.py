@@ -1,8 +1,11 @@
 """A sample validation must execute before its result can authorize approval."""
 
 import hashlib
+import json
 import uuid
 from types import SimpleNamespace
+
+import pytest
 
 from app.domain.profile_validation import ProfileValidationSpec, pilot_lock_digest
 from app.domain.project_profile import PreparedEnvironment, ProfileApproval
@@ -40,7 +43,10 @@ def _validation():
     return job, profile, spec
 
 
-def test_validation_runs_both_prepared_environments_then_approval_matches(monkeypatch):
+@pytest.mark.parametrize("tamper", [None, "input", "version"])
+def test_validation_runs_both_prepared_environments_then_approval_matches(
+    monkeypatch, tamper,
+):
     job, profile, spec = _validation()
     queue = Queue()
     monkeypatch.setattr(project_worker, "get_settings", lambda: SimpleNamespace(
@@ -60,15 +66,26 @@ def test_validation_runs_both_prepared_environments_then_approval_matches(monkey
         assert kwargs["expected_lock_sha256"] == pilot_lock_digest(kwargs["expected_numpy"])
         ratio = 0.4 if kwargs["expected_numpy"] == "1.26.4" else 0.6
         return EnvironmentResult(
-            version=kwargs["expected_numpy"], sandbox_id="sandbox-" + str(len(calls)),
+            version=("0.0.0" if tamper == "version" and kwargs["expected_numpy"] == "2.0.2"
+                     else kwargs["expected_numpy"]),
+            sandbox_id="sandbox-" + str(len(calls)),
             duration_seconds=1, source_sha256=source_digest,
-            input_sha256="f" * 64, output={"result": {"measurement": ratio}}, stderr="")
+            input_sha256=("f" * 64 if tamper == "input" and kwargs["expected_numpy"] == "2.0.2"
+                          else hashlib.sha256(json.dumps(kwargs["input_json"],
+                              sort_keys=True).encode()).hexdigest()),
+            output={"result": {"measurement": ratio}}, stderr="")
 
     assert project_worker.run_validation_job(
         job, queue, SimpleNamespace(get=lambda owner, profile_id: profile),
         execute=execute, fetch_source=source,
         store_snapshot=lambda owner, files, digest: files)
     status, result, error = queue.final
+    if tamper:
+        assert (status, result, error) == (
+            "failed", None,
+            "environment_result_mismatch" if tamper == "version" else "sample_result_mismatch",
+        )
+        return
     assert (status, error, calls) == ("completed", None, ["1.26.4", "2.0.2"])
     assert result["sample_validated"] and result["changed_conclusion"]
     approval = ProfileApproval(

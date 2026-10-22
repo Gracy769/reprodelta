@@ -1,5 +1,12 @@
 # Durable approved-project jobs
 
+Sandbox attempts reserve their full timeout and estimated cost in Postgres
+under a live lease **before** the E2B create call. A successful attempt
+reconciles that reservation to observed sandbox seconds exactly once. A
+worker crash, lost lease, or provider failure retains the uncertain upper
+bound in the saved job instead of reporting zero usage. The maximum is a
+conservative estimate, not provider billing evidence.
+
 This queue and a separate worker process in `Dockerfile.project-worker` are
 available for the approved-project pilot. The owner-facing start, plan, status
 and cancellation endpoints exist, but no Railway worker service is deployed.

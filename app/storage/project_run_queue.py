@@ -57,6 +57,15 @@ class ProjectRunQueue:
             ON project_run_jobs(created_at, id) WHERE status='queued'""")
         conn.execute("""CREATE INDEX IF NOT EXISTS project_run_jobs_owner_idx
             ON project_run_jobs(owner_id, created_at DESC)""")
+        conn.execute("""CREATE TABLE IF NOT EXISTS project_sandbox_attempts (
+            id UUID PRIMARY KEY, job_id UUID NOT NULL REFERENCES project_run_jobs(id),
+            lease_token UUID NOT NULL, reserved_seconds DOUBLE PRECISION NOT NULL,
+            usd_per_second DOUBLE PRECISION NOT NULL,
+            actual_seconds DOUBLE PRECISION, settled_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )""")
+        conn.execute("""CREATE INDEX IF NOT EXISTS project_sandbox_attempts_job_idx
+            ON project_sandbox_attempts(job_id)""")
 
     @staticmethod
     def _row(row):
@@ -179,27 +188,72 @@ class ProjectRunQueue:
             ).fetchone()
             return row is not None
 
-    def record_usage(
+    def reserve_sandbox_attempt(
         self, job_id: uuid.UUID, lease_token: uuid.UUID, *,
-        seconds: float, usd_per_second: float, uncertain: bool = False,
-    ) -> bool:
-        """Persist each sandbox attempt under its live lease before terminal write."""
-        if (
-            not math.isfinite(seconds) or not 0 <= seconds <= 1800
-            or not math.isfinite(usd_per_second) or usd_per_second <= 0
-        ):
-            raise ValueError("Invalid sandbox usage observation")
+        timeout_seconds: int, usd_per_second: float,
+    ) -> uuid.UUID | None:
+        """Persist maximum billable exposure before calling the sandbox provider."""
+        if (not isinstance(timeout_seconds, int) or not 1 <= timeout_seconds <= 900
+                or not math.isfinite(usd_per_second) or usd_per_second <= 0):
+            raise ValueError("Invalid sandbox reservation")
+        attempt_id = uuid.uuid4()
         with self._connect() as conn:
             self._ensure(conn)
             row = conn.execute(
                 """UPDATE project_run_jobs SET sandbox_seconds=sandbox_seconds+%s,
                     estimated_sandbox_cost_usd=estimated_sandbox_cost_usd+%s,
-                    usage_uncertain=usage_uncertain OR %s, updated_at=now()
+                    usage_uncertain=TRUE, updated_at=now()
                 WHERE id=%s AND lease_token=%s AND status='running'
-                    AND lease_expires_at>now() RETURNING id""",
-                (seconds, seconds * usd_per_second, uncertain, job_id, lease_token),
+                    AND lease_expires_at>now() AND cancel_requested_at IS NULL
+                RETURNING id""",
+                (timeout_seconds, timeout_seconds * usd_per_second, job_id, lease_token),
             ).fetchone()
-            return row is not None
+            if row is None:
+                return None
+            conn.execute(
+                """INSERT INTO project_sandbox_attempts
+                    (id, job_id, lease_token, reserved_seconds, usd_per_second)
+                    VALUES (%s,%s,%s,%s,%s)""",
+                (attempt_id, job_id, lease_token, timeout_seconds, usd_per_second),
+            )
+            return attempt_id
+
+    def settle_sandbox_attempt(
+        self, job_id: uuid.UUID, lease_token: uuid.UUID, attempt_id: uuid.UUID, *,
+        actual_seconds: float,
+    ) -> bool:
+        """Replace one reserved upper bound with observed duration under a live lease."""
+        if not math.isfinite(actual_seconds) or not 0 <= actual_seconds <= 1800:
+            raise ValueError("Invalid observed sandbox duration")
+        with self._connect() as conn:
+            self._ensure(conn)
+            row = conn.execute(
+                """SELECT a.reserved_seconds, a.usd_per_second
+                FROM project_sandbox_attempts a JOIN project_run_jobs j ON j.id=a.job_id
+                WHERE a.id=%s AND a.job_id=%s AND a.lease_token=%s
+                    AND a.settled_at IS NULL AND j.status='running'
+                    AND j.lease_token=%s AND j.lease_expires_at>now()
+                FOR UPDATE OF a, j""",
+                (attempt_id, job_id, lease_token, lease_token),
+            ).fetchone()
+            if row is None:
+                return False
+            conn.execute(
+                """UPDATE project_sandbox_attempts
+                SET actual_seconds=%s, settled_at=now() WHERE id=%s""",
+                (actual_seconds, attempt_id),
+            )
+            delta = actual_seconds - row["reserved_seconds"]
+            conn.execute(
+                """UPDATE project_run_jobs SET sandbox_seconds=sandbox_seconds+%s,
+                    estimated_sandbox_cost_usd=estimated_sandbox_cost_usd+%s,
+                    usage_uncertain=EXISTS (
+                        SELECT 1 FROM project_sandbox_attempts
+                        WHERE job_id=%s AND settled_at IS NULL
+                    ), updated_at=now() WHERE id=%s""",
+                (delta, delta * row["usd_per_second"], job_id, job_id),
+            )
+            return True
 
     def cancellation_requested(self, job_id: uuid.UUID, lease_token: uuid.UUID) -> bool:
         with self._connect() as conn:

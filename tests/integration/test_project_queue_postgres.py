@@ -57,22 +57,27 @@ def test_postgres_queue_recovery_and_owner_isolation(local_queue):
     claimed = queue.claim()
     assert claimed["id"] == first["id"] and claimed["status"] == "running"
     assert queue.claim() is None  # One active job per owner.
-    assert queue.record_usage(
+    first_attempt = queue.reserve_sandbox_attempt(
         uuid.UUID(first["id"]), uuid.UUID(claimed["lease_token"]),
-        seconds=2.5, usd_per_second=0.0001,
+        timeout_seconds=10, usd_per_second=0.0001,
     )
-    assert queue.record_usage(
+    assert first_attempt is not None
+    assert queue.settle_sandbox_attempt(
+        uuid.UUID(first["id"]), uuid.UUID(claimed["lease_token"]), first_attempt,
+        actual_seconds=2.5,
+    )
+    assert queue.reserve_sandbox_attempt(
         uuid.UUID(first["id"]), uuid.UUID(claimed["lease_token"]),
-        seconds=1, usd_per_second=0.0001, uncertain=True,
-    )
-    assert not queue.record_usage(
+        timeout_seconds=1, usd_per_second=0.0001,
+    ) is not None
+    assert queue.reserve_sandbox_attempt(
         uuid.UUID(first["id"]), uuid.uuid4(),
-        seconds=1, usd_per_second=0.0001,
-    )
-    with pytest.raises(ValueError, match="usage"):
-        queue.record_usage(
+        timeout_seconds=1, usd_per_second=0.0001,
+    ) is None
+    with pytest.raises(ValueError, match="reservation"):
+        queue.reserve_sandbox_attempt(
             uuid.UUID(first["id"]), uuid.UUID(claimed["lease_token"]),
-            seconds=float("nan"), usd_per_second=0.0001,
+            timeout_seconds=0, usd_per_second=0.0001,
         )
     restarted = ProjectRunQueue(dsn)
     running = restarted.get("github:one", uuid.UUID(first["id"]))
@@ -115,6 +120,47 @@ def test_postgres_queue_cancellation_and_global_limit(local_queue):
         uuid.UUID(first["id"]), uuid.UUID(first["lease_token"]),
         status="completed", result={"ok": True},
     )
+
+
+def test_sandbox_reservation_survives_worker_loss_and_reconciles_only_once(local_queue):
+    queue, dsn = local_queue
+    job = queue.submit("github:one", "reserved-job", _spec())
+    claimed = queue.claim()
+    job_id, lease = uuid.UUID(job["id"]), uuid.UUID(claimed["lease_token"])
+    attempt = queue.reserve_sandbox_attempt(
+        job_id, lease, timeout_seconds=120, usd_per_second=0.000046,
+    )
+    assert attempt is not None
+    restarted = ProjectRunQueue(dsn)
+    reserved = restarted.get("github:one", job_id)
+    assert reserved["sandbox_seconds"] == 120
+    assert reserved["estimated_sandbox_cost_usd"] == pytest.approx(0.00552)
+    assert reserved["usage_uncertain"] is True
+    assert not restarted.settle_sandbox_attempt(
+        job_id, uuid.uuid4(), attempt, actual_seconds=8,
+    )
+    assert restarted.settle_sandbox_attempt(job_id, lease, attempt, actual_seconds=8)
+    assert not restarted.settle_sandbox_attempt(job_id, lease, attempt, actual_seconds=8)
+    settled = restarted.get("github:one", job_id)
+    assert settled["sandbox_seconds"] == pytest.approx(8)
+    assert settled["estimated_sandbox_cost_usd"] == pytest.approx(0.000368)
+    assert settled["usage_uncertain"] is False
+    second = restarted.reserve_sandbox_attempt(
+        job_id, lease, timeout_seconds=90, usd_per_second=0.000046,
+    )
+    assert second is not None
+    with psycopg.connect(dsn) as conn:
+        conn.execute(
+            "UPDATE project_run_jobs SET lease_expires_at=now()-interval '1 second' WHERE id=%s",
+            (job_id,),
+        )
+    assert restarted.claim() is None
+    lost = restarted.get("github:one", job_id)
+    assert (lost["status"], lost["error_code"]) == ("failed", "worker_lost")
+    assert lost["sandbox_seconds"] == pytest.approx(98)
+    assert lost["estimated_sandbox_cost_usd"] == pytest.approx(0.004508)
+    assert lost["usage_uncertain"] is True
+    assert not restarted.settle_sandbox_attempt(job_id, lease, second, actual_seconds=9)
 
 
 def test_postgres_approval_requires_matching_completed_validation(local_queue):

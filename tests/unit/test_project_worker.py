@@ -39,12 +39,20 @@ class Queue:
         self.final = None
         self.cancelled = False
         self.usage = []
+        self.attempts = {}
 
     def cancellation_requested(self, *_):
         return self.cancelled
 
-    def record_usage(self, _job_id, _lease, *, seconds, usd_per_second, uncertain=False):
-        self.usage.append((seconds, usd_per_second, uncertain))
+    def reserve_sandbox_attempt(self, _job_id, _lease, *, timeout_seconds, usd_per_second):
+        attempt = uuid.uuid4()
+        self.attempts[attempt] = len(self.usage)
+        self.usage.append((timeout_seconds, usd_per_second, True))
+        return attempt
+
+    def settle_sandbox_attempt(self, _job_id, _lease, attempt_id, *, actual_seconds):
+        index = self.attempts.pop(attempt_id)
+        self.usage[index] = (actual_seconds, self.usage[index][1], False)
         return True
 
     def finish(self, _job_id, _lease, *, status, result=None, error_code=None):

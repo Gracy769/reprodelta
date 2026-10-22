@@ -20,6 +20,11 @@ jobs:
           cp .env.example .env
           echo "SECRET_KEY=$(openssl rand -hex 32)" >> .env
           echo "INVESTIGATION_STORE=postgres" >> .env
+      - name: Validate Oracle VM Compose bundle
+        run: |
+          python3 deploy/oracle/init_env.py
+          sed -i 's/^PUBLIC_DOMAIN=replace-with-your-domain.example$/PUBLIC_DOMAIN=reprodelta.example.org/' deploy/oracle/.env
+          docker compose --env-file deploy/oracle/.env -f deploy/oracle/compose.yaml config --quiet
       - name: Build and exercise pinned workers
         run: |
           docker compose up --build -d

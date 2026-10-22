@@ -122,6 +122,11 @@ python -m uvicorn app.main:app --reload --port 8000
 
 ## Railway
 
+For an Oracle Always Free VM deployment using Docker on the VM, see
+[Oracle VM deployment](docs/oracle-vm-deployment.md). Its production Compose
+bundle is prepared but awaits an operator-created VM, domain, and cutover
+verification.
+
 The Railway project is linked to the GitHub repository and deploys from `main`.
 It uses the root Dockerfile, a Postgres service, and a generated public domain.
 The Dockerfile runs the reviewed NumPy fixture in two pinned worker environments

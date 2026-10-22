@@ -114,3 +114,38 @@ def test_disabled_start_and_other_owner_status_do_not_read_sources(monkeypatch):
         assert client.post(f"/api/project-runs/{uuid.uuid4()}/cancel").status_code == 404
     finally:
         app.dependency_overrides.clear()
+
+
+def test_saved_revision_check_is_owner_scoped_and_read_only(monkeypatch):
+    spec = _spec()
+    job_id = uuid.uuid4()
+    calls = []
+
+    class SavedQueue(Queue):
+        def get(self, owner, requested):
+            calls.append((owner, requested))
+            return ({"id": str(job_id), "spec_json": spec.model_dump(mode="json")}
+                    if owner == "github:owner" and requested == job_id else None)
+
+    async def refs(_get, provider, token, repository, number):
+        assert (provider, token, repository, number) == (
+            "github", "host-token", "owner/repo", spec.change_number
+        )
+        return spec.base_sha, "f" * 40
+
+    monkeypatch.setattr(project_runs, "_saved_token", lambda owner, provider: "host-token")
+    monkeypatch.setattr(project_runs, "change_refs", refs)
+    app.dependency_overrides[current_user] = lambda: "github:owner"
+    app.dependency_overrides[project_runs.get_run_queue] = lambda: SavedQueue()
+    try:
+        response = TestClient(app).get(f"/api/project-runs/{job_id}/revision")
+        assert response.status_code == 200
+        assert response.json()["changed"] is True
+        assert response.json()["saved_head_sha"] == spec.head_sha
+        assert "host-token" not in response.text
+        assert calls == [("github:owner", job_id)]
+        app.dependency_overrides[current_user] = lambda: "github:other"
+        assert TestClient(app).get(f"/api/project-runs/{job_id}/revision").status_code == 404
+        assert calls[-1] == ("github:other", job_id)
+    finally:
+        app.dependency_overrides.clear()

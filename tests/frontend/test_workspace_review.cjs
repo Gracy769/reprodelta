@@ -21,7 +21,7 @@ function boot(fetch) {
   const document = {getElementById(id) {if(!elements.has(id)) elements.set(id,new Element()); return elements.get(id);},
     createElement(tag) {return new Element(tag);}, createTextNode(text) {const node = new Element('text'); node.textContent=text; return node;}, querySelectorAll() {return [];}};
   const context = {document, fetch, URL, AbortController, crypto: {randomUUID: () => 'fixed-idempotency-key'}, location: {}, window: {setTimeout,clearTimeout, matchMedia: () => ({matches:true})}};
-  vm.runInNewContext(shipped.replace('  start();', '  globalThis.reviewTest = {renderReview, configureReplay, configureApprovedRun, state};'), context);
+  vm.runInNewContext(shipped.replace('  start();', '  globalThis.reviewTest = {renderReview, configureReplay, configureApprovedRun, openSavedProjectRun, state};'), context);
   return {...context, elements};
 }
 function all(node) {return [node,...node.children.flatMap(all)];}
@@ -161,4 +161,22 @@ test('approved project run requires exact plan acknowledgement', async () => {
   assert(all(parent).some(n => n.textContent?.includes('Repeatability')));
   assert(all(parent).some(n => n.textContent?.includes('One paired execution cannot establish')));
   assert(all(parent).some(n => n.textContent?.includes('No candidate repair was executed')));
+});
+
+test('saved project run warns when the PR revision has changed', async () => {
+  const runId='11111111-1111-4111-8111-111111111111';
+  const saved={status:'completed',spec_json:{repository:'lab/project',change_number:7,
+    old_environment_lock_sha256:'a'.repeat(64),new_environment_lock_sha256:'b'.repeat(64)},
+    result_json:{kind:'approved_project_search',attempted:2,candidate_budget:2,strategy:'sweep',seed:0,
+      changed_conclusion:false,inconclusive:false,observations:[{input_sha256:'c'.repeat(64),repeatable:true,
+        old:{ratio:0.4,conclusion:'below_threshold'},new:{ratio:0.4,conclusion:'below_threshold'}}],
+      source_sha256:'d'.repeat(64),sandbox_seconds:3,estimated_sandbox_cost_usd:0.0003}};
+  const ctx=boot(async (url) => ({ok:true,json:async () => url.endsWith('/revision')
+    ? {changed:true,saved_head_sha:'e'.repeat(40)} : saved}));
+  ctx.reviewTest.state.jwt='test-token';
+  await ctx.reviewTest.openSavedProjectRun(runId);
+  const nodes=all(ctx.elements.get('saved-project-run'));
+  assert(nodes.some(n => n.textContent?.includes('The PR moved since this run')));
+  assert(nodes.some(n => n.textContent?.includes('No violation found within tested scope')));
+  assert(nodes.some(n => n.textContent?.includes('Repeatability')));
 });

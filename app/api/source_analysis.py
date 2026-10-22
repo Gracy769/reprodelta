@@ -15,6 +15,7 @@ from app.providers.e2b_runner import (
     MAX_FILE_BYTES,
     MAX_FILES,
     MAX_SNAPSHOT_BYTES,
+    sensitive_snapshot_path,
     validate_snapshot,
 )
 
@@ -104,6 +105,12 @@ async def immutable_snapshot(get, provider: str, token: str, repository: str, sh
                 or not re.fullmatch(r"[0-9a-f]{40,64}", blob_sha)
                 or (size is not None and (not isinstance(size, int) or size > MAX_FILE_BYTES))):
             raise HTTPException(422, "Source tree contains an oversized or invalid file")
+        if sensitive_snapshot_path(path):
+            raise HTTPException(422, "Source tree contains a credential-like file; remove it before approval")
+        try:
+            validate_snapshot({path: b""})
+        except ValueError as exc:
+            raise HTTPException(422, "Source tree contains an unsafe path") from exc
         if provider == "github":
             blob = await get(provider, token, f"/repos/{repository}/git/blobs/{blob_sha}")
         else:

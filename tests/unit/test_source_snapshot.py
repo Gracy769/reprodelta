@@ -77,3 +77,19 @@ async def test_snapshot_rejects_missing_file_mode():
 
     with pytest.raises(HTTPException, match="symlink"):
         await immutable_snapshot(get, "github", "token", "owner/repo", "a" * 40)
+
+
+@pytest.mark.asyncio
+async def test_snapshot_rejects_credential_path_before_blob_fetch():
+    calls = []
+
+    async def get(provider, token, path, params=None):
+        calls.append(path)
+        return {"truncated": False, "tree": [
+            {"type": "blob", "mode": "100644", "path": "deploy/private.pem",
+             "sha": "b" * 40, "size": 8},
+        ]}
+
+    with pytest.raises(HTTPException, match="credential-like"):
+        await immutable_snapshot(get, "github", "token", "owner/repo", "a" * 40)
+    assert len(calls) == 1

@@ -312,6 +312,8 @@ def run_claimed_job(
             hashlib.sha256(json.dumps(value, sort_keys=True, allow_nan=False).encode()).hexdigest()
             for value in candidates
         ]
+        execution_inputs = [value for candidate in candidates for value in (candidate, candidate)]
+        execution_hashes = [digest for digest in expected_inputs for _ in (0, 1)]
         results = []
         for environment in (approval.old, approval.new):
             if cancelled():
@@ -339,15 +341,15 @@ def run_claimed_job(
                 timeout_seconds=remaining,
             )
             observed = (
-                execute_batch(inputs_json=candidates, **runner_args)
+                execute_batch(inputs_json=execution_inputs, **runner_args)
                 if spec.candidate_budget > 1
                 else execute(input_json=candidates[0], **runner_args)
             )
             if observed.source_sha256 != spec.source_sha256:
                 raise RunRejected("snapshot_changed")
             if spec.candidate_budget > 1 and (
-                observed.input_sha256 != expected_inputs
-                or len(observed.outputs) != len(candidates)
+                observed.input_sha256 != execution_hashes
+                or len(observed.outputs) != len(execution_inputs)
             ):
                 raise RunRejected("candidate_result_mismatch")
             results.append(observed)
@@ -365,18 +367,32 @@ def run_claimed_job(
         if spec.candidate_budget > 1:
             observations = []
             for index, input_digest in enumerate(expected_inputs):
-                old = evaluate_output(results[0].outputs[index], draft.contract)
-                new = evaluate_output(results[1].outputs[index], draft.contract)
+                old = evaluate_output(results[0].outputs[index * 2], draft.contract)
+                old_repeat = evaluate_output(results[0].outputs[index * 2 + 1], draft.contract)
+                new = evaluate_output(results[1].outputs[index * 2], draft.contract)
+                new_repeat = evaluate_output(results[1].outputs[index * 2 + 1], draft.contract)
+                repeatable = all((
+                    old["conclusion"] == old_repeat["conclusion"],
+                    new["conclusion"] == new_repeat["conclusion"],
+                    numeric_matches(old["ratio"], old_repeat["ratio"], draft.contract),
+                    numeric_matches(new["ratio"], new_repeat["ratio"], draft.contract),
+                    old["dtype"] == old_repeat["dtype"],
+                    new["dtype"] == new_repeat["dtype"],
+                ))
                 observations.append({
                     "input_sha256": input_digest,
                     "old": old,
                     "new": new,
-                    "changed_conclusion": old["conclusion"] != new["conclusion"],
+                    "old_repeat": old_repeat,
+                    "new_repeat": new_repeat,
+                    "repeatable": repeatable,
+                    "changed_conclusion": repeatable and old["conclusion"] != new["conclusion"],
                     "measurement_matches_tolerance": numeric_matches(
                         old["ratio"], new["ratio"], draft.contract
                     ),
                 })
             witness = next((item for item in observations if item["changed_conclusion"]), None)
+            inconclusive = any(not item["repeatable"] for item in observations)
             spent = sum(item.duration_seconds for item in results)
             finding = {
                 "kind": "approved_project_search",
@@ -388,6 +404,7 @@ def run_claimed_job(
                 "observations": observations,
                 "witness": witness,
                 "changed_conclusion": witness is not None,
+                "inconclusive": inconclusive,
                 "source_sha256": spec.source_sha256,
                 "base_sha": spec.base_sha,
                 "head_sha": spec.head_sha,

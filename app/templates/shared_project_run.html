@@ -8,7 +8,7 @@
   <section class="shared-panel" aria-labelledby="scope-title">
     <h2 id="scope-title">What was tested</h2>
     <dl>
-      <div><dt>Run type</dt><dd>{{ "Candidate search" if finding.repeatability_tested else "Single sample" }}</dd></div>
+      <div><dt>Run type</dt><dd>{{ "Candidate search" if finding.kind == "approved_project_search" else "Single sample" }}</dd></div>
       <div><dt>Inputs tested</dt><dd>{{ finding.tested_inputs }}</dd></div>
       <div><dt>Sandbox time</dt><dd>{{ finding.sandbox_seconds if finding.sandbox_seconds is not none else "Not recorded" }}{% if finding.sandbox_seconds is not none %} seconds{% endif %}</dd></div>
       <div><dt>Estimated sandbox cost</dt><dd>{% if finding.estimated_sandbox_cost_usd is not none %}${{ finding.estimated_sandbox_cost_usd }}{% else %}Not recorded{% endif %}</dd></div>

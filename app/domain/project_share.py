@@ -41,7 +41,7 @@ def redacted_project_share(job: dict) -> dict:
         "tested_inputs": min(32, len(summary)) if observations is not None else 1,
         "changed_conclusion": result.get("changed_conclusion") is True,
         "inconclusive": result.get("inconclusive") is True,
-        "repeatability_tested": observations is not None,
+        "repeatability_tested": observations is not None or isinstance(result.get("repeatable"), bool),
         "observations": summary,
         "sandbox_seconds": _bounded_number(result.get("sandbox_seconds")),
         "estimated_sandbox_cost_usd": _bounded_number(result.get("estimated_sandbox_cost_usd")),

@@ -33,3 +33,20 @@ def test_share_requires_completed_supported_result():
         redacted_project_share({"status": "running"})
     with pytest.raises(ValueError, match="shareable"):
         redacted_project_share({"status": "completed", "result_json": {"kind": "other"}})
+
+
+def test_single_sample_share_distinguishes_new_repeat_controls_from_history():
+    current = redacted_project_share({
+        "status": "completed", "result_json": {
+            "kind": "approved_project_sample", "repeatable": False,
+            "inconclusive": True, "changed_conclusion": False,
+        },
+    })
+    historical = redacted_project_share({
+        "status": "completed", "result_json": {
+            "kind": "approved_project_sample", "changed_conclusion": True,
+        },
+    })
+    assert current["repeatability_tested"] is True
+    assert current["inconclusive"] is True
+    assert historical["repeatability_tested"] is False

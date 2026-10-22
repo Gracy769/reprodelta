@@ -133,7 +133,7 @@ test('approved project run requires exact plan acknowledgement', async () => {
     old_environment:{numpy_version:'1.26.4'},new_environment:{numpy_version:'2.0.2'}};
   const ctx=boot(async (url,options) => {requests.push({url,options}); return {ok:true,json:async () =>
     url.includes('/plan') ? plan : url.endsWith('/project-runs') ? {id:'job-1',status:'queued'}
-    : {status:'completed',result_json:{changed_conclusion:true,old:{ratio:0.4,conclusion:'below_threshold'},
+    : {status:'completed',result_json:{changed_conclusion:true,repeatable:true,inconclusive:false,old:{ratio:0.4,conclusion:'below_threshold'},
       new:{ratio:0.6,conclusion:'above_threshold'},sandbox_seconds:2,estimated_sandbox_cost_usd:0.0002,input_sha256:'d'.repeat(64)}}};});
   ctx.reviewTest.state.jwt='test-token';
   ctx.reviewTest.state.selectedChange=change;
@@ -160,7 +160,7 @@ test('approved project run requires exact plan acknowledgement', async () => {
   assert.equal(body.source_transfer_approved,true);
   assert(all(parent).some(n => n.textContent?.includes('outcome changed for this sample')));
   assert(all(parent).some(n => n.textContent?.includes('Repeatability')));
-  assert(all(parent).some(n => n.textContent?.includes('One paired execution cannot establish')));
+  assert(all(parent).some(n => n.textContent?.includes('Each tested input ran twice')));
   assert(all(parent).some(n => n.textContent?.includes('No candidate repair was executed')));
 });
 

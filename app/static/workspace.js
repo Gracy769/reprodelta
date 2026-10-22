@@ -95,7 +95,7 @@
     const failed = lists.find((entry) => entry.status === "rejected");
     if (failed) status(`Some repositories could not be loaded: ${failed.reason.message}`);
     renderRepos();
-    await Promise.all([loadQueue(), loadRecentReviews(), loadRecentProjectRuns(), loadProfiles()]);
+    await Promise.all([loadQueue(), loadRecentReviews(), loadRecentProjectRuns(), loadProfiles(), loadOperatorProfiles()]);
   }
   function changeButton(change, repository, compact = false) {
     const button = document.createElement("button");
@@ -306,6 +306,36 @@
         list.append(card);
       });
     } catch (error) { empty(list, `Project profiles unavailable: ${error.message}`); }
+  }
+  async function loadOperatorProfiles() {
+    const response = await timedFetch("/api/project-profiles/operator/pending", {
+      headers: {Authorization: `Bearer ${state.jwt}`},
+    }).catch(() => null);
+    if (!response || response.status === 403) return;
+    const section = $("operator-profiles");
+    section.hidden = false;
+    const list = $("operator-profile-list");
+    if (!response.ok) { empty(list, "The approval queue is temporarily unavailable."); return; }
+    const data = await response.json();
+    clear(list);
+    if (!data.profiles?.length) { empty(list, "No drafts are waiting for review."); return; }
+    data.profiles.forEach((profile) => {
+      const draft = profile.draft_json || {};
+      const card = text("details", "", "profile-list-item");
+      card.append(text("summary", `${draft.name || profile.repository} · ${profile.repository} · version ${profile.version}`));
+      const facts = [
+        ["Owner", profile.owner_id], ["Adapter", `${draft.adapter_module}.${draft.adapter_function}`],
+        ["Dependency file", draft.dependency_path], ["Input sample", JSON.stringify(draft.sample_input)],
+        ["Output", draft.contract?.output_selector?.field_name],
+        ["Decision", `${draft.contract?.conclusion?.operator} ${draft.contract?.conclusion?.threshold}`],
+        ["Source transfer consent", draft.source_transfer_consent ? "Granted" : "Missing"],
+        ["Profile SHA-256", profile.profile_digest], ["Contract SHA-256", profile.contract_hash],
+      ];
+      const details = text("dl", "", "approved-plan-details");
+      facts.forEach(([label, value]) => details.append(text("dt", label), text("dd", value ?? "Not supplied")));
+      card.append(details);
+      list.append(card);
+    });
   }
   function setupProfileForm() {
     const form = $("profile-form");

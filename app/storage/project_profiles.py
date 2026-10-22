@@ -62,6 +62,8 @@ class ProjectProfileStore:
         )""")
         conn.execute("""CREATE INDEX IF NOT EXISTS profile_versions_owner_idx
             ON project_profile_versions(owner_id, created_at DESC)""")
+        conn.execute("""CREATE INDEX IF NOT EXISTS profile_versions_pending_idx
+            ON project_profile_versions(created_at ASC) WHERE status='draft'""")
 
     @staticmethod
     def _row(row: dict | None) -> dict | None:
@@ -113,6 +115,16 @@ class ProjectProfileStore:
                 """SELECT * FROM project_profile_versions
                 WHERE owner_id=%s ORDER BY created_at DESC LIMIT 100""",
                 (owner_id,),
+            ).fetchall()
+            return [self._row(row) for row in rows]
+
+    def list_pending(self) -> list[dict]:
+        """Operator-only review queue; callers must check approver identity."""
+        with self._connect() as conn:
+            self._ensure(conn)
+            rows = conn.execute(
+                """SELECT * FROM project_profile_versions
+                WHERE status='draft' ORDER BY created_at ASC LIMIT 100"""
             ).fetchall()
             return [self._row(row) for row in rows]
 

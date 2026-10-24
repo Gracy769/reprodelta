@@ -79,11 +79,18 @@ def main() -> None:
         _empty_sandbox_list()
         print(f"NumPy {version}: paired image check and offline probe passed; "
               f"container removed after {result.duration_seconds:.2f}s")
+    expected_errors = {
+        "fail": "Approved adapter failed inside the container",
+        "hang": "Docker command timed out",
+        "overflow": "Docker command output exceeded its bound",
+    }
     for mode, timeout in (("fail", 30), ("hang", 15), ("overflow", 30)):
         started = time.monotonic()
         try:
             _run("1.26.4", mode, timeout=timeout)
-        except RuntimeError:
+        except RuntimeError as exc:
+            if expected_errors[mode] not in str(exc):
+                raise RuntimeError(f"{mode} probe failed for another reason") from exc
             if mode == "hang" and time.monotonic() - started < 8:
                 raise RuntimeError("Timeout probe ended before the adapter could be exercised") from None
             _empty_sandbox_list()

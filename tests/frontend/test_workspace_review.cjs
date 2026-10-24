@@ -22,7 +22,7 @@ function boot(fetch) {
   const document = {getElementById(id) {if(!elements.has(id)) elements.set(id,new Element()); return elements.get(id);},
     createElement(tag) {return new Element(tag);}, createTextNode(text) {const node = new Element('text'); node.textContent=text; return node;}, querySelectorAll() {return [];}};
   const context = {document, fetch, URL, AbortController, crypto: {randomUUID: () => 'fixed-idempotency-key'}, location: {}, window: {setTimeout,clearTimeout, matchMedia: () => ({matches:true})}};
-  vm.runInNewContext(shipped.replace('  start();', '  globalThis.reviewTest = {renderReview, configureReplay, configureApprovedRun, renderApprovedFinding, openSavedProjectRun, loadOperatorProfiles, configureShare, state};'), context);
+  vm.runInNewContext(shipped.replace('  start();', '  globalThis.reviewTest = {renderReview, configureReplay, configureApprovedRun, renderApprovedFinding, openSavedProjectRun, loadRecentProjectRuns, loadProfiles, loadOperatorProfiles, configureShare, state};'), context);
   return {...context, elements};
 }
 function all(node) {return [node,...node.children.flatMap(all)];}
@@ -200,6 +200,36 @@ test('private replay download appears only for a witness and requires acknowledg
   ctx.reviewTest.renderApprovedFinding(noWitness,{...finding,changed_conclusion:false,witness_input:null},
     {id:'11111111-1111-4111-8111-111111111111'});
   assert(!all(noWitness).some(n => n.textContent === 'Download private replay ZIP ↗'));
+});
+
+test('project activity shows bounded revision checks, scoped cost and approved profiles', async () => {
+  const runs=Array.from({length:6},(_,index)=>({id:`run-${index}`,status:'completed',
+    spec_json:{repository:'lab/project',change_number:index+1,head_sha:'b'.repeat(40)},
+    estimated_sandbox_cost_usd:0.000001,usage_uncertain:index===0,
+    result_json:{changed_conclusion:index===0}}));
+  const calls=[];
+  const ctx=boot(async (url) => {
+    calls.push(url);
+    if(url==='/api/project-runs') return {ok:true,json:async()=>({runs})};
+    if(url==='/api/project-profiles') return {ok:true,json:async()=>({profiles:[
+      {id:'p1',status:'approved',repository:'lab/project',version:1,draft_json:{name:'Lab'}},
+      {id:'p2',status:'draft',repository:'lab/other',version:1,draft_json:{name:'Other'}}]})};
+    if(url.endsWith('/revision')) return {ok:true,json:async()=>({changed:url.includes('run-0')})};
+    throw Error(`Unexpected request ${url}`);
+  });
+  ctx.reviewTest.state.jwt='test-token';
+  await ctx.reviewTest.loadProfiles();
+  await ctx.reviewTest.loadRecentProjectRuns();
+  await new Promise(setImmediate);
+  const profile=all(ctx.elements.get('project-profile-summary'));
+  assert(profile.some(n=>n.textContent?.includes('1 approved project version')));
+  const summary=all(ctx.elements.get('project-run-summary'));
+  assert(summary.some(n=>n.textContent?.includes('Latest 6 investigations')));
+  assert(summary.some(n=>n.textContent==='up to $0.000006'));
+  const rows=all(ctx.elements.get('recent-project-runs'));
+  assert(rows.some(n=>n.textContent?.includes('PR changed since this run')));
+  assert(rows.some(n=>n.textContent==='Open saved finding ↗'));
+  assert.equal(calls.filter(url=>url.endsWith('/revision')).length,5);
 });
 
 test('operator validation controls are only rendered after the approver endpoint succeeds', async () => {

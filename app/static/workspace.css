@@ -60,6 +60,22 @@ main:has(.review-page){background:#f7f8f4;padding-top:0}
 .profile-list-item{display:grid;gap:5px;padding:14px 16px;background:#fff;border:1px solid #c4d2c5}
 .profile-list-item strong{font-size:15px}.profile-list-item small{font:11px var(--font-mono);color:#56715c}.profile-list-item p{margin:0;color:#647767;font-size:12px}
 .profile-list-item>summary{cursor:pointer;font-weight:700;line-height:1.5}
+.profile-list-item .project-run-open{justify-self:start;border:0;background:transparent;padding:0;color:#183223;text-align:left;font:700 16px/1.4 var(--font-sans);cursor:pointer;overflow-wrap:anywhere}
+.profile-list-item .project-run-open:hover,.profile-list-item .project-run-open:focus-visible{text-decoration:underline;text-underline-offset:3px;color:#126b36}
+.profile-list-item>a{justify-self:start;color:#126b36;font-size:13px;font-weight:700;text-underline-offset:3px}
+.project-activity-profiles{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;margin-top:25px}
+.project-activity-profiles p{margin:0;color:#3e5e46;font-size:14px;line-height:1.5}
+.project-activity-link{border:0;background:transparent;padding:5px 0;color:#126b36;font:700 13px var(--font-sans);text-decoration:underline;text-underline-offset:4px;cursor:pointer}
+.project-activity-link:hover,.project-activity-link:focus-visible{color:#0b4e26}
+.project-activity-summary{margin-top:17px;border-block:1px solid #bdcebf}
+.project-activity-scope{margin:13px 0 0;color:#47644d;font-size:12px;line-height:1.5}
+.project-activity-facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:10px 0 14px}
+.project-activity-fact{display:grid;gap:3px;padding:7px 15px 7px 0;min-width:0}
+.project-activity-fact+div{border-left:1px solid #d5dfd5;padding-left:15px}
+.project-activity-fact dt{font-size:12px;color:#47644d}
+.project-activity-fact dd{margin:0;font:700 17px/1.4 var(--font-mono);color:#193a25;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.project-revision{color:#315c3d!important}.project-revision.changed{color:#99452e!important}
+@media(max-width:740px){.project-activity-facts{grid-template-columns:repeat(2,minmax(0,1fr))}.project-activity-fact:nth-child(3){border-left:0;padding-left:0}.project-activity-fact:nth-child(n+3){border-top:1px solid #d5dfd5;padding-top:11px}}
 .operator-validation{display:grid;gap:13px;padding:18px 0 4px;border-top:1px solid #d0ddd1}
 .operator-validation h4{margin:0;font-size:19px}.operator-validation>p,.operator-validation-result p{font-size:13px;line-height:1.55;overflow-wrap:anywhere}
 .operator-validation .profile-form{padding:12px 0}.operator-validation .profile-form label{font-size:12px}

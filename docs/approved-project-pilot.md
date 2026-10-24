@@ -77,7 +77,12 @@ on an Oracle VM and must remain disabled until its live security gates pass.
 - Recent approved-project runs have owner-only saved links. Opening one checks
   the current PR/MR base and head against the immutable recorded revision and
   warns if the source moved; the saved evidence remains tied to its original
-  commits. The run list shows metered sandbox cost or an uncertain upper bound.
+  commits. The workspace summarizes the latest 50 investigation records,
+  approved profile versions, active and completed runs, observed witnesses, and
+  metered sandbox cost or an uncertain upper bound. It checks the current source
+  revision for at most five recent completed runs without delaying the workspace
+  session gate. These are owner-only activity counts, not global success rates;
+  the cost excludes model and source-host charges.
 - A completed approved-project run can create an owner-approved public copy at
   `/shared/{token}`. The preview and stored copy allowlist only the bounded
   outcome summary, tested count, repeatability status, time, cost and limits;

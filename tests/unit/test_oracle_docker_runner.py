@@ -83,6 +83,20 @@ def test_oracle_runner_is_offline_bounded_and_removed(monkeypatch):
     assert all("SECRET_KEY" not in str(args) for args, _ in calls)
 
 
+def test_oracle_runner_blocks_credential_snapshot_before_docker(monkeypatch):
+    calls = []
+    monkeypatch.setenv("ORACLE_OLD_IMAGE_ID", IMAGE)
+    with pytest.raises(ValueError, match="Snapshot"):
+        execute_environment_batch(
+            files={".pypirc": b"password=example"}, inputs_json=[{"signal": 1}],
+            adapter=ProjectAdapter("pipeline", "run"),
+            template_id="oracle-numpy-1264", expected_numpy="1.26.4",
+            expected_lock_sha256=LOCK,
+            command=lambda *args, **kwargs: calls.append(args),
+        )
+    assert calls == []
+
+
 def test_oracle_preflight_requires_both_exact_images(monkeypatch):
     monkeypatch.setenv("ORACLE_OLD_IMAGE_ID", IMAGE)
     monkeypatch.setenv("ORACLE_NEW_IMAGE_ID", "sha256:" + "b" * 64)

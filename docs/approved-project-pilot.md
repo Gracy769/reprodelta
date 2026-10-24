@@ -147,6 +147,13 @@ on an Oracle VM and must remain disabled until its live security gates pass.
 
 The E2B key belongs only in the worker environment or a local secret
 store. Never add it to source, logs, browser JavaScript or profile records.
+The source snapshot transfer rejects common credential paths (including
+environment files, private keys, package-manager credentials and cloud
+credential directories) before either E2B or Oracle execution. This filename
+screen is a defense in depth check; an approved repository can still embed a
+secret in an ordinary source file. Review the exact snapshot and obtain owner
+consent before transferring private code.
+
 `PROJECT_SNAPSHOT_KEY` is a separate random 32-byte key encoded with URL-safe
 base64 and belongs only in the worker's secret store. Losing or rotating it
 without a key migration makes retained snapshots unreadable; no source snapshot

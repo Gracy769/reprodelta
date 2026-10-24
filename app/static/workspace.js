@@ -252,23 +252,61 @@
   }
   async function loadRecentProjectRuns() {
     const list = $("recent-project-runs");
+    const summary = $("project-run-summary");
     try {
       const data = await projectApi("/project-runs");
-      clear(list);
-      if (!data.runs?.length) { empty(list, "No approved project runs yet."); return; }
-      data.runs.forEach((job) => {
+      const runs = data.runs || [];
+      clear(list); clear(summary);
+      if (!runs.length) {
+        empty(list, "No approved project runs yet. Set up a project below, then review an eligible dependency change.");
+        return;
+      }
+      const active = runs.filter((job) => job.status === "queued" || job.status === "running").length;
+      const completed = runs.filter((job) => job.status === "completed").length;
+      const witnesses = runs.filter((job) => job.status === "completed" && job.result_json?.changed_conclusion === true).length;
+      const cost = runs.reduce((sum, job) => sum + (Number.isFinite(job.estimated_sandbox_cost_usd) ? job.estimated_sandbox_cost_usd : 0), 0);
+      const uncertain = runs.some((job) => job.usage_uncertain);
+      const facts = text("dl", "", "project-activity-facts");
+      [["In progress", active], ["Completed", completed], ["Observed witnesses", witnesses],
+        ["Sandbox cost", `${uncertain ? "up to " : "estimated "}$${cost.toFixed(6)}`]]
+        .forEach(([label, value]) => {
+          const item = text("div", "", "project-activity-fact");
+          item.append(text("dt", label), text("dd", value)); facts.append(item);
+        });
+      summary.append(text("p", `Latest ${runs.length} investigation${runs.length === 1 ? "" : "s"}. Cost excludes model and source-host charges.`, "project-activity-scope"), facts);
+      const revisions = [];
+      runs.forEach((job) => {
         const spec = job.spec_json || {};
         const cost = Number.isFinite(job.estimated_sandbox_cost_usd)
           ? ` · ${job.usage_uncertain ? "up to " : "estimated "}$${job.estimated_sandbox_cost_usd.toFixed(6)}` : "";
-        const button = text("button", `${spec.repository || "Project"} #${spec.change_number || "?"} · ${job.status} · ${(spec.head_sha || "").slice(0, 12)}${cost}`, "review-change-item");
+        const button = text("button", `${spec.repository || "Project"} #${spec.change_number || "?"}`, "project-run-open");
         button.type = "button";
         button.addEventListener("click", () => openSavedProjectRun(job.id));
-        const link = text("a", "Saved link ↗");
+        const detail = text("small", `${job.status} · recorded head ${(spec.head_sha || "").slice(0, 12)}${cost}`);
+        const link = text("a", job.status === "completed" ? "Open saved finding ↗" : "Open run status ↗");
         link.href = `/workspace?project_run=${encodeURIComponent(job.id)}`;
         const row = text("div", "", "profile-list-item");
-        row.append(button, link); list.append(row);
+        row.append(button, detail, link);
+        if (job.status === "completed" && revisions.length < 5) {
+          const revision = text("small", "Checking current PR revision…", "project-revision");
+          row.append(revision);
+          revisions.push(projectApi(`/project-runs/${encodeURIComponent(job.id)}/revision`)
+            .then((current) => {
+              revision.textContent = current.changed
+                ? "PR changed since this run; saved evidence remains pinned to its recorded commits."
+                : "PR revision still matches this run.";
+              revision.className = current.changed ? "project-revision changed" : "project-revision";
+            })
+            .catch(() => { revision.textContent = "Current PR revision could not be checked."; }));
+        }
+        list.append(row);
       });
-    } catch (error) { empty(list, `Saved runs unavailable: ${error.message}`); }
+      // Revision checks enrich the list without delaying the workspace's session gate.
+      void Promise.all(revisions);
+    } catch (error) {
+      empty(list, `Saved runs unavailable: ${error.message}`);
+      clear(summary);
+    }
   }
   async function openSavedProjectRun(jobId) {
     const slot = $("saved-project-run"); clear(slot); slot.hidden = false;
@@ -294,18 +332,30 @@
   }
   async function loadProfiles() {
     const list = $("profile-list");
+    const summary = $("project-profile-summary");
     try {
       const data = await projectApi("/project-profiles");
-      clear(list);
-      if (!data.profiles?.length) { empty(list, "No project profiles yet. Save a draft above to begin operator review."); return; }
-      data.profiles.forEach((profile) => {
+      const profiles = data.profiles || [];
+      clear(list); clear(summary);
+      const approved = profiles.filter((profile) => profile.status === "approved");
+      const pending = profiles.length - approved.length;
+      summary.append(text("p", `${approved.length} approved project version${approved.length === 1 ? "" : "s"} · ${pending} awaiting approval or revision.`));
+      const view = text("button", approved.length ? "View project profiles" : "Set up a project", "project-activity-link");
+      view.type = "button";
+      view.addEventListener("click", () => {
+        const setup = $("profile-setup"); setup.open = true;
+        setup.scrollIntoView({behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start"});
+      });
+      summary.append(view);
+      if (!profiles.length) { empty(list, "No project profiles yet. Save a draft above to begin operator review."); return; }
+      profiles.forEach((profile) => {
         const card = text("div", "", "profile-list-item");
         card.append(text("strong", profile.draft_json?.name || profile.repository));
         card.append(text("small", `${profile.repository} · version ${profile.version} · ${profile.status}`));
         if (profile.status !== "approved") card.append(text("p", "A draft cannot execute. An operator must validate the sample and prepare both pinned environments."));
         list.append(card);
       });
-    } catch (error) { empty(list, `Project profiles unavailable: ${error.message}`); }
+    } catch (error) { empty(list, `Project profiles unavailable: ${error.message}`); clear(summary); }
   }
   async function loadOperatorProfiles() {
     const response = await timedFetch("/api/project-profiles/operator/pending", {

@@ -99,6 +99,14 @@ def test_start_requires_exact_approval_and_hides_worker_capability(monkeypatch):
         submitted = queue.submissions[0][2]
         assert (submitted.candidate_budget, submitted.candidate_strategy,
                 submitted.candidate_seed) == (8, "seeded_random", 17)
+        def conflict(*_args):
+            raise ValueError("Idempotency key was already used for a different run")
+        queue.submit = conflict
+        duplicate = client.post("/api/project-runs", json=body)
+        assert duplicate.status_code == 409
+        assert duplicate.json()["detail"] == (
+            "Idempotency key was already used for a different run"
+        )
     finally:
         app.dependency_overrides.clear()
 

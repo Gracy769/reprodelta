@@ -157,5 +157,12 @@ def test_private_replay_endpoint_is_owner_scoped(monkeypatch):
         ).hexdigest()
         with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
             assert archive.read("source/requirements.txt") == files["requirements.txt"]
+        def malformed(*_args):
+            raise KeyError("private-profile-field")
+        monkeypatch.setattr(project_runs, "build_project_replay_bundle", malformed)
+        rejected = client.get(f"/api/project-runs/{job['id']}/replay.zip")
+        assert rejected.status_code == 409
+        assert rejected.json()["detail"] == "Saved evidence cannot be exported as a replay bundle"
+        assert "private-profile-field" not in rejected.text
     finally:
         app.dependency_overrides.clear()

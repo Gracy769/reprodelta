@@ -5,9 +5,9 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import sys
 import uuid
 import zipfile
-from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -101,14 +101,31 @@ def test_private_replay_bundle_is_deterministic_and_script_matches_record(monkey
 
     def child(args, **_kwargs):
         ratio = 0.4 if args[0] == "old-python" else 0.6
-        return SimpleNamespace(stdout=json.dumps({"result": {"measurement": ratio}}))
+        return json.dumps({"result": {"measurement": ratio}}).encode()
 
-    monkeypatch.setattr(project_replay_script.subprocess, "run", child)
+    monkeypatch.setattr(project_replay_script, "_run_bounded", child)
     project_replay_script.main()
     assert "Replay matched" in capsys.readouterr().out
     (tmp_path / "input.json").write_text('{"x":0.9}', encoding="utf-8")
     with pytest.raises(AssertionError, match="Bundle file changed"):
         project_replay_script.main()
+
+
+def test_replay_subprocess_rejects_output_flood_without_retaining_it():
+    with pytest.raises(AssertionError, match="output exceeds its limit"):
+        project_replay_script._run_bounded(
+            [sys.executable, "-I", "-c", "print('x' * 200000)"],
+            timeout=5,
+        )
+    assert project_replay_script._run_bounded(
+        [sys.executable, "-I", "-c", "print('small result')"],
+        timeout=5,
+    ).strip() == b"small result"
+    with pytest.raises(TimeoutError, match="time limit"):
+        project_replay_script._run_bounded(
+            [sys.executable, "-I", "-c", "import time; time.sleep(10)"],
+            timeout=1,
+        )
 
 
 @pytest.mark.parametrize("tamper", ["missing_witness", "source", "contract", "repeat"])

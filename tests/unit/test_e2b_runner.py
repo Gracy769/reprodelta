@@ -70,7 +70,10 @@ def test_snapshot_rejects_traversal_and_oversize():
     with pytest.raises(ValueError):
         validate_snapshot({"a.py": b"x" * 1_000_001})
     for name in (".env", "config/.env.production", "secrets/token.txt",
-                 "deploy/private.pem", "credentials.json", "src/bad\nname.py"):
+                 "deploy/private.pem", "credentials.json", "src/bad\nname.py",
+                 ".npmrc", "config/.pypirc", "home/.netrc", "pip.conf",
+                 "config/poetry.toml", ".kube/config", "id_ecdsa",
+                 "application_default_credentials.json"):
         with pytest.raises(ValueError):
             validate_snapshot({name: b"sensitive"})
     assert len(validate_snapshot({".env.example": b"PLACEHOLDER=true"})) == 64

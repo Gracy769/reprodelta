@@ -25,8 +25,10 @@ MAX_BATCH_INPUTS = 64
 SANDBOX_TIMEOUT_SECONDS = 900
 _IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 _SENSITIVE_BASENAMES = {
-    "id_rsa", "id_ed25519", "credentials.json", "service-account.json",
-    "service_account.json", "secrets.json",
+    "id_rsa", "id_ed25519", "id_ecdsa", "credentials.json",
+    "application_default_credentials.json", "service-account.json",
+    "service_account.json", "secrets.json", ".npmrc", ".pypirc",
+    ".netrc", ".git-credentials", "pip.conf", "poetry.toml",
 }
 _SENSITIVE_SUFFIXES = (".pem", ".key", ".p12", ".pfx")
 
@@ -36,7 +38,7 @@ def sensitive_snapshot_path(name: str) -> bool:
     parts = name.lower().split("/")
     basename = parts[-1]
     return (
-        any(part in {".ssh", ".aws", "secrets"} for part in parts[:-1])
+        any(part in {".ssh", ".aws", ".kube", "secrets"} for part in parts[:-1])
         or basename == ".env"
         or (basename.startswith(".env.") and not basename.endswith(
             (".example", ".sample", ".template")

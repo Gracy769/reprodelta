@@ -256,8 +256,8 @@ async def start_run(
         raise HTTPException(409, "Run plan changed; review the contract, commits and cost again")
     try:
         job = await asyncio.to_thread(queue.submit, owner_id, body.idempotency_key, spec)
-    except (ValueError, KeyError, TypeError) as exc:
-        raise HTTPException(409, "Saved evidence cannot be exported as a replay bundle") from exc
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
     return _public_job(job)
 
 
@@ -323,8 +323,8 @@ async def download_private_replay(
         raise HTTPException(409, "The immutable source snapshot no longer matches")
     try:
         bundle = await asyncio.to_thread(build_project_replay_bundle, job, profile, files)
-    except ValueError as exc:
-        raise HTTPException(409, str(exc)) from exc
+    except (ValueError, KeyError, TypeError) as exc:
+        raise HTTPException(409, "Saved evidence cannot be exported as a replay bundle") from exc
     return Response(
         content=bundle, media_type="application/zip",
         headers={

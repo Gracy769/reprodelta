@@ -97,7 +97,9 @@ on an Oracle VM and must remain disabled until its live security gates pass.
   standalone `replay.py`. The endpoint re-fetches the immutable source and
   checks its digest before export. The replay script verifies each file against
   an integrity manifest, then runs the adapter twice under each user-supplied
-  Python 3.12 interpreter with the approved NumPy pin. A matching result is
+  Python 3.12 interpreter with the approved NumPy pin. It caps captured adapter
+  output and wall time so a noisy source cannot consume unbounded replay memory.
+  A matching result is
   evidence for that input and those environments only. The ZIP contains private
   repository code, so the owner must acknowledge this before downloading and
   should replay it in isolation. It is separate from the redacted public share;

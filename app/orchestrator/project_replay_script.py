@@ -12,6 +12,8 @@ import math
 import operator
 import os
 import subprocess
+import threading
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -63,14 +65,65 @@ def _child_env() -> dict[str, str]:
             "PYTHONNOUSERSITE": "1"}
 
 
+def _run_bounded(
+    argv: list[str], *, timeout: int, cwd: Path | None = None,
+    stdout_limit: int = 131_072,
+) -> bytes:
+    """Capture untrusted adapter output without unbounded memory or disk writes."""
+    process = subprocess.Popen(
+        argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE, cwd=cwd, env=_child_env(),
+    )
+    stdout = bytearray()
+    stderr = bytearray()
+    overflow = threading.Event()
+
+    def drain(stream, target: bytearray, limit: int) -> None:
+        while chunk := stream.read(8192):
+            if len(target) + len(chunk) > limit:
+                overflow.set()
+                return
+            target.extend(chunk)
+
+    readers = [
+        threading.Thread(target=drain, args=(process.stdout, stdout, stdout_limit), daemon=True),
+        threading.Thread(target=drain, args=(process.stderr, stderr, 8192), daemon=True),
+    ]
+    for reader in readers:
+        reader.start()
+    deadline = time.monotonic() + timeout
+    try:
+        while process.poll() is None:
+            if overflow.is_set():
+                raise AssertionError("Replay subprocess output exceeds its limit")
+            if time.monotonic() >= deadline:
+                raise TimeoutError("Replay subprocess exceeded its time limit")
+            time.sleep(0.02)
+        for reader in readers:
+            reader.join(timeout=1)
+        if overflow.is_set():
+            raise AssertionError("Replay subprocess output exceeds its limit")
+        if any(reader.is_alive() for reader in readers):
+            raise AssertionError("Replay subprocess output could not be collected")
+        if process.returncode != 0:
+            raise AssertionError("Replay subprocess failed")
+        return bytes(stdout)
+    finally:
+        if process.poll() is None:
+            process.kill()
+        process.wait(timeout=5)
+        process.stdout.close()
+        process.stderr.close()
+
+
 def _runtime(interpreter: str, expected: dict) -> None:
-    result = subprocess.run(
+    output = _run_bounded(
         [interpreter, "-I", "-c",
          "import json,sys,numpy; print(json.dumps({'python': list(sys.version_info[:2]), "
          "'numpy': numpy.__version__}))"],
-        capture_output=True, text=True, timeout=20, env=_child_env(), check=True,
+        timeout=20, stdout_limit=4096,
     )
-    runtime = json.loads(result.stdout)
+    runtime = json.loads(output)
     assert runtime["python"] == [3, 12], "Python 3.12 is required"
     assert runtime["numpy"] == expected["numpy_version"], "NumPy pin differs from approval"
     lock = f"python==3.12\nnumpy=={expected['numpy_version']}\n".encode()
@@ -122,16 +175,15 @@ def main() -> None:
         assert interpreter, f"Set REPRODELTA_{environment.upper()}_PYTHON"
         _runtime(interpreter, record["environments"][environment])
         for repeat in (False, True):
-            result = subprocess.run(
+            output = _run_bounded(
                 [interpreter, "-I", "-B", str(ROOT / "launcher.py"),
                  str(ROOT / "source"), str(ROOT / "input.json"),
                  str(ROOT / "adapter.json")],
-                capture_output=True, text=True, timeout=min(
+                timeout=min(
                     30, contract["resource_limits"]["max_wall_seconds"]
-                ), cwd=ROOT / "source", env=_child_env(), check=True,
+                ), cwd=ROOT / "source",
             )
-            output = json.loads(result.stdout)
-            observed = _evaluate(output, contract)
+            observed = _evaluate(json.loads(output), contract)
             key = environment + ("_repeat" if repeat else "")
             _compare(observed, record["observations"][key], contract)
     old = record["observations"]["old"]["conclusion"]

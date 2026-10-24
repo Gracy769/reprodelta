@@ -38,8 +38,13 @@ _PILOT = {
 _IMAGE_ID = re.compile(r"sha256:[0-9a-f]{64}\Z")
 
 
-def _command(args: list[str], *, input_bytes: bytes | None = None, timeout: int = 30):
+def _command(
+    args: list[str], *, input_bytes: bytes | None = None, timeout: int = 30,
+    should_abort: Callable[[], bool] | None = None,
+):
     """Bound Docker CLI output while reading stdout, stderr and stdin together."""
+    if should_abort is not None and should_abort():
+        raise RuntimeError("Approved run was cancelled or its worker lease was lost")
     argv = ["docker", *args]
     process = subprocess.Popen(
         argv, stdin=subprocess.PIPE if input_bytes is not None else subprocess.DEVNULL,
@@ -59,10 +64,12 @@ def _command(args: list[str], *, input_bytes: bytes | None = None, timeout: int 
                 os.set_blocking(process.stdin.fileno(), False)
                 ready.register(process.stdin, selectors.EVENT_WRITE)
             while ready.get_map():
+                if should_abort is not None and should_abort():
+                    raise RuntimeError("Approved run was cancelled or its worker lease was lost")
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     raise RuntimeError("Docker command timed out")
-                for key, _ in ready.select(timeout=remaining):
+                for key, _ in ready.select(timeout=min(remaining, 0.25)):
                     stream = key.fileobj
                     if stream is process.stdin:
                         try:
@@ -83,10 +90,16 @@ def _command(args: list[str], *, input_bytes: bytes | None = None, timeout: int 
                     if len(target) + len(chunk) > limit:
                         raise RuntimeError("Docker command output exceeded its bound")
                     target.extend(chunk)
-        process.wait(timeout=max(1, deadline - time.monotonic()))
+        while process.poll() is None:
+            if should_abort is not None and should_abort():
+                raise RuntimeError("Approved run was cancelled or its worker lease was lost")
+            if time.monotonic() >= deadline:
+                raise RuntimeError("Docker command timed out")
+            time.sleep(0.05)
         return subprocess.CompletedProcess(argv, process.returncode, bytes(stdout), bytes(stderr))
     except Exception:
-        process.kill()
+        if process.poll() is None:
+            process.kill()
         process.wait(timeout=5)
         raise
 
@@ -196,12 +209,13 @@ def execute_environment_batch(
             "--tmpfs", "/work:rw,nosuid,noexec,size=16m,mode=1777",
             "--tmpfs", "/tmp:rw,nosuid,noexec,size=16m,mode=1777",
             image_id, "python", "-I", "-c", "import time; time.sleep(900)",
-        ], timeout=30), "Approved Oracle container could not start")
+        ], timeout=30, should_abort=should_abort), "Approved Oracle container could not start")
         created = True
         abort_if_requested()
         version = _require_success(
             command(["exec", name, "python", "-I", "-c",
-                     "import numpy; print(numpy.__version__)"], timeout=30),
+                     "import numpy; print(numpy.__version__)"],
+                    timeout=30, should_abort=should_abort),
             "Approved Oracle NumPy version could not be verified",
         )
         if version != expected_numpy:
@@ -210,7 +224,8 @@ def execute_environment_batch(
             command(["exec", name, "python", "-I", "-c",
                      "import hashlib; from pathlib import Path; "
                      "print(hashlib.sha256(Path('/opt/reprodelta-environment.lock')"
-                     ".read_bytes()).hexdigest())"], timeout=15),
+                     ".read_bytes()).hexdigest())"],
+                    timeout=15, should_abort=should_abort),
             "Approved Oracle lock could not be verified",
         )
         if lock != expected_lock_sha256:
@@ -224,7 +239,7 @@ def execute_environment_batch(
         }).encode("utf-8")
         _require_success(
             command(["exec", "-i", "-u", "0", name, "tar", "-C", "/work", "-xf", "-"],
-                    input_bytes=_archive(payload), timeout=30),
+                    input_bytes=_archive(payload), timeout=30, should_abort=should_abort),
             "Approved source transfer failed",
         )
         outputs: list[dict] = []
@@ -236,13 +251,14 @@ def execute_environment_batch(
                 raise RuntimeError("Container execution budget exhausted")
             _require_success(
                 command(["exec", "-i", "-u", "0", name, "tar", "-C", "/work", "-xf", "-"],
-                        input_bytes=_archive({"input.json": encoded}), timeout=15),
+                        input_bytes=_archive({"input.json": encoded}), timeout=15,
+                        should_abort=should_abort),
                 "Approved input transfer failed",
             )
             result = command([
                 "exec", name, "python", "-I", "-B", "/work/launch.py",
                 "/work/source", "/work/input.json", "/work/adapter.json",
-            ], timeout=remaining)
+            ], timeout=remaining, should_abort=should_abort)
             if result.returncode != 0:
                 raise RuntimeError("Approved adapter failed inside the container")
             abort_if_requested()

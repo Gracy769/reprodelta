@@ -36,6 +36,11 @@ an in-memory workspace, a non-root adapter process, dropped capabilities,
 process/memory/CPU limits, and a 15-minute maximum. The worker removes the
 container after success or failure. The actual host isolation and cleanup
 must be tested on the VM; the Windows development host has no Docker.
+While an adapter command is running, the worker checks cancellation and lease
+loss at most every 250 ms, kills the Docker CLI command, and then force-removes
+the named container. This is a local code guarantee, not a live VM result;
+verify a cancellation during a running adapter and confirm that no labelled
+container remains before enabling project runs.
 At startup, the single Oracle worker removes containers bearing its project
 sandbox label that a previous worker process left behind. Do not run multiple
 Oracle project workers against the same Docker daemon.

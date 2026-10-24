@@ -8,6 +8,7 @@ note for the upstream source and limits.
 from __future__ import annotations
 
 import json
+import sys
 
 import numpy as np
 
@@ -22,6 +23,25 @@ def pack_mask(reference: int, secondary: int, *, repaired: bool) -> int:
 
 
 def main() -> None:
+    if sys.argv[1:] == ["--batch"]:
+        request = json.load(sys.stdin)
+        if not isinstance(request, dict) or request.get("mode") not in {"original", "repaired"}:
+            raise ValueError("Invalid batch mode")
+        inputs = request.get("inputs")
+        if not isinstance(inputs, list) or not 1 <= len(inputs) <= 32:
+            raise ValueError("Batch needs 1–32 inputs")
+        values = []
+        for item in inputs:
+            if (not isinstance(item, dict) or set(item) != {"reference", "secondary"}
+                    or any(type(item[key]) is not int or not 0 <= item[key] <= 255
+                           for key in ("reference", "secondary"))):
+                raise ValueError("Invalid mask input")
+            values.append([pack_mask(item["reference"], item["secondary"],
+                                     repaired=request["mode"] == "repaired") for _ in range(2)])
+        print(json.dumps({"numpy_version": np.__version__, "values": values}))
+        return
+    if sys.argv[1:]:
+        raise ValueError("Unknown arguments")
     samples = {}
     for name, reference, secondary in (
         ("reported_nonzero", 3, 1),

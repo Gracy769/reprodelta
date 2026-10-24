@@ -1,0 +1,1937 @@
+{
+  "execution_mode": "local_pinned_interpreters",
+  "limitations": [
+    "Only the reported scalar-shift expression runs, not the full isce3 package.",
+    "The defect and repair were known before this benchmark; it is not blind discovery.",
+    "The fixed input list includes a known witness in fourth position.",
+    "Native local interpreter runs do not measure sandbox or model cost.",
+    "A changed declared threshold outcome is not an independently reviewed scientific impact."
+  ],
+  "protocol": {
+    "cases": [
+      "reported_expression",
+      "unchanged_cast_control"
+    ],
+    "fixed_inputs": [
+      {
+        "reference": 0,
+        "secondary": 0
+      },
+      {
+        "reference": 0,
+        "secondary": 1
+      },
+      {
+        "reference": 1,
+        "secondary": 0
+      },
+      {
+        "reference": 3,
+        "secondary": 1
+      }
+    ],
+    "initial_input": {
+      "reference": 0,
+      "secondary": 0
+    },
+    "pair_budget": 4,
+    "profile_sha256": "a2591baad96a65ca551027d64cd53ef451373a6bc3035a5bc7a054618acd4c76",
+    "repeats_per_environment": 2,
+    "search_policy": "Complete all pairs even after first witness",
+    "seeds": [
+      13,
+      42,
+      97
+    ],
+    "source": "isce3 issue 335 scalar-shift expression, not the full package",
+    "strategies": [
+      "fixed",
+      "sweep",
+      "seeded_random",
+      "adaptive"
+    ]
+  },
+  "protocol_sha256": "7a0ca305039da209a1eca2d9e7861831572b8930ac3f5c614f29bef9f2384c42",
+  "rows": [
+    {
+      "case": "reported_expression",
+      "completed_pairs": 4,
+      "elapsed_seconds": 1.016,
+      "false_alarms": null,
+      "first_witness_pair": 3,
+      "native_executions": 16,
+      "pair_budget": 4,
+      "records": [
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            5,
+            5
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 1
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            261,
+            261
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": true,
+          "input": {
+            "reference": 1,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            65541,
+            65541
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": true,
+          "input": {
+            "reference": 3,
+            "secondary": 1
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            196869,
+            196869
+          ],
+          "repeatable": true
+        }
+      ],
+      "seed": 13,
+      "strategy": "fixed",
+      "unstable_pairs": 0
+    },
+    {
+      "case": "reported_expression",
+      "completed_pairs": 4,
+      "elapsed_seconds": 0.984,
+      "false_alarms": null,
+      "first_witness_pair": 2,
+      "native_executions": 16,
+      "pair_budget": 4,
+      "records": [
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            5,
+            5
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": true,
+          "input": {
+            "reference": 128,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            8388613,
+            8388613
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": true,
+          "input": {
+            "reference": 255,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            16711685,
+            16711685
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 128
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            32773,
+            32773
+          ],
+          "repeatable": true
+        }
+      ],
+      "seed": 13,
+      "strategy": "sweep",
+      "unstable_pairs": 0
+    },
+    {
+      "case": "reported_expression",
+      "completed_pairs": 4,
+      "elapsed_seconds": 1.0,
+      "false_alarms": null,
+      "first_witness_pair": 3,
+      "native_executions": 16,
+      "pair_budget": 4,
+      "records": [
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            5,
+            5
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 148
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            37893,
+            37893
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": true,
+          "input": {
+            "reference": 118,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            7733253,
+            7733253
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": true,
+          "input": {
+            "reference": 115,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            7536645,
+            7536645
+          ],
+          "repeatable": true
+        }
+      ],
+      "seed": 13,
+      "strategy": "seeded_random",
+      "unstable_pairs": 0
+    },
+    {
+      "case": "reported_expression",
+      "completed_pairs": 4,
+      "elapsed_seconds": 2.141,
+      "false_alarms": null,
+      "first_witness_pair": 2,
+      "native_executions": 16,
+      "pair_budget": 4,
+      "records": [
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            5,
+            5
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": true,
+          "input": {
+            "reference": 128,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            8388613,
+            8388613
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": true,
+          "input": {
+            "reference": 64,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            4194309,
+            4194309
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": true,
+          "input": {
+            "reference": 191,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            12517381,
+            12517381
+          ],
+          "repeatable": true
+        }
+      ],
+      "seed": 13,
+      "strategy": "adaptive",
+      "unstable_pairs": 0
+    },
+    {
+      "case": "unchanged_cast_control",
+      "completed_pairs": 4,
+      "elapsed_seconds": 1.047,
+      "false_alarms": 0,
+      "first_witness_pair": null,
+      "native_executions": 16,
+      "pair_budget": 4,
+      "records": [
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            5,
+            5
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 1
+          },
+          "new": [
+            261,
+            261
+          ],
+          "old": [
+            261,
+            261
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 1,
+            "secondary": 0
+          },
+          "new": [
+            65541,
+            65541
+          ],
+          "old": [
+            65541,
+            65541
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 3,
+            "secondary": 1
+          },
+          "new": [
+            196869,
+            196869
+          ],
+          "old": [
+            196869,
+            196869
+          ],
+          "repeatable": true
+        }
+      ],
+      "seed": 13,
+      "strategy": "fixed",
+      "unstable_pairs": 0
+    },
+    {
+      "case": "unchanged_cast_control",
+      "completed_pairs": 4,
+      "elapsed_seconds": 1.031,
+      "false_alarms": 0,
+      "first_witness_pair": null,
+      "native_executions": 16,
+      "pair_budget": 4,
+      "records": [
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            5,
+            5
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 128,
+            "secondary": 0
+          },
+          "new": [
+            8388613,
+            8388613
+          ],
+          "old": [
+            8388613,
+            8388613
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 255,
+            "secondary": 0
+          },
+          "new": [
+            16711685,
+            16711685
+          ],
+          "old": [
+            16711685,
+            16711685
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 128
+          },
+          "new": [
+            32773,
+            32773
+          ],
+          "old": [
+            32773,
+            32773
+          ],
+          "repeatable": true
+        }
+      ],
+      "seed": 13,
+      "strategy": "sweep",
+      "unstable_pairs": 0
+    },
+    {
+      "case": "unchanged_cast_control",
+      "completed_pairs": 4,
+      "elapsed_seconds": 1.094,
+      "false_alarms": 0,
+      "first_witness_pair": null,
+      "native_executions": 16,
+      "pair_budget": 4,
+      "records": [
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            5,
+            5
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 148
+          },
+          "new": [
+            37893,
+            37893
+          ],
+          "old": [
+            37893,
+            37893
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 118,
+            "secondary": 0
+          },
+          "new": [
+            7733253,
+            7733253
+          ],
+          "old": [
+            7733253,
+            7733253
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 115,
+            "secondary": 0
+          },
+          "new": [
+            7536645,
+            7536645
+          ],
+          "old": [
+            7536645,
+            7536645
+          ],
+          "repeatable": true
+        }
+      ],
+      "seed": 13,
+      "strategy": "seeded_random",
+      "unstable_pairs": 0
+    },
+    {
+      "case": "unchanged_cast_control",
+      "completed_pairs": 4,
+      "elapsed_seconds": 2.109,
+      "false_alarms": 0,
+      "first_witness_pair": null,
+      "native_executions": 16,
+      "pair_budget": 4,
+      "records": [
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            5,
+            5
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 128,
+            "secondary": 0
+          },
+          "new": [
+            8388613,
+            8388613
+          ],
+          "old": [
+            8388613,
+            8388613
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 64,
+            "secondary": 0
+          },
+          "new": [
+            4194309,
+            4194309
+          ],
+          "old": [
+            4194309,
+            4194309
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 191,
+            "secondary": 0
+          },
+          "new": [
+            12517381,
+            12517381
+          ],
+          "old": [
+            12517381,
+            12517381
+          ],
+          "repeatable": true
+        }
+      ],
+      "seed": 13,
+      "strategy": "adaptive",
+      "unstable_pairs": 0
+    },
+    {
+      "case": "reported_expression",
+      "completed_pairs": 4,
+      "elapsed_seconds": 1.047,
+      "false_alarms": null,
+      "first_witness_pair": 3,
+      "native_executions": 16,
+      "pair_budget": 4,
+      "records": [
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            5,
+            5
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 1
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            261,
+            261
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": true,
+          "input": {
+            "reference": 1,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            65541,
+            65541
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": true,
+          "input": {
+            "reference": 3,
+            "secondary": 1
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            196869,
+            196869
+          ],
+          "repeatable": true
+        }
+      ],
+      "seed": 42,
+      "strategy": "fixed",
+      "unstable_pairs": 0
+    },
+    {
+      "case": "reported_expression",
+      "completed_pairs": 4,
+      "elapsed_seconds": 1.031,
+      "false_alarms": null,
+      "first_witness_pair": 2,
+      "native_executions": 16,
+      "pair_budget": 4,
+      "records": [
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            5,
+            5
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": true,
+          "input": {
+            "reference": 128,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            8388613,
+            8388613
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": true,
+          "input": {
+            "reference": 255,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            16711685,
+            16711685
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 128
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            32773,
+            32773
+          ],
+          "repeatable": true
+        }
+      ],
+      "seed": 42,
+      "strategy": "sweep",
+      "unstable_pairs": 0
+    },
+    {
+      "case": "reported_expression",
+      "completed_pairs": 4,
+      "elapsed_seconds": 1.078,
+      "false_alarms": null,
+      "first_witness_pair": 2,
+      "native_executions": 16,
+      "pair_budget": 4,
+      "records": [
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            5,
+            5
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": true,
+          "input": {
+            "reference": 12,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            786437,
+            786437
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 125
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            32005,
+            32005
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": true,
+          "input": {
+            "reference": 71,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            4653061,
+            4653061
+          ],
+          "repeatable": true
+        }
+      ],
+      "seed": 42,
+      "strategy": "seeded_random",
+      "unstable_pairs": 0
+    },
+    {
+      "case": "reported_expression",
+      "completed_pairs": 4,
+      "elapsed_seconds": 2.063,
+      "false_alarms": null,
+      "first_witness_pair": 2,
+      "native_executions": 16,
+      "pair_budget": 4,
+      "records": [
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            5,
+            5
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": true,
+          "input": {
+            "reference": 128,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            8388613,
+            8388613
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 128
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            32773,
+            32773
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 64
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            16389,
+            16389
+          ],
+          "repeatable": true
+        }
+      ],
+      "seed": 42,
+      "strategy": "adaptive",
+      "unstable_pairs": 0
+    },
+    {
+      "case": "unchanged_cast_control",
+      "completed_pairs": 4,
+      "elapsed_seconds": 1.078,
+      "false_alarms": 0,
+      "first_witness_pair": null,
+      "native_executions": 16,
+      "pair_budget": 4,
+      "records": [
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            5,
+            5
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 1
+          },
+          "new": [
+            261,
+            261
+          ],
+          "old": [
+            261,
+            261
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 1,
+            "secondary": 0
+          },
+          "new": [
+            65541,
+            65541
+          ],
+          "old": [
+            65541,
+            65541
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 3,
+            "secondary": 1
+          },
+          "new": [
+            196869,
+            196869
+          ],
+          "old": [
+            196869,
+            196869
+          ],
+          "repeatable": true
+        }
+      ],
+      "seed": 42,
+      "strategy": "fixed",
+      "unstable_pairs": 0
+    },
+    {
+      "case": "unchanged_cast_control",
+      "completed_pairs": 4,
+      "elapsed_seconds": 1.188,
+      "false_alarms": 0,
+      "first_witness_pair": null,
+      "native_executions": 16,
+      "pair_budget": 4,
+      "records": [
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            5,
+            5
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 128,
+            "secondary": 0
+          },
+          "new": [
+            8388613,
+            8388613
+          ],
+          "old": [
+            8388613,
+            8388613
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 255,
+            "secondary": 0
+          },
+          "new": [
+            16711685,
+            16711685
+          ],
+          "old": [
+            16711685,
+            16711685
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 128
+          },
+          "new": [
+            32773,
+            32773
+          ],
+          "old": [
+            32773,
+            32773
+          ],
+          "repeatable": true
+        }
+      ],
+      "seed": 42,
+      "strategy": "sweep",
+      "unstable_pairs": 0
+    },
+    {
+      "case": "unchanged_cast_control",
+      "completed_pairs": 4,
+      "elapsed_seconds": 1.093,
+      "false_alarms": 0,
+      "first_witness_pair": null,
+      "native_executions": 16,
+      "pair_budget": 4,
+      "records": [
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            5,
+            5
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 12,
+            "secondary": 0
+          },
+          "new": [
+            786437,
+            786437
+          ],
+          "old": [
+            786437,
+            786437
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 125
+          },
+          "new": [
+            32005,
+            32005
+          ],
+          "old": [
+            32005,
+            32005
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 71,
+            "secondary": 0
+          },
+          "new": [
+            4653061,
+            4653061
+          ],
+          "old": [
+            4653061,
+            4653061
+          ],
+          "repeatable": true
+        }
+      ],
+      "seed": 42,
+      "strategy": "seeded_random",
+      "unstable_pairs": 0
+    },
+    {
+      "case": "unchanged_cast_control",
+      "completed_pairs": 4,
+      "elapsed_seconds": 1.969,
+      "false_alarms": 0,
+      "first_witness_pair": null,
+      "native_executions": 16,
+      "pair_budget": 4,
+      "records": [
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            5,
+            5
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 128,
+            "secondary": 0
+          },
+          "new": [
+            8388613,
+            8388613
+          ],
+          "old": [
+            8388613,
+            8388613
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 128
+          },
+          "new": [
+            32773,
+            32773
+          ],
+          "old": [
+            32773,
+            32773
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 64
+          },
+          "new": [
+            16389,
+            16389
+          ],
+          "old": [
+            16389,
+            16389
+          ],
+          "repeatable": true
+        }
+      ],
+      "seed": 42,
+      "strategy": "adaptive",
+      "unstable_pairs": 0
+    },
+    {
+      "case": "reported_expression",
+      "completed_pairs": 4,
+      "elapsed_seconds": 0.984,
+      "false_alarms": null,
+      "first_witness_pair": 3,
+      "native_executions": 16,
+      "pair_budget": 4,
+      "records": [
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            5,
+            5
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 1
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            261,
+            261
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": true,
+          "input": {
+            "reference": 1,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            65541,
+            65541
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": true,
+          "input": {
+            "reference": 3,
+            "secondary": 1
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            196869,
+            196869
+          ],
+          "repeatable": true
+        }
+      ],
+      "seed": 97,
+      "strategy": "fixed",
+      "unstable_pairs": 0
+    },
+    {
+      "case": "reported_expression",
+      "completed_pairs": 4,
+      "elapsed_seconds": 1.0,
+      "false_alarms": null,
+      "first_witness_pair": 2,
+      "native_executions": 16,
+      "pair_budget": 4,
+      "records": [
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            5,
+            5
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": true,
+          "input": {
+            "reference": 128,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            8388613,
+            8388613
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": true,
+          "input": {
+            "reference": 255,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            16711685,
+            16711685
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 128
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            32773,
+            32773
+          ],
+          "repeatable": true
+        }
+      ],
+      "seed": 97,
+      "strategy": "sweep",
+      "unstable_pairs": 0
+    },
+    {
+      "case": "reported_expression",
+      "completed_pairs": 4,
+      "elapsed_seconds": 1.0,
+      "false_alarms": null,
+      "first_witness_pair": 2,
+      "native_executions": 16,
+      "pair_budget": 4,
+      "records": [
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            5,
+            5
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": true,
+          "input": {
+            "reference": 219,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            14352389,
+            14352389
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 26
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            6661,
+            6661
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": true,
+          "input": {
+            "reference": 21,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            1376261,
+            1376261
+          ],
+          "repeatable": true
+        }
+      ],
+      "seed": 97,
+      "strategy": "seeded_random",
+      "unstable_pairs": 0
+    },
+    {
+      "case": "reported_expression",
+      "completed_pairs": 4,
+      "elapsed_seconds": 1.954,
+      "false_alarms": null,
+      "first_witness_pair": 2,
+      "native_executions": 16,
+      "pair_budget": 4,
+      "records": [
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            5,
+            5
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": true,
+          "input": {
+            "reference": 128,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            8388613,
+            8388613
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 128
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            32773,
+            32773
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 64
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            16389,
+            16389
+          ],
+          "repeatable": true
+        }
+      ],
+      "seed": 97,
+      "strategy": "adaptive",
+      "unstable_pairs": 0
+    },
+    {
+      "case": "unchanged_cast_control",
+      "completed_pairs": 4,
+      "elapsed_seconds": 0.984,
+      "false_alarms": 0,
+      "first_witness_pair": null,
+      "native_executions": 16,
+      "pair_budget": 4,
+      "records": [
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            5,
+            5
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 1
+          },
+          "new": [
+            261,
+            261
+          ],
+          "old": [
+            261,
+            261
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 1,
+            "secondary": 0
+          },
+          "new": [
+            65541,
+            65541
+          ],
+          "old": [
+            65541,
+            65541
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 3,
+            "secondary": 1
+          },
+          "new": [
+            196869,
+            196869
+          ],
+          "old": [
+            196869,
+            196869
+          ],
+          "repeatable": true
+        }
+      ],
+      "seed": 97,
+      "strategy": "fixed",
+      "unstable_pairs": 0
+    },
+    {
+      "case": "unchanged_cast_control",
+      "completed_pairs": 4,
+      "elapsed_seconds": 1.016,
+      "false_alarms": 0,
+      "first_witness_pair": null,
+      "native_executions": 16,
+      "pair_budget": 4,
+      "records": [
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            5,
+            5
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 128,
+            "secondary": 0
+          },
+          "new": [
+            8388613,
+            8388613
+          ],
+          "old": [
+            8388613,
+            8388613
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 255,
+            "secondary": 0
+          },
+          "new": [
+            16711685,
+            16711685
+          ],
+          "old": [
+            16711685,
+            16711685
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 128
+          },
+          "new": [
+            32773,
+            32773
+          ],
+          "old": [
+            32773,
+            32773
+          ],
+          "repeatable": true
+        }
+      ],
+      "seed": 97,
+      "strategy": "sweep",
+      "unstable_pairs": 0
+    },
+    {
+      "case": "unchanged_cast_control",
+      "completed_pairs": 4,
+      "elapsed_seconds": 1.015,
+      "false_alarms": 0,
+      "first_witness_pair": null,
+      "native_executions": 16,
+      "pair_budget": 4,
+      "records": [
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            5,
+            5
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 219,
+            "secondary": 0
+          },
+          "new": [
+            14352389,
+            14352389
+          ],
+          "old": [
+            14352389,
+            14352389
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 26
+          },
+          "new": [
+            6661,
+            6661
+          ],
+          "old": [
+            6661,
+            6661
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 21,
+            "secondary": 0
+          },
+          "new": [
+            1376261,
+            1376261
+          ],
+          "old": [
+            1376261,
+            1376261
+          ],
+          "repeatable": true
+        }
+      ],
+      "seed": 97,
+      "strategy": "seeded_random",
+      "unstable_pairs": 0
+    },
+    {
+      "case": "unchanged_cast_control",
+      "completed_pairs": 4,
+      "elapsed_seconds": 2.0,
+      "false_alarms": 0,
+      "first_witness_pair": null,
+      "native_executions": 16,
+      "pair_budget": 4,
+      "records": [
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 0
+          },
+          "new": [
+            5,
+            5
+          ],
+          "old": [
+            5,
+            5
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 128,
+            "secondary": 0
+          },
+          "new": [
+            8388613,
+            8388613
+          ],
+          "old": [
+            8388613,
+            8388613
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 128
+          },
+          "new": [
+            32773,
+            32773
+          ],
+          "old": [
+            32773,
+            32773
+          ],
+          "repeatable": true
+        },
+        {
+          "changed_conclusion": false,
+          "input": {
+            "reference": 0,
+            "secondary": 64
+          },
+          "new": [
+            16389,
+            16389
+          ],
+          "old": [
+            16389,
+            16389
+          ],
+          "repeatable": true
+        }
+      ],
+      "seed": 97,
+      "strategy": "adaptive",
+      "unstable_pairs": 0
+    }
+  ],
+  "schema_version": "1",
+  "source_sha256": "6228754037e1b741a808a281fcb4779fb0b9dfc4efda8a4a2141ccffa082e13d",
+  "status": "completed",
+  "totals": {
+    "completed_pairs": 96,
+    "false_alarms": 0,
+    "native_executions": 384
+  }
+}

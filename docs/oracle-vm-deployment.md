@@ -58,7 +58,10 @@ values and image IDs are configured:
 Before enabling the flags, run the synthetic isolation probe from the VM. It
 checks both image locks and NumPy versions, executes a fixed numeric input,
 checks that service secrets and an outbound HTTPS response are absent, then
-checks container removal after normal completion, adapter failure, and timeout:
+checks container removal after normal completion, adapter failure, and timeout.
+The extended probe also checks that the project container cannot see the
+Docker socket, that excessive stdout is rejected, and that cancellation of a
+running adapter interrupts it promptly and removes its container.
 
 ```sh
 docker compose --env-file deploy/oracle/.env -f deploy/oracle/compose.yaml \

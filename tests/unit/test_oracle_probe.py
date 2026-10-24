@@ -7,4 +7,6 @@ def test_oracle_probe_adapter_is_syntax_valid_and_checks_isolation():
     compile(PROBE, "probe.py", "exec")
     assert b"secret_present" in PROBE
     assert b"network_open" in PROBE
+    assert b"docker_socket_present" in PROBE
+    assert b"overflow" in PROBE
     assert b"time.sleep(60)" in PROBE

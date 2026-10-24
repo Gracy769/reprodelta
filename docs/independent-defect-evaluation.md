@@ -91,3 +91,40 @@ workflow, live sign-in, restart recovery, a private project, and the second
 approved project remain unverified. A full-isce3 result would require
 importing and running the actual upstream project and checking its output
 product.
+
+## Equal-budget search comparison (24 October 2026)
+
+The [raw benchmark record](evidence/independent-mask-search-evaluation.json)
+and its SHA-256 sidecar run the reported scalar expression on local Python
+3.12/NumPy 1.26.4 and 2.0.2 interpreters. This is an **offline expression-level
+evaluation**, not a queued sandbox investigation or execution of isce3. Each
+method gets four paired inputs per seed, each input runs twice in each
+environment, and all four pairs execute even after a witness is found. The
+zero/zero input starts sweep, random, and adaptive search; the fixed list is
+declared in the protocol and includes a known witness at position three.
+
+| Expression / strategy | Seeds with changed threshold outcome | First witness pair by seed 13, 42, 97 | Unchanged-control false alarms |
+| --- | ---: | --- | ---: |
+| Reported / fixed | 3 of 3 | 3, 3, 3 | 0 |
+| Reported / sweep | 3 of 3 | 2, 2, 2 | 0 |
+| Reported / seeded random | 3 of 3 | 3, 2, 2 | 0 |
+| Reported / adaptive | 3 of 3 | 2, 2, 2 | 0 |
+
+Across the reported expression and cast-repair unchanged control, the record
+contains 96 completed pairs and 384 native measurements, with no unstable
+repeats. Adaptive uses two subprocess batches per environment and therefore
+has roughly twice the observed startup-inclusive wall time of the other
+strategies here. The fixed list was informed by the reported defect and this
+small sample cannot establish comparative effectiveness. There were no model
+calls; local wall time does not estimate E2B or Oracle cost. The declared
+threshold difference is evidence of a changed expression outcome, not a claim
+about the full scientific workflow.
+
+To regenerate on two installed Python 3.12 environments:
+
+```powershell
+.venv\Scripts\python.exe scripts/evaluate_independent_mask.py --old-python OLD_PYTHON --new-python NEW_PYTHON --seeds 13 42 97 --pairs 4 --output independent-mask-search-evaluation.json
+```
+
+The CLI requires NumPy 1.26.4 and 2.0.2 respectively and fails on a version
+mismatch, invalid result, or unstable repeated measurement.

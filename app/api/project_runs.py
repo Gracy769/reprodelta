@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import math
 import uuid
 from typing import Annotated, Literal
@@ -25,6 +26,7 @@ from app.domain.project_eligibility import check_eligibility
 from app.domain.project_profile import ProfileApproval, ProjectProfileDraft
 from app.domain.project_run import ProjectRunSpec
 from app.domain.project_share import redacted_project_share
+from app.orchestrator.project_replay_export import build_project_replay_bundle
 from app.storage.project_profiles import ProjectProfileStore
 from app.storage.project_run_queue import ProjectRunQueue
 from app.storage.project_shares import ProjectShareStore
@@ -254,8 +256,8 @@ async def start_run(
         raise HTTPException(409, "Run plan changed; review the contract, commits and cost again")
     try:
         job = await asyncio.to_thread(queue.submit, owner_id, body.idempotency_key, spec)
-    except ValueError as exc:
-        raise HTTPException(409, str(exc)) from exc
+    except (ValueError, KeyError, TypeError) as exc:
+        raise HTTPException(409, "Saved evidence cannot be exported as a replay bundle") from exc
     return _public_job(job)
 
 
@@ -292,6 +294,46 @@ async def get_run(
     if job is None:
         raise HTTPException(404, "Project run not found")
     return _public_job(job)
+
+
+@router.get("/{job_id}/replay.zip")
+async def download_private_replay(
+    job_id: uuid.UUID,
+    owner_id: Annotated[str, Depends(current_user)],
+    queue: Annotated[ProjectRunQueue, Depends(get_run_queue)],
+    profiles: Annotated[ProjectProfileStore, Depends(get_profile_store)],
+):
+    """Download exact private source and recorded witness for local replay."""
+    job = await asyncio.to_thread(queue.get, owner_id, job_id)
+    if job is None:
+        raise HTTPException(404, "Project run not found")
+    if job["status"] != "completed":
+        raise HTTPException(409, "Complete the project run before exporting")
+    spec = ProjectRunSpec.model_validate(job["spec_json"])
+    profile = await asyncio.to_thread(profiles.get, owner_id, spec.profile_id)
+    if profile is None:
+        raise HTTPException(409, "Approved project profile is unavailable")
+    source_id = (_github_repository(spec.repository) if spec.provider == "github"
+                 else _gitlab_project(spec.repository))
+    token = await asyncio.to_thread(_saved_token, owner_id, spec.provider)
+    files, digest = await immutable_snapshot(
+        _host_get, spec.provider, token, source_id, spec.base_sha
+    )
+    if digest != spec.source_sha256:
+        raise HTTPException(409, "The immutable source snapshot no longer matches")
+    try:
+        bundle = await asyncio.to_thread(build_project_replay_bundle, job, profile, files)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return Response(
+        content=bundle, media_type="application/zip",
+        headers={
+            "Cache-Control": "no-store",
+            "X-Robots-Tag": "noindex",
+            "X-ReproDelta-Zip-SHA256": hashlib.sha256(bundle).hexdigest(),
+            "Content-Disposition": f'attachment; filename="reprodelta-{job_id}-replay.zip"',
+        },
+    )
 
 
 @router.get("/{job_id}/share-preview")

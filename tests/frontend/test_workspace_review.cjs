@@ -22,7 +22,7 @@ function boot(fetch) {
   const document = {getElementById(id) {if(!elements.has(id)) elements.set(id,new Element()); return elements.get(id);},
     createElement(tag) {return new Element(tag);}, createTextNode(text) {const node = new Element('text'); node.textContent=text; return node;}, querySelectorAll() {return [];}};
   const context = {document, fetch, URL, AbortController, crypto: {randomUUID: () => 'fixed-idempotency-key'}, location: {}, window: {setTimeout,clearTimeout, matchMedia: () => ({matches:true})}};
-  vm.runInNewContext(shipped.replace('  start();', '  globalThis.reviewTest = {renderReview, configureReplay, configureApprovedRun, openSavedProjectRun, loadOperatorProfiles, configureShare, state};'), context);
+  vm.runInNewContext(shipped.replace('  start();', '  globalThis.reviewTest = {renderReview, configureReplay, configureApprovedRun, renderApprovedFinding, openSavedProjectRun, loadOperatorProfiles, configureShare, state};'), context);
   return {...context, elements};
 }
 function all(node) {return [node,...node.children.flatMap(all)];}
@@ -180,6 +180,26 @@ test('saved project run warns when the PR revision has changed', async () => {
   assert(nodes.some(n => n.textContent?.includes('The PR moved since this run')));
   assert(nodes.some(n => n.textContent?.includes('No violation found within tested scope')));
   assert(nodes.some(n => n.textContent?.includes('Repeatability')));
+});
+
+test('private replay download appears only for a witness and requires acknowledgement', () => {
+  const ctx=boot();
+  const card=new Element();
+  const finding={kind:'approved_project_sample',changed_conclusion:true,repeatable:true,
+    witness_input:{x:0.5},old:{ratio:0.4,conclusion:'below_threshold'},
+    new:{ratio:0.6,conclusion:'above_threshold'},input_sha256:'a'.repeat(64)};
+  ctx.reviewTest.renderApprovedFinding(card,finding,{id:'11111111-1111-4111-8111-111111111111'});
+  const nodes=all(card);
+  const download=nodes.find(n => n.textContent === 'Download private replay ZIP ↗');
+  const checkbox=nodes.find(n => n.type === 'checkbox');
+  assert(download && checkbox);
+  assert.equal(download.disabled,true);
+  checkbox.checked=true; checkbox.listeners.change();
+  assert.equal(download.disabled,false);
+  const noWitness=new Element();
+  ctx.reviewTest.renderApprovedFinding(noWitness,{...finding,changed_conclusion:false,witness_input:null},
+    {id:'11111111-1111-4111-8111-111111111111'});
+  assert(!all(noWitness).some(n => n.textContent === 'Download private replay ZIP ↗'));
 });
 
 test('operator validation controls are only rendered after the approver endpoint succeeds', async () => {

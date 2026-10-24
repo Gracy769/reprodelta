@@ -85,6 +85,19 @@ on an Oracle VM and must remain disabled until its live security gates pass.
   measurements are omitted. The random link token is shown only at creation;
   its hash is stored in PostgreSQL. The owner can list and revoke copies, and
   revoked links return 404. Public copies are marked noindex and no-store.
+- A completed run with a repeatable changed conclusion and retained witness
+  input offers an owner-only `GET /api/project-runs/{id}/replay.zip`. The ZIP
+  contains the exact base-commit source snapshot, approved contract and
+  environment lock markers, witness input, four recorded observations, and a
+  standalone `replay.py`. The endpoint re-fetches the immutable source and
+  checks its digest before export. The replay script verifies each file against
+  an integrity manifest, then runs the adapter twice under each user-supplied
+  Python 3.12 interpreter with the approved NumPy pin. A matching result is
+  evidence for that input and those environments only. The ZIP contains private
+  repository code, so the owner must acknowledge this before downloading and
+  should replay it in isolation. It is separate from the redacted public share;
+  the manifest detects changes but is not a signature. Historical runs without
+  a retained witness input cannot produce a replay ZIP.
 - Configured approvers can review pending drafts in the workspace or through
   `GET /api/project-profiles/operator/pending`. Other signed-in users receive
   403 and cannot see another owner's draft. The operator console accepts an

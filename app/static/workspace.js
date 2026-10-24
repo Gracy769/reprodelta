@@ -615,6 +615,36 @@
     });
     result.append(ladder);
     if (job.result_sha256) result.append(text("p", `Saved finding SHA-256: ${job.result_sha256}`, "approved-result-digest"));
+    if (finding.changed_conclusion && finding.witness_input && job.id) {
+      const exportPanel = text("div", "", "approved-share");
+      exportPanel.append(text("h4", "Replay this witness"));
+      exportPanel.append(text("p", "The ZIP includes the exact private source snapshot, witness input, contract, and recorded measurements. Keep it private and run its script in an isolated environment."));
+      const consent = text("label", " I understand this download contains repository source.");
+      const checkbox = document.createElement("input"); checkbox.type = "checkbox";
+      consent.prepend(checkbox);
+      const download = text("button", "Download private replay ZIP ↗", "review-button review-button-secondary");
+      download.type = "button"; download.disabled = true;
+      const feedback = text("p", ""); feedback.setAttribute("role", "status");
+      checkbox.addEventListener("change", () => { download.disabled = !checkbox.checked; });
+      download.addEventListener("click", async () => {
+        download.disabled = true; feedback.textContent = "Preparing the exact source snapshot…";
+        try {
+          const response = await fetch(`/api/project-runs/${encodeURIComponent(job.id)}/replay.zip`, {credentials: "same-origin"});
+          if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(typeof error.detail === "string" ? error.detail : "Replay bundle is unavailable.");
+          }
+          const url = URL.createObjectURL(await response.blob());
+          const link = document.createElement("a");
+          link.href = url; link.download = `reprodelta-${job.id}-replay.zip`;
+          document.body.append(link); link.click(); link.remove();
+          window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+          feedback.textContent = "Private replay bundle downloaded.";
+        } catch (error) { feedback.textContent = error.message; }
+        finally { download.disabled = !checkbox.checked; }
+      });
+      exportPanel.append(consent, download, feedback); result.append(exportPanel);
+    }
     card.append(result);
   }
   function configureShare(jobId, card) {

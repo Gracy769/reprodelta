@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 from types import SimpleNamespace
 
 import pytest
 
 from app.config import Settings
 from app.domain.project_profile import ProjectProfileDraft
+from app.providers import oracle_docker_runner
 from app.providers.e2b_runner import ProjectAdapter
 from app.providers.oracle_docker_runner import execute_environment_batch, preflight
 from tests.integration.test_project_profiles import _draft
@@ -143,3 +145,90 @@ def test_oracle_runner_fails_closed(monkeypatch, failure):
     with pytest.raises(RuntimeError):
         _call(monkeypatch, command)
     assert (any(args[0] == "rm" for args in calls)) is (failure != "image")
+
+
+def test_docker_command_interrupts_a_running_adapter(monkeypatch):
+    class Stream:
+        def __init__(self, descriptor):
+            self.descriptor = descriptor
+
+        def fileno(self):
+            return self.descriptor
+
+        def close(self):
+            pass
+
+    class Process:
+        stdin = None
+        stdout = Stream(100)
+        stderr = Stream(101)
+        returncode = None
+
+        def poll(self):
+            return self.returncode
+
+        def kill(self):
+            self.returncode = -9
+
+        def wait(self, **_kwargs):
+            return self.returncode
+
+    class Selector:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            pass
+
+        def register(self, *_args):
+            pass
+
+        def get_map(self):
+            return {100: True}
+
+        def select(self, *, timeout):
+            assert timeout <= 0.25
+            time.sleep(timeout)
+            return []
+
+    process = Process()
+    monkeypatch.setattr(oracle_docker_runner.subprocess, "Popen", lambda *_a, **_kw: process)
+    monkeypatch.setattr(oracle_docker_runner.selectors, "DefaultSelector", Selector)
+    monkeypatch.setattr(oracle_docker_runner.os, "set_blocking", lambda *_a: None)
+    started = time.monotonic()
+    with pytest.raises(RuntimeError, match="cancelled or its worker lease was lost"):
+        oracle_docker_runner._command(
+            ["exec", "container", "python"], timeout=5,
+            should_abort=lambda: time.monotonic() - started > 0.2,
+        )
+    assert time.monotonic() - started < 2
+    assert process.poll() == -9
+
+
+def test_oracle_cancellation_during_adapter_forces_container_removal(monkeypatch):
+    calls = []
+    running = False
+
+    def command(args, **kwargs):
+        nonlocal running
+        calls.append(args)
+        if args[:2] == ["image", "inspect"]:
+            return _result(IMAGE.encode())
+        if args[0] == "run":
+            return _result(b"container-id")
+        if args[0] == "rm":
+            return _result()
+        if args[0] == "exec" and "numpy.__version__" in args[-1]:
+            return _result(b"1.26.4")
+        if args[0] == "exec" and "hashlib.sha256" in args[-1]:
+            return _result(LOCK.encode())
+        if args[0] == "exec" and args[-1] == "/work/adapter.json":
+            assert kwargs["should_abort"] is not None
+            running = True
+            raise RuntimeError("Approved run was cancelled or its worker lease was lost")
+        return _result()
+
+    with pytest.raises(RuntimeError, match="cancelled"):
+        _call(monkeypatch, command, should_abort=lambda: running)
+    assert running
+    assert calls[-1][:2] == ["rm", "--force"]

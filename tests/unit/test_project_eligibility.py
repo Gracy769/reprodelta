@@ -38,12 +38,14 @@ def _review():
 
 
 def test_only_exact_dependency_edit_is_eligible():
-    assert check_eligibility(_profile(), _review())["eligible"]
+    eligible = check_eligibility(_profile(), _review())
+    assert eligible["eligible"] and eligible["reason_codes"] == []
     extra_file = _review()
     extra_file["changed_paths"].append("src/model.py")
     extra_file["changed_file_details"].append({"path": "src/model.py", "status": "modified"})
     result = check_eligibility(_profile(), extra_file)
     assert result["mode"] == "diff_review_only"
+    assert "application_files_changed" in result["reason_codes"]
     assert any("application files" in reason for reason in result["reasons"])
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import math
 import uuid
+from contextlib import suppress
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -124,6 +125,7 @@ async def change_eligibility(
     number: int,
     owner_id: Annotated[str, Depends(current_user)],
     store: Annotated[ProjectProfileStore, Depends(get_profile_store)],
+    metrics: Annotated[PilotMetricsStore, Depends(get_pilot_metrics)],
 ):
     if number < 1 or number > 10_000_000:
         raise HTTPException(422, "Invalid change number")
@@ -138,6 +140,9 @@ async def change_eligibility(
     token = await asyncio.to_thread(_saved_token, owner_id, provider)
     review = await analyze(_host_get, _host_pages, provider, token, source_id, repository, number)
     result = check_eligibility(profile, review)
+    # The owner can still inspect eligibility if optional pilot telemetry is down.
+    with suppress(PostgresError):
+        await asyncio.to_thread(metrics.record_eligibility, profile_id, number, review, result)
     return {
         **result,
         "pilot_enabled": get_settings().project_runs_enabled,

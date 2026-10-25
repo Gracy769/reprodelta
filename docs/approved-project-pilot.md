@@ -128,10 +128,13 @@ on an Oracle VM and must remain disabled until its live security gates pass.
 - Configured approvers can inspect aggregate pilot counts at
   `GET /api/project-profiles/operator/pilot-metrics`: setup and approval counts,
   investigation states, observed changes, inconclusive results, failure codes,
-  median time to completed result, and metered sandbox cost. The response has
-  no owner or repository names and is marked no-store. It cannot count
-  unsupported eligibility checks because those checks are not persisted, and
-  its cost excludes model, source-host, and fixed VM charges.
+  median time to completed result, and metered sandbox cost. Each eligibility
+  check now records fixed reason codes once per profile/change revision; the
+  metrics include counts of checked eligible and unsupported revisions plus
+  reason frequencies. No owner, repository name, commit, or raw diff is stored
+  in that telemetry table or returned in the aggregate response. It counts
+  checked revisions rather than all source-host changes. The response is
+  marked no-store; cost excludes model, source-host, and fixed VM charges.
 
 ## Release gate before enabling project runs
 

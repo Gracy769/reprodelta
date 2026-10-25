@@ -202,3 +202,49 @@ def test_eligibility_does_not_read_another_owners_connection(monkeypatch):
         assert response.status_code == 404
     finally:
         app.dependency_overrides.clear()
+
+
+def test_eligibility_records_one_coded_revision_without_identity(monkeypatch):
+    from tests.unit.test_project_eligibility import _review
+
+    profile_id = uuid.uuid4()
+    store = _Profiles()
+    store.row = {
+        "id": str(profile_id), "owner_id": "github:owner", "provider": "github",
+        "repository": "owner/repo", "status": "approved",
+        "draft_json": _draft().model_dump(mode="json"),
+        "approval_json": {"old": {"numpy_version": "1.26.4"},
+                          "new": {"numpy_version": "2.0.2"}},
+        "contract_hash": "a" * 64,
+    }
+    class Metrics:
+        def __init__(self):
+            self.recorded = []
+
+        def record_eligibility(self, profile, number, review, result):
+            self.recorded.append((profile, number, result["reason_codes"]))
+
+    metrics = Metrics()
+    review = _review()
+    review["changed_paths"].append("src/model.py")
+    review["changed_file_details"].append({"path": "src/model.py", "status": "modified"})
+
+    async def fake_analyze(*_args):
+        return {**review, "changed_file_count_checked": 2}
+
+    app.dependency_overrides[current_user] = lambda: "github:owner"
+    app.dependency_overrides[project_profiles.get_profile_store] = lambda: store
+    app.dependency_overrides[project_profiles.get_pilot_metrics] = lambda: metrics
+    monkeypatch.setattr(project_profiles, "_saved_token", lambda *_: "test-token")
+    monkeypatch.setattr(project_profiles, "analyze", fake_analyze)
+    try:
+        response = TestClient(app).get(
+            f"/api/project-profiles/{profile_id}/changes/1/eligibility"
+        )
+        assert response.status_code == 200
+        assert response.json()["mode"] == "diff_review_only"
+        assert metrics.recorded == [(profile_id, 1,
+                                     response.json()["reason_codes"])]
+        assert "application_files_changed" in response.json()["reason_codes"]
+    finally:
+        app.dependency_overrides.clear()

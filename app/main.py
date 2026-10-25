@@ -79,7 +79,7 @@ def create_app() -> FastAPI:
         response.headers["Referrer-Policy"] = "same-origin"
         if response.headers.get("content-type", "").startswith("text/html"):
             response.headers["Cache-Control"] = "no-store"
-        if request.url.path.startswith(("/api/connections", "/api/investigations", "/api/project-runs")):
+        if request.url.path.startswith(("/api/connections", "/api/investigations", "/api/project-runs", "/api/project-profiles")):
             response.headers["Cache-Control"] = "no-store"
         return response
 

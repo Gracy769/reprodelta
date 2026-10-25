@@ -24,6 +24,7 @@ from app.config import get_settings
 from app.domain.profile_validation import ProfileValidationSpec
 from app.domain.project_eligibility import check_eligibility
 from app.domain.project_profile import PreparedEnvironment, ProfileApproval, ProjectProfileDraft
+from app.storage.pilot_metrics import PilotMetricsStore
 from app.storage.project_profiles import ProjectProfileStore
 from app.storage.project_run_queue import ProjectRunQueue
 
@@ -36,6 +37,10 @@ def get_profile_store() -> ProjectProfileStore:
 
 def get_validation_queue() -> ProjectRunQueue:
     return ProjectRunQueue(get_settings().database_url)
+
+
+def get_pilot_metrics() -> PilotMetricsStore:
+    return PilotMetricsStore(get_settings().database_url)
 
 
 class ValidationRequest(BaseModel):
@@ -89,6 +94,16 @@ async def pending_profiles(
     if approver not in _approvers():
         raise HTTPException(403, "Only a configured project approver may review drafts")
     return {"profiles": await asyncio.to_thread(store.list_pending)}
+
+
+@router.get("/operator/pilot-metrics")
+async def pilot_metrics(
+    approver: Annotated[str, Depends(current_user)],
+    metrics: Annotated[PilotMetricsStore, Depends(get_pilot_metrics)],
+):
+    if approver not in _approvers():
+        raise HTTPException(403, "Only a configured project approver may inspect pilot metrics")
+    return await asyncio.to_thread(metrics.read)
 
 
 @router.get("/{profile_id}")

@@ -22,7 +22,7 @@ function boot(fetch) {
   const document = {getElementById(id) {if(!elements.has(id)) elements.set(id,new Element()); return elements.get(id);},
     createElement(tag) {return new Element(tag);}, createTextNode(text) {const node = new Element('text'); node.textContent=text; return node;}, querySelectorAll() {return [];}};
   const context = {document, fetch, URL, AbortController, crypto: {randomUUID: () => 'fixed-idempotency-key'}, location: {}, window: {setTimeout,clearTimeout, matchMedia: () => ({matches:true})}};
-  vm.runInNewContext(shipped.replace('  start();', '  globalThis.reviewTest = {renderReview, configureReplay, configureApprovedRun, renderApprovedFinding, openSavedProjectRun, loadRecentProjectRuns, loadProfiles, loadOperatorProfiles, configureShare, state};'), context);
+  vm.runInNewContext(shipped.replace('  start();', '  globalThis.reviewTest = {renderReview, configureReplay, configureApprovedRun, renderApprovedFinding, openSavedProjectRun, loadRecentProjectRuns, loadProfiles, loadOperatorProfiles, configureShare, configureProjectHypothesis, state};'), context);
   return {...context, elements};
 }
 function all(node) {return [node,...node.children.flatMap(all)];}
@@ -276,4 +276,34 @@ test('public finding link requires preview and explicit acknowledgement', async 
   await create.listeners.click();
   assert.equal(posted,1);
   assert(all(card).some(n => n.href === '/shared/token'));
+});
+
+test('model advice requires a numeric preview and consent and stays untested text', async () => {
+  let posted=0;
+  const ctx=boot(async (url, options={}) => {
+    if(url.endsWith('/model-hypothesis') && options.method==='POST') {
+      posted += 1;
+      return {ok:true,json:async()=>({status:'completed',model_id:'nvidia/test',prompt_version:'project_hypothesis_v1',
+        response_text:'<script>untrusted</script>',reserved_model_cost_usd:0.01,usage_json:{total_tokens:20}})};
+    }
+    if(url.endsWith('/model-hypothesis')) return {ok:false,status:404,json:async()=>({detail:'Not requested'})};
+    return {ok:true,json:async()=>({enabled:true,notice:'Only numeric evidence is sent.',
+      configured_per_call_ceiling_usd:0.01,summary:{tested_inputs:1,
+        old:{measurement:0.4,declared_outcome:'below_threshold'},
+        new:{measurement:0.6,declared_outcome:'above_threshold'}}})};
+  });
+  ctx.reviewTest.state.jwt='test-token';
+  const card=new Element();
+  await ctx.reviewTest.configureProjectHypothesis('job-id',card);
+  assert.equal(posted,0);
+  const preview=all(card).find(n=>n.textContent==='Review model transfer ↗');
+  await preview.listeners.click();
+  const consent=all(card).find(n=>n.type==='checkbox');
+  const send=all(card).find(n=>n.textContent==='Request one suggestion ↗');
+  assert.equal(send.disabled,true);
+  consent.checked=true; consent.listeners.change();
+  await send.listeners.click();
+  assert.equal(posted,1);
+  assert(all(card).some(n=>n.textContent==='<script>untrusted</script>'));
+  assert(all(card).some(n=>n.textContent?.includes('UNTESTED MODEL SUGGESTION')));
 });

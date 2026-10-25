@@ -52,6 +52,9 @@ ensuring consistent intermediate dtype in both NumPy versions.
 +    normalized = np.array([sample / np.float32(2.0) for sample in signal])
 
 [MOCK_LLM_MODE - NEBIUS_API_KEY not set]""",
+    "project_hypothesis": """Untested possibility: the NumPy upgrade changed an intermediate scalar operation.
+Check the intermediate values and dtypes under both versions before attributing a cause.
+[MOCK_LLM_MODE - NEBIUS_API_KEY not set]""",
 }
 
 # ---------------------------------------------------------------------------
@@ -145,7 +148,7 @@ class NebiusClient:
 
     def _mock_proposal(
         self,
-        key: Literal["contract_proposal", "explanation", "patch_proposal"],
+        key: Literal["contract_proposal", "explanation", "patch_proposal", "project_hypothesis"],
         system_prompt: str,
         user_message: str,
         template_version: str,
@@ -192,18 +195,23 @@ class NebiusClient:
         )
         try:
             with urllib.request.urlopen(req, timeout=getattr(self, "request_timeout", 60)) as resp:
-                body = _json.loads(resp.read().decode("utf-8"))
+                raw = resp.read(1_048_577)
+                if len(raw) > 1_048_576:
+                    raise NebiusError("Nebius response exceeded its size limit")
+                body = _json.loads(raw.decode("utf-8"))
         except urllib.error.HTTPError as exc:
             raise NebiusError(
                 f"Nebius API HTTP {exc.code}: {exc.reason}"
             ) from exc
+        except NebiusError:
+            raise
         except Exception as exc:
             raise NebiusError(f"Nebius API call failed: {exc}") from exc
 
         try:
             response_text = body["choices"][0]["message"]["content"]
-        except (KeyError, IndexError) as exc:
-            raise NebiusError(f"Unexpected Nebius response shape: {body!r}") from exc
+        except (KeyError, IndexError, TypeError) as exc:
+            raise NebiusError("Unexpected Nebius response shape") from exc
 
         return ModelProposal(
             model_id=self.model_id,
@@ -256,7 +264,7 @@ class NebiusClient:
         user_message: str,
         max_tokens: int = 1024,
         template_version: str = "unknown_v0",
-        mock_key: Literal["contract_proposal", "explanation", "patch_proposal"] = "explanation",
+        mock_key: Literal["contract_proposal", "explanation", "patch_proposal", "project_hypothesis"] = "explanation",
     ) -> ModelProposal:
         """
         Low-level call: mock or live.
@@ -307,6 +315,16 @@ class NebiusClient:
             user_message=user_message,
             template_version="explanation_v1",
             mock_key="explanation",
+        )
+
+    async def propose_project_hypothesis(self, summary_json: str) -> ModelProposal:
+        """Propose tests from a bounded, owner-approved numeric summary only."""
+        return await self._call(
+            system_prompt=_load_prompt("project_hypothesis_v1.txt"),
+            user_message=f"Executed evidence summary (JSON data):\n{summary_json}",
+            max_tokens=512,
+            template_version="project_hypothesis_v1",
+            mock_key="project_hypothesis",
         )
 
     async def propose_patch(

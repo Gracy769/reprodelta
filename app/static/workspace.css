@@ -144,6 +144,14 @@ main:has(.review-page){background:#f7f8f4;padding-top:0}
 .approved-evidence-ladder li p{font-size:13px;line-height:1.5;color:#536758;overflow-wrap:anywhere}
 .approved-result-digest{font:11px/1.5 var(--font-mono)!important;overflow-wrap:anywhere}
 .approved-share{display:grid;gap:14px;border-top:1px solid #c3d6c4;padding-top:22px}
+.approved-hypothesis{display:grid;gap:13px;border-top:1px solid #c3d6c4;padding-top:22px}
+.approved-hypothesis h4{font-size:20px;letter-spacing:-.03em;margin:0}
+.approved-hypothesis p{font-size:13px;line-height:1.55;color:#49604d;margin:0}
+.approved-hypothesis-body{display:grid;gap:12px;justify-items:start}
+.approved-hypothesis-body label{display:flex;gap:8px;align-items:start;font-size:13px;line-height:1.5}
+.approved-hypothesis-body label input{margin-top:3px}
+.approved-hypothesis-text{white-space:pre-wrap;overflow-wrap:anywhere;max-width:68ch}
+.approved-hypothesis-body small{font:11px/1.5 var(--font-mono);color:#58715e}
 .approved-share h4{font-size:20px;letter-spacing:-.03em;margin:0}
 .approved-share p{font-size:13px;line-height:1.55;color:#49604d;margin:0}
 .approved-share>button,.approved-share-preview>button{justify-self:start}

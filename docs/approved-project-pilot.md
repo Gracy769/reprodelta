@@ -105,6 +105,17 @@ on an Oracle VM and must remain disabled until its live security gates pass.
   should replay it in isolation. It is separate from the redacted public share;
   the manifest detects changes but is not a signature. Historical runs without
   a retained witness input cannot produce a replay ZIP.
+- After a repeatable changed outcome, the owner may explicitly request one
+  Nemotron hypothesis. The preview lists only the numeric before/after
+  measurements, declared outcomes, NumPy pair and tested count; repository
+  identity, source, commits and raw witness input are never sent. A unique
+  Postgres reservation prevents a second billable call for the same run, even
+  after a failure or interrupted request. The model answer is shown as an
+  **untested suggestion**, with prompt version, reported token usage and an
+  operator-configured per-call cost ceiling. Actual provider cost remains
+  unverified. `PROJECT_HYPOTHESES_ENABLED` defaults to false and must stay off
+  until the per-call price, privacy notice and live Nebius call are verified.
+  A model proposal cannot alter the executed finding or claim a tested repair.
 - Configured approvers can review pending drafts in the workspace or through
   `GET /api/project-profiles/operator/pending`. Other signed-in users receive
   403 and cannot see another owner's draft. The operator console accepts an

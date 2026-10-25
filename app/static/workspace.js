@@ -759,6 +759,58 @@
     });
     loadShares().catch((error) => { history.append(text("p", error.message)); });
   }
+  async function configureProjectHypothesis(jobId, card) {
+    let saved = null;
+    try { saved = await projectApi(`/project-runs/${encodeURIComponent(jobId)}/model-hypothesis`); }
+    catch { /* No proposal has been requested for this run. */ }
+    let preview = null;
+    try { preview = await projectApi(`/project-runs/${encodeURIComponent(jobId)}/model-summary`); }
+    catch { return; }
+    if (!saved && !preview.enabled) return;
+    const panel = text("section", "", "approved-hypothesis");
+    panel.append(text("h4", "A testable explanation"));
+    panel.append(text("p", "Model ideas are separate from the executed finding above. Mechanism and repair remain untested."));
+    const slot = text("div", "", "approved-hypothesis-body"); panel.append(slot); card.append(panel);
+    function renderSaved(record) {
+      clear(slot);
+      if (record.status === "completed") {
+        slot.append(text("span", `UNTESTED MODEL SUGGESTION · ${record.model_id}`, "review-kicker"));
+        slot.append(text("p", record.response_text || "No text was saved.", "approved-hypothesis-text"));
+        slot.append(text("small", `Prompt version ${record.prompt_version}. Model tokens: ${record.usage_json?.total_tokens ?? "not reported"}. Actual model cost unverified; configured per-call ceiling $${Number(record.reserved_model_cost_usd).toFixed(4)}.`));
+      } else {
+        slot.append(text("p", record.status === "pending"
+          ? "A proposal was reserved. Its status is pending; a second model call will not be sent."
+          : "The model request failed. The executed finding above is unchanged; a second billable call will not be sent."));
+      }
+    }
+    if (saved) { renderSaved(saved); return; }
+    const show = text("button", "Review model transfer ↗", "review-button review-button-secondary");
+    show.type = "button"; slot.append(show);
+    show.addEventListener("click", () => {
+      clear(slot);
+      const old = preview.summary.old;
+      const newer = preview.summary.new;
+      slot.append(text("p", `${preview.summary.tested_inputs} tested input${preview.summary.tested_inputs === 1 ? "" : "s"}. Before: ${old.measurement} (${old.declared_outcome}); after: ${newer.measurement} (${newer.declared_outcome}). Repeated measurements and the NumPy version pair are also sent. Repository name, source, commits and raw inputs are omitted.`));
+      slot.append(text("p", `${preview.notice} Actual model cost is unverified; the configured per-call ceiling is $${Number(preview.configured_per_call_ceiling_usd).toFixed(4)}.`));
+      const label = text("label", " I approve sending this numeric summary to Nebius for one model proposal.");
+      const consent = document.createElement("input"); consent.type = "checkbox"; label.prepend(consent);
+      const request = text("button", "Request one suggestion ↗", "review-button review-button-primary");
+      request.type = "button"; request.disabled = true;
+      const feedback = text("p", ""); feedback.setAttribute("role", "status");
+      consent.addEventListener("change", () => { request.disabled = !consent.checked; });
+      request.addEventListener("click", async () => {
+        if (!consent.checked) return;
+        request.disabled = true; feedback.textContent = "Requesting one bounded model suggestion…";
+        try {
+          const record = await projectApi(`/project-runs/${encodeURIComponent(jobId)}/model-hypothesis`, {
+            method: "POST", body: JSON.stringify({acknowledge_numeric_summary_transfer: true}),
+          });
+          renderSaved(record);
+        } catch (error) { feedback.textContent = error.message; }
+      });
+      slot.append(label, request, feedback);
+    });
+  }
   async function watchApprovedRun(jobId, message, card) {
     const cancel = text("button", "Cancel run", "review-button review-button-secondary"); cancel.type = "button";
     card.append(cancel);
@@ -774,6 +826,9 @@
         const finding = job.result_json || {};
         message.textContent = "The bounded run completed. Read what was observed and what remains untested.";
         renderApprovedFinding(card, finding, job);
+        if (finding.changed_conclusion && !finding.inconclusive) {
+          configureProjectHypothesis(jobId, card).catch(() => {});
+        }
         configureShare(jobId, card); return;
       }
       if (["failed", "cancelled"].includes(job.status)) {

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import math
 import uuid
 from typing import Annotated, Literal
@@ -23,10 +24,13 @@ from app.api.connections import (
 from app.api.source_analysis import analyze, change_refs, immutable_snapshot
 from app.config import get_settings
 from app.domain.project_eligibility import check_eligibility
+from app.domain.project_hypothesis import model_summary
 from app.domain.project_profile import ProfileApproval, ProjectProfileDraft
 from app.domain.project_run import ProjectRunSpec
 from app.domain.project_share import redacted_project_share
 from app.orchestrator.project_replay_export import build_project_replay_bundle
+from app.providers.nebius import NebiusClient
+from app.storage.project_hypotheses import ProjectHypothesisStore
 from app.storage.project_profiles import ProjectProfileStore
 from app.storage.project_run_queue import ProjectRunQueue
 from app.storage.project_shares import ProjectShareStore
@@ -62,10 +66,27 @@ def get_share_store() -> ProjectShareStore:
     return ProjectShareStore(get_settings().database_url)
 
 
+def get_hypothesis_store() -> ProjectHypothesisStore:
+    return ProjectHypothesisStore(get_settings().database_url)
+
+
 class ShareConsent(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     acknowledge_public_share: bool
+
+
+class ModelTransferConsent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    acknowledge_numeric_summary_transfer: bool
+
+
+def _request_project_hypothesis(summary: dict, settings):
+    client = NebiusClient(settings.nebius_api_key, settings.nebius_model_id)
+    return asyncio.run(client.propose_project_hypothesis(
+        json.dumps(summary, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    ))
 
 
 def _public_job(job: dict) -> dict:
@@ -294,6 +315,98 @@ async def get_run(
     if job is None:
         raise HTTPException(404, "Project run not found")
     return _public_job(job)
+
+
+@router.get("/{job_id}/model-summary")
+async def project_model_summary(
+    job_id: uuid.UUID,
+    owner_id: Annotated[str, Depends(current_user)],
+    queue: Annotated[ProjectRunQueue, Depends(get_run_queue)],
+):
+    job = await asyncio.to_thread(queue.get, owner_id, job_id)
+    if job is None:
+        raise HTTPException(404, "Project run not found")
+    try:
+        summary = model_summary(job)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    settings = get_settings()
+    return {
+        "summary": summary,
+        "model_id": settings.nebius_model_id,
+        "enabled": bool(settings.project_hypotheses_enabled and settings.nebius_api_key
+                        and settings.nebius_call_cost_ceiling_usd > 0),
+        "configured_per_call_ceiling_usd": settings.nebius_call_cost_ceiling_usd,
+        "notice": "Only this numeric summary is sent to Nebius after your approval. "
+                  "The response is an untested suggestion, not an executed finding.",
+    }
+
+
+@router.get("/{job_id}/model-hypothesis")
+async def get_project_hypothesis(
+    job_id: uuid.UUID,
+    owner_id: Annotated[str, Depends(current_user)],
+    queue: Annotated[ProjectRunQueue, Depends(get_run_queue)],
+    hypotheses: Annotated[ProjectHypothesisStore, Depends(get_hypothesis_store)],
+):
+    if await asyncio.to_thread(queue.get, owner_id, job_id) is None:
+        raise HTTPException(404, "Project run not found")
+    saved = await asyncio.to_thread(hypotheses.get, owner_id, job_id)
+    if saved is None:
+        raise HTTPException(404, "No model suggestion has been requested")
+    return saved
+
+
+@router.post("/{job_id}/model-hypothesis", status_code=202)
+async def request_project_hypothesis(
+    job_id: uuid.UUID,
+    body: ModelTransferConsent,
+    owner_id: Annotated[str, Depends(current_user)],
+    queue: Annotated[ProjectRunQueue, Depends(get_run_queue)],
+    hypotheses: Annotated[ProjectHypothesisStore, Depends(get_hypothesis_store)],
+):
+    if not body.acknowledge_numeric_summary_transfer:
+        raise HTTPException(422, "Approve the displayed numeric summary transfer")
+    job = await asyncio.to_thread(queue.get, owner_id, job_id)
+    if job is None:
+        raise HTTPException(404, "Project run not found")
+    try:
+        summary = model_summary(job)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    settings = get_settings()
+    if (not settings.project_hypotheses_enabled or not settings.nebius_api_key
+            or not 0 < settings.nebius_call_cost_ceiling_usd <= 100
+            or not math.isfinite(settings.nebius_call_cost_ceiling_usd)):
+        raise HTTPException(503, "Model suggestions are not enabled with a verified cost ceiling")
+    reserved, created = await asyncio.to_thread(
+        hypotheses.reserve, owner_id, job_id, summary=summary,
+        model_id=settings.nebius_model_id,
+        ceiling_usd=settings.nebius_call_cost_ceiling_usd,
+    )
+    if not created:
+        return reserved
+    try:
+        proposal = await asyncio.to_thread(_request_project_hypothesis, summary, settings)
+        if proposal.is_mock or proposal.model_id != settings.nebius_model_id:
+            raise ValueError("The configured live model did not answer")
+        usage = {key: value for key, value in (proposal.usage or {}).items()
+                 if key in {"prompt_tokens", "completion_tokens", "total_tokens"}
+                 and type(value) is int and 0 <= value <= 10_000_000}
+        saved = await asyncio.to_thread(
+            hypotheses.complete, owner_id, job_id,
+            request_digest=proposal.request_digest,
+            response_text=proposal.response_text,
+            usage=usage,
+        )
+        if saved is None:
+            raise ValueError("The proposal reservation was lost")
+        return saved
+    except Exception as exc:
+        # Provider errors can include private request contents. Expose only a
+        # stable status, and never send a second billable request for this run.
+        await asyncio.to_thread(hypotheses.fail, owner_id, job_id)
+        raise HTTPException(503, "Model suggestion failed; no scientific finding changed") from exc
 
 
 @router.get("/{job_id}/replay.zip")

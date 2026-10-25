@@ -18,12 +18,33 @@ from psycopg.conninfo import make_conninfo
 from app.domain.profile_validation import ProfileValidationSpec, pilot_lock_digest
 from app.domain.project_profile import PreparedEnvironment, ProfileApproval
 from app.domain.project_share import redacted_project_share
+from app.storage.project_hypotheses import ProjectHypothesisStore
 from app.storage.project_profiles import ProjectProfileStore
 from app.storage.project_run_queue import ProjectRunQueue
 from app.storage.project_shares import ProjectShareStore
 from app.storage.project_snapshots import ProjectSnapshotStore
 from tests.integration.test_project_profiles import _draft
 from tests.unit.test_project_run_queue import _spec
+
+
+def test_project_model_reservation_is_unique_and_owner_scoped(local_queue):
+    queue, dsn = local_queue
+    job = queue.submit("github:owner", "model-reservation-test", _spec())
+    run_id = uuid.UUID(job["id"])
+    store = ProjectHypothesisStore(dsn)
+    summary = {"case": "bounded-observation", "measurement": 0.5}
+    first, created = store.reserve("github:owner", run_id, summary=summary,
+                                   model_id="nvidia/test", ceiling_usd=0.01)
+    assert created and first["status"] == "pending"
+    again, created = store.reserve("github:owner", run_id, summary=summary,
+                                   model_id="nvidia/test", ceiling_usd=0.01)
+    assert not created and again["id"] == first["id"]
+    assert store.get("github:other", run_id) is None
+    finished = store.complete("github:owner", run_id, request_digest="a" * 64,
+                              response_text="Untested possibility", usage={"total_tokens": 10})
+    assert finished["status"] == "completed"
+    assert store.complete("github:owner", run_id, request_digest="b" * 64,
+                          response_text="second", usage=None) is None
 
 
 @pytest.fixture

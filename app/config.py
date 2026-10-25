@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     nebius_model_id: str = "nvidia/Nemotron-3-Ultra-550b-a55b"
     nebius_base_url: str = "https://api.tokenfactory.nebius.com/v1"
     nebius_call_cost_ceiling_usd: float = 0.0
+    project_hypotheses_enabled: bool = False
     nebius_check_model_on_startup: bool = False
 
     # Application security

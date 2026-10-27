@@ -1,0 +1,11 @@
+{
+  "auth": {
+    "providers": {
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "ReproDelta Cloudflare",
+        "supportEmail": "graceperez769@gmail.com"
+      }
+    }
+  }
+}

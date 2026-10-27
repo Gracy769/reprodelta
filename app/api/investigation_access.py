@@ -87,8 +87,11 @@ async def investigation_owner(request: Request, response: Response):
             )
     if request.method not in ("GET", "HEAD"):
         origin = request.headers.get("origin")
-        allowed = (get_settings().app_url or str(request.base_url)).rstrip("/")
-        if origin and origin.rstrip("/") != allowed:
+        settings = get_settings()
+        allowed = {(settings.app_url or str(request.base_url)).rstrip("/")}
+        if getattr(settings, "edge_url", None):
+            allowed.add(settings.edge_url.rstrip("/"))
+        if origin and origin.rstrip("/") not in allowed:
             raise HTTPException(403, "Cross-origin investigation writes are forbidden")
     context = owner_context.set(owner)
     try:

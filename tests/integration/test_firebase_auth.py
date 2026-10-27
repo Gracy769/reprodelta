@@ -74,3 +74,37 @@ async def test_firebase_exchange_checks_origin_and_sets_http_only_cookie(monkeyp
     assert accepted.status_code == 200
     assert "HttpOnly" in accepted.headers["set-cookie"]
     assert "Secure" in accepted.headers["set-cookie"]
+
+
+@pytest.mark.asyncio
+async def test_edge_origin_uses_only_its_firebase_project(monkeypatch):
+    monkeypatch.setattr(firebase_auth, "upsert_profile", lambda *args: None)
+    monkeypatch.setattr(firebase_auth, "get_settings", lambda: SimpleNamespace(
+        firebase_project_id="railway-project", firebase_edge_project_id="edge-project",
+        secret_key="test-secret-that-is-long-enough-for-hs256",
+        app_url="https://railway.example", edge_url="https://edge.example",
+    ))
+    checked = []
+
+    async def verified(_token, project):
+        checked.append(project)
+        return {"sub": "same-uid", "name": "Ada"}
+
+    monkeypatch.setattr(firebase_auth, "_verified_claims", verified)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="https://railway.example") as client:
+        edge = await client.post("/firebase/session", json={"id_token": "x" * 100},
+                                 headers={"Origin": "https://edge.example"})
+        railway = await client.post("/firebase/session", json={"id_token": "x" * 100},
+                                    headers={"Origin": "https://railway.example"})
+        denied = await client.post("/firebase/session", json={"id_token": "x" * 100},
+                                  headers={"Origin": "https://other.example"})
+    assert edge.status_code == railway.status_code == 200
+    assert denied.status_code == 403
+    assert checked == ["edge-project", "railway-project"]
+    edge_sub = jwt.decode(edge.cookies["rd_session"], "test-secret-that-is-long-enough-for-hs256",
+                          algorithms=["HS256"], audience="reprodelta", issuer="reprodelta")["sub"]
+    railway_sub = jwt.decode(railway.cookies["rd_session"], "test-secret-that-is-long-enough-for-hs256",
+                             algorithms=["HS256"], audience="reprodelta", issuer="reprodelta")["sub"]
+    assert edge_sub == "firebase:edge-project:same-uid"
+    assert railway_sub == "firebase:same-uid"

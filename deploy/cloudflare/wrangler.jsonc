@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "reprodelta-cloudflare",
+  "main": "./src/worker.js",
+  "compatibility_date": "2026-10-27",
+  "workers_dev": true,
+  "vars": {
+    "ORIGIN_URL": "https://reprodelta-web-production.up.railway.app",
+    "FIREBASE_API_KEY": "AIzaSyDx40OwvQPFj7bHMXR1IOA4buSUCh2p8Qk",
+    "FIREBASE_AUTH_DOMAIN": "reprodelta-cloudflare-20261027.firebaseapp.com",
+    "FIREBASE_PROJECT_ID": "reprodelta-cloudflare-20261027",
+    "FIREBASE_APP_ID": "1:661769123591:web:c88ec461c9204bf52a77a2"
+  }
+}

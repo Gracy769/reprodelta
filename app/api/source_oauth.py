@@ -214,7 +214,8 @@ async def oauth_avatar(request: Request):
 @router.post("/signout")
 async def oauth_signout(request: Request):
     origin = request.headers.get("origin", "")
-    if origin != get_settings().app_url:
+    settings = get_settings()
+    if origin not in {settings.app_url, getattr(settings, "edge_url", None)}:
         raise HTTPException(403, "Origin is not allowed")
     response = JSONResponse({"ok": True})
     response.delete_cookie("rd_session", path="/")

@@ -26,9 +26,9 @@
   function authError(error) {
     const messages = {
       "auth/popup-blocked": "Allow the Google sign-in popup and try again.",
-      "auth/unauthorized-domain": "Add this Railway domain in Firebase Authentication → Settings → Authorized domains.",
+      "auth/unauthorized-domain": "Add this site in Firebase Authentication → Settings → Authorized domains.",
       "auth/operation-not-allowed": "Enable this sign-in method in Firebase Authentication → Sign-in method.",
-      "auth/invalid-api-key": "Check that all four Firebase Web app settings in Railway come from the same project.",
+      "auth/invalid-api-key": "Check that this site's Firebase Web app settings come from the same project.",
       "auth/email-already-in-use": "This email already has an account. Sign in instead.",
       "auth/invalid-email": "Enter a valid email address.",
       "auth/weak-password": "Choose a stronger password.",

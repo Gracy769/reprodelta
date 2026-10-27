@@ -72,16 +72,26 @@ async def _verified_claims(token: str, project_id: str) -> dict:
 @router.post("/session")
 async def firebase_session(request: Request, exchange: TokenExchange):
     settings = get_settings()
-    if not settings.firebase_project_id or len(settings.secret_key) < 32:
+    if len(settings.secret_key) < 32:
         raise HTTPException(503, "Sign-in is not configured yet")
-    if not settings.app_url or request.headers.get("origin") != settings.app_url.rstrip("/"):
+    origin = request.headers.get("origin")
+    if settings.app_url and origin == settings.app_url.rstrip("/"):
+        project_id = settings.firebase_project_id
+    elif getattr(settings, "edge_url", None) and origin == settings.edge_url.rstrip("/"):
+        project_id = getattr(settings, "firebase_edge_project_id", None)
+    else:
         raise HTTPException(403, "Origin is not allowed")
-    claims = await _verified_claims(exchange.id_token, settings.firebase_project_id)
+    if not project_id:
+        raise HTTPException(503, "Sign-in is not configured yet")
+    claims = await _verified_claims(exchange.id_token, project_id)
     now = datetime.now(UTC)
     name = claims.get("name") or claims.get("email") or "User"
-    upsert_profile(f"firebase:{claims['sub']}", name, claims.get("email"))
+    # Preserve existing account IDs for the original Firebase project.
+    subject = (f"firebase:{claims['sub']}" if project_id == settings.firebase_project_id
+               else f"firebase:{project_id}:{claims['sub']}")
+    upsert_profile(subject, name, claims.get("email"))
     session = jwt.encode(
-        {"sub": f"firebase:{claims['sub']}", "name": name, "iss": "reprodelta", "aud": "reprodelta",
+        {"sub": subject, "name": name, "iss": "reprodelta", "aud": "reprodelta",
          "iat": now, "exp": now + timedelta(days=7)},
         settings.secret_key, algorithm="HS256",
     )

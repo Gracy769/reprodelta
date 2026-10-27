@@ -11,13 +11,17 @@ from app.config import get_settings
 router = APIRouter()
 
 
-def _context() -> dict[str, object]:
+def _context(request: Request) -> dict[str, object]:
     settings = get_settings()
     firebase_config = None
-    if all((settings.firebase_api_key, settings.firebase_auth_domain,
-            settings.firebase_project_id, settings.firebase_app_id)):
-        firebase_config = {"apiKey": settings.firebase_api_key, "authDomain": settings.firebase_auth_domain,
-                           "projectId": settings.firebase_project_id, "appId": settings.firebase_app_id}
+    edge_host = request.headers.get("x-reprodelta-edge-host")
+    edge_url = getattr(settings, "edge_url", None)
+    use_edge = bool(edge_url and edge_host == edge_url.removeprefix("https://").rstrip("/"))
+    prefix = "firebase_edge" if use_edge else "firebase"
+    values = [getattr(settings, f"{prefix}_{field}", None)
+              for field in ("api_key", "auth_domain", "project_id", "app_id")]
+    if all(values):
+        firebase_config = dict(zip(("apiKey", "authDomain", "projectId", "appId"), values, strict=True))
     return {
         "auth_base_url": settings.neon_auth_base_url,
         "firebase_config": firebase_config,
@@ -30,14 +34,14 @@ def _context() -> dict[str, object]:
 async def signup(request: Request) -> HTMLResponse:
     if _signed_in(request):
         return RedirectResponse("/workspace", status_code=303)
-    return templates.TemplateResponse(request, "auth.html", {**_context(), "mode": "signup"})
+    return templates.TemplateResponse(request, "auth.html", {**_context(request), "mode": "signup"})
 
 
 @router.get("/signin", response_class=HTMLResponse, include_in_schema=False)
 async def signin(request: Request) -> HTMLResponse:
     if _signed_in(request):
         return RedirectResponse("/workspace", status_code=303)
-    return templates.TemplateResponse(request, "auth.html", {**_context(), "mode": "signin"})
+    return templates.TemplateResponse(request, "auth.html", {**_context(request), "mode": "signin"})
 
 
 def _signed_in(request: Request) -> bool:
@@ -59,4 +63,4 @@ async def workspace(request: Request) -> Response:
         from app.api.auth_bridge import exchange_oauth_verifier
 
         return await exchange_oauth_verifier(request, verifier)
-    return templates.TemplateResponse(request, "workspace.html", _context())
+    return templates.TemplateResponse(request, "workspace.html", _context(request))

@@ -61,6 +61,25 @@ GitLab refresh tokens and rotates them when access tokens expire.
 The older managed Neon Auth bridge remains as a fallback only when Firebase
 Web app variables are absent and `NEON_AUTH_BASE_URL` is configured.
 
+## Cloudflare entrypoint
+
+The Worker at `https://reprodelta-cloudflare.graceperez769.workers.dev`
+uses a separate Firebase project, `reprodelta-cloudflare-20261027`. Its public
+Web app settings are in `deploy/cloudflare/wrangler.jsonc`. The Railway API
+must also have `EDGE_URL` set to that Worker URL and matching
+`FIREBASE_EDGE_API_KEY`, `FIREBASE_EDGE_AUTH_DOMAIN`,
+`FIREBASE_EDGE_PROJECT_ID`, and `FIREBASE_EDGE_APP_ID` variables. It selects
+the Firebase project by the request Origin and keeps the original Railway
+Firebase configuration and account IDs intact. Authorized domains in the
+new Firebase project include the Cloudflare Worker and Railway hosts.
+
+GitHub/GitLab OAuth currently use Railway callback URLs. Starting either
+provider on Cloudflare navigates to Railway, where its state cookie and
+callback can complete. A Cloudflare Firebase session cannot link a provider
+through this redirect; use the Railway site for that workflow until the
+provider callbacks are migrated. Cloudflare Workers proxy the API but do not
+host the Python service or the isolated project runner.
+
 Sources: [GitHub OAuth web flow](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps),
 [GitHub OAuth scopes](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps),
 [GitLab OAuth applications](https://docs.gitlab.com/integration/oauth_provider/).

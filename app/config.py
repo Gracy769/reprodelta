@@ -44,6 +44,13 @@ class Settings(BaseSettings):
     firebase_auth_domain: str | None = None
     firebase_project_id: str | None = None
     firebase_app_id: str | None = None
+    # Optional second public entrypoint. The existing Railway Firebase project
+    # stays configured for its own origin and users.
+    edge_url: str | None = None
+    firebase_edge_api_key: str | None = None
+    firebase_edge_auth_domain: str | None = None
+    firebase_edge_project_id: str | None = None
+    firebase_edge_app_id: str | None = None
 
     # Logging
     log_level: str = "INFO"

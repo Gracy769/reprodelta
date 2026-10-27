@@ -58,14 +58,17 @@ def create_app() -> FastAPI:
             parts = urlsplit(settings.neon_auth_base_url)
             if parts.scheme == "https" and parts.hostname:
                 auth_connect = f" https://{parts.hostname}"
-        firebase_frame = ""
-        if settings.firebase_auth_domain:
+        firebase_domains = []
+        for auth_domain in (settings.firebase_auth_domain, settings.firebase_edge_auth_domain):
+            if not auth_domain:
+                continue
             from urllib.parse import urlsplit
 
-            domain = urlsplit("https://" + settings.firebase_auth_domain).hostname
-            if domain and domain == settings.firebase_auth_domain and domain.endswith((".firebaseapp.com", ".web.app")):
-                firebase_frame = f" https://{domain}"
-        firebase_connect = " https://identitytoolkit.googleapis.com https://securetoken.googleapis.com" if settings.firebase_project_id else ""
+            domain = urlsplit("https://" + auth_domain).hostname
+            if domain and domain == auth_domain and domain.endswith((".firebaseapp.com", ".web.app")):
+                firebase_domains.append(f" https://{domain}")
+        firebase_frame = "".join(dict.fromkeys(firebase_domains))
+        firebase_connect = " https://identitytoolkit.googleapis.com https://securetoken.googleapis.com" if (settings.firebase_project_id or settings.firebase_edge_project_id) else ""
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; script-src 'self' 'unsafe-inline' https://apis.google.com; "
             "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "

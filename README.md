@@ -1,5 +1,9 @@
 # ReproDelta
 
+The [29 October 2026 review and remediation record](docs/review-2026-10-29.md)
+documents the source-admission, environment provenance, quota, session, and
+connected replay changes, including the required template and profile migration.
+
 ReproDelta investigates a narrow failure: a scientific Python workflow
 still executes after a dependency upgrade, yet a conclusion the researcher
 cares about changes. It replays immutable inputs in two environments, searches

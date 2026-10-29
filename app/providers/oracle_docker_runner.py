@@ -28,6 +28,7 @@ from app.providers.e2b_runner import (
     EnvironmentBatchResult,
     EnvironmentResult,
     ProjectAdapter,
+    environment_lock_check,
     validate_snapshot,
 )
 
@@ -221,14 +222,12 @@ def execute_environment_batch(
         if version != expected_numpy:
             raise RuntimeError("Container NumPy version does not match approval")
         lock = _require_success(
-            command(["exec", name, "python", "-I", "-c",
-                     "import hashlib; from pathlib import Path; "
-                     "print(hashlib.sha256(Path('/opt/reprodelta-environment.lock')"
-                     ".read_bytes()).hexdigest())"],
+            command(["exec", name, "sh", "-c",
+                     environment_lock_check("/opt/reprodelta-environment.lock")],
                     timeout=15, should_abort=should_abort),
             "Approved Oracle lock could not be verified",
         )
-        if lock != expected_lock_sha256:
+        if not lock.split() or lock.split()[0] != expected_lock_sha256:
             raise RuntimeError("Container lock digest does not match approval")
         abort_if_requested()
         launcher = Path(__file__).resolve().parents[2] / "runner" / "e2b_project.py"

@@ -1,5 +1,12 @@
 # Fixed pilot E2B environment proof
 
+**Historical evidence only.** These templates used the former two-line lock
+marker and will fail the current live environment check. Rebuild them using
+`scripts/build_e2b_templates.py --build`, record the new IDs and SHA-256 values
+in a new approved profile version, and rerun the live proof with
+`E2B_OLD_TEMPLATE_ID`, `E2B_OLD_LOCK_SHA256`, `E2B_NEW_TEMPLATE_ID`, and
+`E2B_NEW_LOCK_SHA256` set from the build output.
+
 On 2026-10-21, the operator built two E2B templates using
 `scripts/build_e2b_templates.py --build`. The build installed only an exact
 NumPy version into a Python 3.12 image and wrote the fixed lock marker. No

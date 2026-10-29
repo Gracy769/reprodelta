@@ -139,8 +139,9 @@ on an Oracle VM and must remain disabled until its live security gates pass.
 ## Release gate before enabling project runs
 
 1. Build and verify prepared old/new E2B templates with exact lock digests.
-   `python scripts/build_e2b_templates.py` previews the fixed NumPy lock
-   digests; `--build` creates the two E2B images after operator review. The
+   `python scripts/build_e2b_templates.py` previews the build only;
+   `--build` creates the two E2B images and reads each resolved environment
+   lock digest after operator review. The
    resulting template IDs and hashes must be recorded in profile approval.
    The fixed template build and synthetic live proof are recorded in
    [pilot E2B template proof](pilot-e2b-template-proof.md).

@@ -55,9 +55,10 @@ def parse_manifest(path: str, content: str | None) -> tuple[dict[str, str], list
     try:
         if name.endswith(".txt"):
             for line in content.splitlines():
+                stripped = line.strip()
+                if stripped and not stripped.startswith("#") and _requirement(line) is None:
+                    limits.append("Unparsed requirement directive or dependency needs resolution.")
                 add(line)
-                if line.strip().startswith(("-r", "--requirement", "-c", "--constraint", "-e")):
-                    limits.append("Included requirements, constraints or editable packages are not resolved.")
         elif name in {"pyproject.toml", "poetry.lock", "uv.lock"}:
             data = tomllib.loads(content)
             if name == "pyproject.toml":
@@ -116,12 +117,16 @@ def source_url(provider: str, repository: str, sha: str, path: str) -> str:
 def build_review(provider: str, repository: str, number: int, base_sha: str, head_sha: str,
                  files: list[dict], manifests: list[dict], complete: bool) -> dict:
     changes, limitations, evidence = [], [], []
+    resolution_limits: list[str] = []
+    declared_packages: set[str] = set()
     for manifest in manifests:
         if manifest.get("unavailable"):
             limitations.extend(manifest.get("limitations", []))
             continue
         old, old_limits = parse_manifest(manifest.get("old_path", manifest["path"]), manifest.get("old"))
         new, new_limits = parse_manifest(manifest["path"], manifest.get("new"))
+        resolution_limits.extend(old_limits + new_limits)
+        declared_packages.update(old.keys() | new.keys())
         limitations.extend(old_limits + new_limits + manifest.get("limitations", []))
         for package in sorted(old.keys() | new.keys()):
             if old.get(package) == new.get(package):
@@ -161,6 +166,8 @@ def build_review(provider: str, repository: str, number: int, base_sha: str, hea
             "changed_paths": [f["path"] for f in files],
             "changed_file_details": [{"path": f["path"], "old_path": f.get("old_path"),
                                       "status": f.get("status")} for f in files],
+            "manifest_resolution_limits": sorted(set(resolution_limits)),
+            "declared_packages": sorted(declared_packages),
             "dependency_changes": changes, "numpy_mentioned": any("numpy" in f.get("patch", "").lower() for f in files),
             "findings": evidence, "limitations": sorted(set(limitations)),
             "next_actions": next_actions,

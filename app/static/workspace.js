@@ -3,7 +3,7 @@
   const root = document.getElementById("workspace-root");
   if (!root) return;
   const authBase = root.dataset.authBase?.replace(/\/$/, "");
-  const state = { jwt: null, connections: [], repositories: [], selectedRepo: null, selectedChange: null, reviewNonce: 0, repoNonce: 0 };
+  const state = { jwt: null, oauth: false, connections: [], repositories: [], selectedRepo: null, selectedChange: null, reviewNonce: 0, repoNonce: 0 };
   const $ = (id) => document.getElementById(id);
   const clear = (element) => { while (element.firstChild) element.firstChild.remove(); };
   const text = (tag, value, className = "") => {
@@ -22,7 +22,22 @@
   async function timedFetch(url, options = {}, timeout = 100000) {
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), timeout);
-    try { return await fetch(url, { ...options, signal: controller.signal }); }
+    try {
+      let response = await fetch(url, { ...options, signal: controller.signal });
+      if (response.status === 401 && state.oauth && url.startsWith("/api/")) {
+        const renewed = await fetch("/oauth/session", { credentials: "include", signal: controller.signal });
+        if (renewed.ok) {
+          const session = await renewed.json();
+          if (session.token) {
+            state.jwt = session.token;
+            response = await fetch(url, { ...options,
+              headers: { ...(options.headers || {}), Authorization: `Bearer ${state.jwt}` },
+              signal: controller.signal });
+          }
+        }
+      }
+      return response;
+    }
     catch (error) { if (error.name === "AbortError") throw new Error("The request took too long. Try again."); throw error; }
     finally { window.clearTimeout(timer); }
   }
@@ -1017,7 +1032,7 @@
     try {
       const oauth = await timedFetch("/oauth/session", { credentials: "include" }, 8000)
         .then((response) => response.ok ? response.json() : null).catch(() => null);
-      if (oauth?.user && oauth?.token) state.jwt = oauth.token;
+      if (oauth?.user && oauth?.token) { state.jwt = oauth.token; state.oauth = true; }
       else {
         const session = await account("/get-session");
         if (!session?.user) { $("workspace-loading").hidden = true; $("workspace-signin").hidden = false; return; }

@@ -29,7 +29,8 @@ Once the VM exists, build the two reviewed images with
 IDs in `ORACLE_OLD_IMAGE_ID` and `ORACLE_NEW_IMAGE_ID`. These IDs, rather than
 mutable tags, are verified before every source transfer. In an approved
 profile use template IDs `oracle-numpy-1264` and `oracle-numpy-202` with the
-fixed lock digests from [the pilot template proof](pilot-e2b-template-proof.md).
+matching lock digests printed by the new image build. The old E2B digests in
+[the historical pilot proof](pilot-e2b-template-proof.md) do not apply.
 The image build installs packages before any repository source is transferred.
 Each runtime container uses `--network none`, a read-only root filesystem,
 an in-memory workspace, a non-root adapter process, dropped capabilities,

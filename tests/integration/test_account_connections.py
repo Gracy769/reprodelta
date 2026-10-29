@@ -119,6 +119,32 @@ def test_first_party_source_jwt_has_scoped_identity(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_oauth_session_never_returns_the_long_lived_cookie(monkeypatch):
+    key = "test-secret-that-is-long-enough-for-hs256"
+    settings = SimpleNamespace(secret_key=key, neon_auth_base_url=None, neon_auth_jwks_url=None)
+    monkeypatch.setattr(source_oauth, "get_settings", lambda: settings)
+    monkeypatch.setattr(connections, "get_settings", lambda: settings)
+    monkeypatch.setattr(source_oauth, "upsert_profile", lambda *_args: {
+        "display_name": "Test User", "email": None,
+    })
+    cookie = jwt.encode({"sub": "github:123", "name": "Test User", "iss": "reprodelta",
+                         "aud": "reprodelta", "exp": datetime.now(UTC) + timedelta(days=7)},
+                        key, algorithm="HS256")
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),
+                                 base_url="https://reprodelta.example") as client:
+        client.cookies.set("rd_session", cookie)
+        response = await client.get("/oauth/session")
+    assert response.status_code == 200
+    short_token = response.json()["token"]
+    assert short_token != cookie
+    claims = jwt.decode(short_token, key, algorithms=["HS256"],
+                        issuer="reprodelta-workspace", audience="reprodelta-api")
+    assert claims["sub"] == "github:123"
+    assert claims["exp"] - datetime.now(UTC).timestamp() <= 300
+    assert connections.current_user("Bearer " + short_token) == "github:123"
+
+
+@pytest.mark.asyncio
 async def test_auth_bridge_rejects_other_origins_and_unlisted_paths(monkeypatch):
     monkeypatch.setattr(
         auth_bridge,

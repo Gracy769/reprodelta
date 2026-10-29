@@ -193,8 +193,13 @@ async def oauth_session(request: Request):
     token = request.cookies.get("rd_session")
     claims = _session_claims(token)
     profile = upsert_profile(claims["sub"], claims["name"], None)
+    workspace_token = jwt.encode(
+        {"sub": claims["sub"], "iss": "reprodelta-workspace", "aud": "reprodelta-api",
+         "exp": datetime.now(UTC) + timedelta(minutes=5)},
+        get_settings().secret_key, algorithm="HS256",
+    )
     response = JSONResponse({"user": {"name": profile["display_name"], "provider": claims["sub"].split(":", 1)[0],
-                                   "masked_email": mask_email(profile["email"]), "avatar_url": "/oauth/avatar"}, "token": token})
+                                   "masked_email": mask_email(profile["email"]), "avatar_url": "/oauth/avatar"}, "token": workspace_token})
     response.headers["Cache-Control"] = "no-store"
     return response
 

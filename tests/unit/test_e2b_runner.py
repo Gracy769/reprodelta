@@ -22,11 +22,12 @@ class _CommandResult:
 class _Sandbox:
     sandbox_id = "sandbox-test"
 
-    def __init__(self, *, fail_run=False, lock_digest="a" * 64):
+    def __init__(self, *, fail_run=False, lock_digest="a" * 64, lock_exit_code=0):
         self.uploads = {}
         self.killed = False
         self.fail_run = fail_run
         self.lock_digest = lock_digest
+        self.lock_exit_code = lock_exit_code
         self.files = self
         self.commands = self
         self.run_inputs = []
@@ -41,7 +42,7 @@ class _Sandbox:
         if "numpy.__version__" in command:
             return _CommandResult("1.26.4\n")
         if "reprodelta-environment.lock" in command:
-            return _CommandResult(self.lock_digest + "\n")
+            return _CommandResult(self.lock_digest + "\n", self.lock_exit_code)
         if self.fail_run:
             return _CommandResult("", exit_code=1)
         payload = json.loads(self.uploads["/home/user/reprodelta-input.json"])
@@ -148,6 +149,19 @@ def test_sandbox_timeout_uses_remaining_budget():
 
 def test_unapproved_template_never_receives_source_snapshot():
     sandbox = _Sandbox(lock_digest="b" * 64)
+    with pytest.raises(RuntimeError, match="lock digest"):
+        execute_environment(
+            files={"private/adapter.py": b"private source"}, input_json={},
+            adapter=ProjectAdapter(module="private.adapter", function="run"),
+            template_id="approved-numpy-old", expected_numpy="1.26.4",
+            expected_lock_sha256="a" * 64, sandbox_factory=_Factory(sandbox),
+        )
+    assert sandbox.uploads == {}
+    assert sandbox.killed
+
+
+def test_live_environment_change_rejected_even_with_matching_lock_hash():
+    sandbox = _Sandbox(lock_exit_code=1)
     with pytest.raises(RuntimeError, match="lock digest"):
         execute_environment(
             files={"private/adapter.py": b"private source"}, input_json={},

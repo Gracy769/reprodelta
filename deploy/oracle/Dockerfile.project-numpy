@@ -6,6 +6,7 @@ RUN test "$NUMPY_VERSION" = "1.26.4" || test "$NUMPY_VERSION" = "2.0.2"
 RUN apt-get update && apt-get install -y --no-install-recommends tar \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir "numpy==$NUMPY_VERSION" \
-    && printf 'python==3.12\nnumpy==%s\n' "$NUMPY_VERSION" > /opt/reprodelta-environment.lock \
+    && packages="$(python -m pip freeze --all)" \
+    && { printf 'reprodelta-lock-v2\n'; python -V 2>&1; printf '%s\n' "$packages" | LC_ALL=C sort; } > /opt/reprodelta-environment.lock \
     && chmod 444 /opt/reprodelta-environment.lock
 USER 65534:65534

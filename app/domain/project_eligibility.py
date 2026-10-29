@@ -26,6 +26,10 @@ def check_eligibility(profile: dict, review: dict) -> dict:
         reject("repository_mismatch", "The change belongs to a different source repository.")
     if not review.get("complete"):
         reject("incomplete_diff", "The source host did not return a complete change diff.")
+    if review.get("manifest_resolution_limits"):
+        reject("unresolved_manifest", "The dependency declaration contains unresolved requirements or markers.")
+    if review.get("declared_packages") != ["numpy"]:
+        reject("unsupported_dependency_set", "This pilot installs only NumPy; other declared packages need a separately approved environment.")
     paths = review.get("changed_paths")
     dependency_path = draft.get("dependency_path")
     if not isinstance(paths, list) or not paths:

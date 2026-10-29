@@ -25,6 +25,10 @@ def encoded(value):
     return {"type": "file", "encoding": "base64", "content": base64.b64encode(value.encode()).decode()}
 
 
+async def replay_pages(*_args, **_kwargs):
+    return [{"filename": "requirements.txt", "status": "modified", "patch": "@@ NumPy pin @@"}], True
+
+
 @pytest.mark.parametrize("path,old,new", [
     ("requirements.txt", "# numpy==1.0\nnumpy==1.26.4 # pin", "# numpy==2.0\nnumpy==1.26.4"),
     ("pyproject.toml", '[project]\ndependencies=["numpy>=1.26"]', '[project]\ndependencies=["numpy>=1.26"]'),
@@ -71,7 +75,7 @@ async def test_conditional_or_optional_pin_cannot_authorize_replay(path, old, ne
         return encoded(old if params["ref"] == BASE else new)
 
     with pytest.raises(HTTPException) as failure:
-        await source_analysis.prepare_replay(get, "github", "token", "lab/project", 7, HEAD, path)
+        await source_analysis.prepare_replay(get, replay_pages, "github", "token", "lab/project", 7, HEAD, path)
     assert failure.value.status_code == 422
 
 
@@ -123,7 +127,7 @@ async def test_connected_replay_fails_closed(bad):
         return encoded("numpy>=1.26" if bad == "wrong_pin" else ("numpy==1.26.4" if params["ref"] == BASE else "numpy==2.0.2"))
 
     with pytest.raises(HTTPException) as failure:
-        await source_analysis.prepare_replay(get, "github", "token", "lab/project", 7, HEAD, "requirements.txt")
+        await source_analysis.prepare_replay(get, replay_pages, "github", "token", "lab/project", 7, HEAD, "requirements.txt")
     assert failure.value.status_code in {409, 422}
 
 
@@ -138,10 +142,31 @@ async def test_connected_replay_establishes_immutable_supported_scope():
             return encoded(source.replace("\n", "\r\n"))
         return encoded("numpy==1.26.4" if params["ref"] == BASE else "numpy==2.0.2")
 
-    binding = await source_analysis.prepare_replay(get, "github", "token", "lab/project", 7, HEAD, "requirements.txt")
+    binding = await source_analysis.prepare_replay(get, replay_pages, "github", "token", "lab/project", 7, HEAD, "requirements.txt")
     assert binding["head_sha"] == HEAD
     assert binding["source_sha256"]["base"] == binding["source_sha256"]["head"]
     assert "other repository code" in binding["scope"]
+
+
+@pytest.mark.asyncio
+async def test_connected_replay_rejects_other_pr_changes():
+    source = Path("fixture/project/pipeline.py").read_text(encoding="utf-8")
+
+    async def get(provider, token, path, params=None):
+        if path.endswith("/7"):
+            return {"base": {"sha": BASE}, "head": {"sha": HEAD}}
+        if path.endswith("pipeline.py"):
+            return encoded(source)
+        return encoded("numpy==1.26.4" if params["ref"] == BASE else "numpy==2.0.2")
+
+    async def pages(*_args, **_kwargs):
+        files, _ = await replay_pages()
+        return files + [{"filename": "other.py", "status": "modified", "patch": "code"}], True
+
+    with pytest.raises(HTTPException, match="isolated NumPy pin change"):
+        await source_analysis.prepare_replay(
+            get, pages, "github", "token", "lab/project", 7, HEAD, "requirements.txt"
+        )
 
 
 @pytest.mark.asyncio
@@ -157,6 +182,7 @@ async def test_run_eligibility_precedes_contract_for_selected_revision(monkeypat
         return encoded("numpy==1.26.4" if params["ref"] == BASE else "numpy==2.0.2")
 
     monkeypatch.setattr(connections, "_host_get", get)
+    monkeypatch.setattr(connections, "_host_pages", replay_pages)
     monkeypatch.setattr(connections, "_saved_token", lambda *args: "test-token")
     monkeypatch.setattr(connections, "get_settings", lambda: Settings(runner_mode="worker_http"))
     result = await connections.paired_replay_eligibility("github", connections.PairedReplayEligibilityRequest(
@@ -193,12 +219,25 @@ async def test_source_errors_distinguish_rate_access_and_expiry(monkeypatch, sta
 def test_daily_quota_survives_storage_restart(tmp_path, monkeypatch, filesystem):
     monkeypatch.setattr(admission, "get_settings", lambda: Settings(guest_daily_investigations=1))
     store = FileSystemInvestigationStore(tmp_path) if filesystem else MemoryInvestigationStore()
-    admission.create(store, "00000000-0000-0000-0000-000000000001", {}, "guest:first")
+    first = admission.create(store, "00000000-0000-0000-0000-000000000001", {}, "guest:first")
+    second = admission.create(store, "00000000-0000-0000-0000-000000000001", {}, "guest:first")
     if filesystem:
         store = FileSystemInvestigationStore(tmp_path)
+    admission.start(store, first, "guest:first")
+    store.transition_status(first, "completed")
     with pytest.raises(HTTPException) as failure:
-        admission.create(store, "00000000-0000-0000-0000-000000000001", {}, "guest:first")
+        admission.start(store, second, "guest:first")
     assert failure.value.status_code == 429
+
+
+def test_drafts_cannot_exhaust_execution_quota(monkeypatch):
+    monkeypatch.setattr(admission, "get_settings", lambda: Settings(global_daily_investigations=1))
+    store = MemoryInvestigationStore()
+    first = admission.create(store, "project", {}, "guest:first")
+    second = admission.create(store, "project", {}, "guest:second")
+    assert store.get_investigation(first)["status"] == "draft"
+    admission.start(store, second, "guest:second")
+    assert store.get_investigation(second)["status"] == "running"
 
 
 def test_active_jobs_are_bounded_and_capacity_returns(monkeypatch):
@@ -278,6 +317,7 @@ async def test_connected_replay_starts_engine_and_exports_owner_and_source(monke
             return encoded(source)
         return encoded("numpy==1.26.4" if params["ref"] == BASE else "numpy==2.0.2")
     monkeypatch.setattr(connections, "_host_get", get)
+    monkeypatch.setattr(connections, "_host_pages", replay_pages)
     monkeypatch.setattr(connections, "_saved_token", lambda *args: "test-token")
     monkeypatch.setattr(connections, "get_settings", lambda: Settings(runner_mode="worker_http"))
     # The route requires workers in production; the deterministic adapter tests

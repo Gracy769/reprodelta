@@ -187,7 +187,7 @@ async def analyze(get, pages, provider, token, repository, display_repository, n
     return build_review(provider, display_repository, number, base_sha, head_sha, files, manifests, complete)
 
 
-async def prepare_replay(get, provider, token, repository, number, expected_head, dependency_path):
+async def prepare_replay(get, pages, provider, token, repository, number, expected_head, dependency_path):
     """Only replay the exact supported kernel under the two pinned NumPy versions.
 
     Remote bytes are checked against trusted local bytes, never executed. Other
@@ -196,6 +196,19 @@ async def prepare_replay(get, provider, token, repository, number, expected_head
     base, head = await change_refs(get, provider, token, repository, number)
     if head != expected_head:
         raise HTTPException(409, "PR/MR changed; analyze the latest revision before configuring replay")
+    review = await analyze(get, pages, provider, token, repository, repository, number)
+    if (review["base_sha"], review["head_sha"]) != (base, head):
+        raise HTTPException(409, "PR/MR changed during replay preparation")
+    details = review["changed_file_details"]
+    if (not review["complete"] or len(details) != 1
+            or details[0]["path"] != dependency_path
+            or details[0]["old_path"] not in {None, dependency_path}
+            or details[0]["status"] not in {"modified", "changed"}
+            or review["manifest_resolution_limits"]
+            or review["declared_packages"] != ["numpy"]
+            or len(review["dependency_changes"]) != 1
+            or review["dependency_changes"][0]["package"] != "numpy"):
+        raise HTTPException(422, "Replay requires a complete, isolated NumPy pin change in the selected manifest")
     path = "fixture/project/pipeline.py"
     expected = Path(__file__).resolve().parents[2].joinpath(path).read_text(encoding="utf-8")
     hashes = {}
@@ -218,4 +231,4 @@ async def prepare_replay(get, provider, token, repository, number, expected_head
         raise HTTPException(409, "PR/MR changed during replay preparation; retry analysis")
     return {"base_sha": base, "head_sha": head, "kernel_path": path, "dependency_path": dependency_path,
             "source_sha256": hashes, "numpy_versions": versions,
-            "scope": "Only the byte-identical supported numerical kernel in pinned NumPy 1.26.4/2.0.2; other repository code, dependencies and PR changes are not executed."}
+            "scope": "Only the byte-identical supported numerical kernel in pinned NumPy 1.26.4/2.0.2; other repository code and dependencies are not executed."}

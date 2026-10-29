@@ -6,11 +6,9 @@ response, rather than a successful connect(), is required to prove reachability.
 
 from __future__ import annotations
 
-import hashlib
 import os
 
-from build_e2b_templates import lock_bytes
-from verify_e2b_templates import PILOT_TEMPLATES
+from verify_e2b_templates import template_credentials
 
 from app.providers.e2b_runner import ProjectAdapter, execute_environment
 
@@ -39,11 +37,12 @@ def main() -> None:
     if not os.environ.get("E2B_API_KEY"):
         raise SystemExit("E2B_API_KEY is required for the live probe")
     version = "1.26.4"
+    template_id, digest = template_credentials(version)
     result = execute_environment(
         files={"probe.py": PROBE}, input_json={},
         adapter=ProjectAdapter("probe", "run"),
-        template_id=PILOT_TEMPLATES[version], expected_numpy=version,
-        expected_lock_sha256=hashlib.sha256(lock_bytes(version)).hexdigest(),
+        template_id=template_id, expected_numpy=version,
+        expected_lock_sha256=digest,
         timeout_seconds=90,
     )
     observed = result.output["result"]

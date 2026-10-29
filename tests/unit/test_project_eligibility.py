@@ -34,6 +34,7 @@ def _review():
                 "after": "==2.0.2",
             }
         ],
+        "declared_packages": ["numpy"],
     }
 
 
@@ -67,3 +68,37 @@ def test_second_dependency_change_in_same_file_is_diff_review_only():
     result = check_eligibility(_profile(), review)
     assert result["mode"] == "diff_review_only"
     assert any("more than the one approved NumPy pin" in reason for reason in result["reasons"])
+
+
+def test_unresolved_include_cannot_be_admitted_as_numpy_only():
+    from app.domain.dependency_review import build_review
+
+    review = build_review(
+        "github", "owner/repo", 1, "a" * 40, "b" * 40,
+        [{"path": "requirements.txt", "old_path": None, "status": "modified", "patch": "pin"}],
+        [{"path": "requirements.txt", "old_path": "requirements.txt",
+          "old": "numpy==1.26.4\n",
+          "new": "numpy==2.0.2\n-r hidden.txt\n"}], True,
+    )
+    assert review["complete"] is True
+    assert len(review["dependency_changes"]) == 1
+    assert "unresolved_manifest" in check_eligibility(_profile(), review)["reason_codes"]
+
+
+def test_unparsed_index_directive_cannot_be_admitted():
+    from app.domain.dependency_review import build_review
+
+    review = build_review(
+        "github", "owner/repo", 1, "a" * 40, "b" * 40,
+        [{"path": "requirements.txt", "old_path": None, "status": "modified", "patch": "pin"}],
+        [{"path": "requirements.txt", "old_path": "requirements.txt",
+          "old": "numpy==1.26.4\n",
+          "new": "numpy==2.0.2\n--extra-index-url https://example.invalid\n"}], True,
+    )
+    assert "unresolved_manifest" in check_eligibility(_profile(), review)["reason_codes"]
+
+
+def test_unchanged_extra_dependency_is_not_claimed_as_installed():
+    review = _review()
+    review["declared_packages"] = ["numpy", "scipy"]
+    assert "unsupported_dependency_set" in check_eligibility(_profile(), review)["reason_codes"]

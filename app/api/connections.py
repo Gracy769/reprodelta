@@ -80,13 +80,17 @@ def current_user(authorization: Annotated[str | None, Header()] = None) -> str:
         raise HTTPException(401, "Sign in to continue")
     token = authorization[7:]
     if getattr(settings, "secret_key", None) not in {None, "change-me-in-production"}:
-        try:
-            claims = jwt.decode(token, settings.secret_key, algorithms=["HS256"], issuer="reprodelta", audience="reprodelta", options={"require": ["exp", "sub", "iss", "aud"]})
-            subject = claims.get("sub")
-            if isinstance(subject, str) and subject.startswith(("github:", "gitlab:", "firebase:")):
-                return subject
-        except jwt.PyJWTError:
-            pass
+        for issuer, audience in (("reprodelta-workspace", "reprodelta-api"),
+                                 ("reprodelta", "reprodelta")):
+            try:
+                claims = jwt.decode(token, settings.secret_key, algorithms=["HS256"],
+                                    issuer=issuer, audience=audience,
+                                    options={"require": ["exp", "sub", "iss", "aud"]})
+                subject = claims.get("sub")
+                if isinstance(subject, str) and subject.startswith(("github:", "gitlab:", "firebase:")):
+                    return subject
+            except jwt.PyJWTError:
+                continue
     if not settings.neon_auth_base_url or not settings.neon_auth_jwks_url:
         raise HTTPException(401, "Session expired; sign in again")
     try:
@@ -513,7 +517,7 @@ async def paired_replay_eligibility(provider: str, body: PairedReplayEligibility
     token = await asyncio.to_thread(_saved_token, owner_id, provider)
     try:
         async with asyncio.timeout(60):
-            binding = await prepare_replay(_host_get, provider, token, repository, body.number,
+            binding = await prepare_replay(_host_get, _host_pages, provider, token, repository, body.number,
                                            body.expected_head_sha, body.dependency_path)
     except TimeoutError as exc:
         raise HTTPException(504, "Run eligibility check timed out; retry this change") from exc
@@ -542,7 +546,7 @@ async def paired_replay(provider: str, body: PairedReplayRequest, response: Resp
     token = await asyncio.to_thread(_saved_token, owner_id, provider)
     try:
         async with asyncio.timeout(60):
-            binding = await prepare_replay(_host_get, provider, token, repository, body.number,
+            binding = await prepare_replay(_host_get, _host_pages, provider, token, repository, body.number,
                                            body.expected_head_sha, body.dependency_path)
     except TimeoutError as exc:
         raise HTTPException(504, "Replay preparation timed out; no execution was started") from exc

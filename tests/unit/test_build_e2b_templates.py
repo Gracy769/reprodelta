@@ -1,14 +1,12 @@
-"""The pilot build manifest is fixed and has a reproducible digest."""
-
-import hashlib
+"""Pilot templates record a resolved environment, not a hand-written marker."""
 
 import pytest
 
-from scripts.build_e2b_templates import lock_bytes
+from scripts.build_e2b_templates import lock_command
 
 
 def test_pilot_template_lock_is_exact_and_rejects_unreviewed_versions():
-    assert lock_bytes("1.26.4") == b"python==3.12\nnumpy==1.26.4\n"
-    assert len(hashlib.sha256(lock_bytes("2.0.2")).hexdigest()) == 64
+    assert "pip freeze --all" in lock_command("1.26.4")
+    assert "reprodelta-lock-v2" in lock_command("2.0.2")
     with pytest.raises(ValueError):
-        lock_bytes("9.9.9")
+        lock_command("9.9.9")

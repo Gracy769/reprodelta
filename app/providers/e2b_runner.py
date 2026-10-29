@@ -23,6 +23,16 @@ MAX_INPUT_BYTES = 128_000
 MAX_OUTPUT_BYTES = 131_072
 MAX_BATCH_INPUTS = 64
 SANDBOX_TIMEOUT_SECONDS = 900
+
+
+def environment_lock_check(path: str) -> str:
+    """Verify the recorded environment against live installed packages."""
+    if path not in {"/home/user/reprodelta-environment.lock", "/opt/reprodelta-environment.lock"}:
+        raise ValueError("Unsupported environment lock path")
+    return ("set -eu; packages=$(python -m pip freeze --all); "
+            "{ printf 'reprodelta-lock-v2\\n'; python -V 2>&1; "
+            "printf '%s\\n' \"$packages\" | LC_ALL=C sort; } | cmp - " + path +
+            "; sha256sum " + path)
 _IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 _SENSITIVE_BASENAMES = {
     "id_rsa", "id_ed25519", "id_ecdsa", "credentials.json",
@@ -189,14 +199,13 @@ def execute_environment_batch(
             check_abort()
             try:
                 lock_run = sandbox.commands.run(
-                    "python -I -c 'import hashlib; from pathlib import Path; "
-                    "print(hashlib.sha256(Path(\"/home/user/reprodelta-environment.lock\")"
-                    ".read_bytes()).hexdigest())'",
-                    timeout=10,
+                    environment_lock_check("/home/user/reprodelta-environment.lock"),
+                    timeout=15,
                 )
             except Exception:
                 raise RuntimeError("Approved environment lock could not be verified") from None
-            if lock_run.exit_code != 0 or lock_run.stdout.strip() != expected_lock_sha256:
+            if (lock_run.exit_code != 0 or not lock_run.stdout.split()
+                    or lock_run.stdout.split()[0] != expected_lock_sha256):
                 raise RuntimeError("Sandbox lock digest does not match the approved environment")
         check_abort()
         # The filesystem API does not promise to create parent directories.

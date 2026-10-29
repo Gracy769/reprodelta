@@ -17,7 +17,7 @@ from app.providers.oracle_docker_runner import execute_environment_batch, prefli
 from tests.integration.test_project_profiles import _draft
 
 IMAGE = "sha256:" + "a" * 64
-LOCK = hashlib.sha256(b"python==3.12\nnumpy==1.26.4\n").hexdigest()
+LOCK = hashlib.sha256(b"reprodelta-lock-v2\nPython 3.12.0\nnumpy==1.26.4\n").hexdigest()
 
 
 def test_oracle_backend_requires_its_own_enable_and_budget():
@@ -68,7 +68,7 @@ def test_oracle_runner_is_offline_bounded_and_removed(monkeypatch):
             return _result(b"container-id")
         if args[0] == "exec" and "numpy.__version__" in args[-1]:
             return _result(b"1.26.4")
-        if args[0] == "exec" and "hashlib.sha256" in args[-1]:
+        if args[0] == "exec" and "reprodelta-environment.lock" in args[-1]:
             return _result(LOCK.encode())
         if args[0] == "exec":
             return _result(json.dumps({"result": {"ratio": 0.5}}).encode())
@@ -150,7 +150,7 @@ def test_oracle_runner_fails_closed(monkeypatch, failure):
             return _result(code=int(failure == "cleanup"))
         if args[0] == "exec" and "numpy.__version__" in args[-1]:
             return _result(b"2.0.2" if failure == "version" else b"1.26.4")
-        if args[0] == "exec" and "hashlib.sha256" in args[-1]:
+        if args[0] == "exec" and "reprodelta-environment.lock" in args[-1]:
             return _result(LOCK.encode())
         if args[0] == "exec":
             return _result(code=int(failure == "adapter"))
@@ -234,7 +234,7 @@ def test_oracle_cancellation_during_adapter_forces_container_removal(monkeypatch
             return _result()
         if args[0] == "exec" and "numpy.__version__" in args[-1]:
             return _result(b"1.26.4")
-        if args[0] == "exec" and "hashlib.sha256" in args[-1]:
+        if args[0] == "exec" and "reprodelta-environment.lock" in args[-1]:
             return _result(LOCK.encode())
         if args[0] == "exec" and args[-1] == "/work/adapter.json":
             assert kwargs["should_abort"] is not None

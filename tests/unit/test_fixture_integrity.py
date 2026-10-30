@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 
 from app.domain.contract import FIXTURE_CONTRACT, hash_contract
@@ -68,3 +69,20 @@ def test_isce3_mask_profile_validity() -> None:
     assert profile.repository == "Gracy769/reprodelta-isce3-mask-evaluation"
     assert profile.contract.output_selector.field_name == "packed_mask"
     assert profile.contract.conclusion.threshold == 65535
+
+
+def test_pyproject_protects_fixtures_and_configures_test_hygiene() -> None:
+    """Ensure pyproject.toml explicitly excludes fixture/project from lint modification."""
+    pyproject_path = ROOT / "pyproject.toml"
+    assert pyproject_path.exists()
+    data = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+
+    ruff_conf = data.get("tool", {}).get("ruff", {})
+    assert "fixture/project" in ruff_conf.get("extend-exclude", []), (
+        "pyproject.toml must configure extend-exclude = ['fixture/project'] to prevent "
+        "accidental formatting changes to immutable fixture sources."
+    )
+
+    pytest_conf = data.get("tool", {}).get("pytest", {}).get("ini_options", {})
+    assert pytest_conf.get("asyncio_default_fixture_loop_scope") == "function"
+    assert any("httpx" in w for w in pytest_conf.get("filterwarnings", []))

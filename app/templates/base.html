@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#f2f5f3" />
-  <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
+  <link rel="icon" type="image/svg+xml" href="{{ asset_url('favicon.svg') }}" />
   <title>{% block title %}ReproDelta{% endblock %}</title>
   <style>
     :root {
@@ -51,8 +51,7 @@
     .site-nav { position: sticky; top: 0; z-index: 100; background: rgba(242,245,243,.96); border-bottom: 1px solid var(--border); backdrop-filter: blur(14px); }
     .nav-inner { max-width: 1180px; margin: auto; display: flex; min-height: 72px; align-items: stretch; border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
     .nav-brand { display: inline-flex; align-items: center; gap: 9px; padding: 0 24px; min-width: 238px; border-right: 1px solid var(--border); color: var(--text); text-decoration: none; font-size: 24px; font-weight: 790; letter-spacing: -.075em; white-space: nowrap; }
-    .nav-mark { display: block; width: 26px; height: 26px; flex: none; }
-    .brand-slash { color: var(--accent); margin-left: 2px; }
+    .nav-logo { display: block; width: 190px; height: auto; }
     .nav-links { display: flex; align-items: stretch; list-style: none; padding: 0; margin: 0; }
     .nav-links li { display: flex; }
     .nav-links a { display: inline-flex; align-items: center; padding: 0 20px; border-right: 1px solid var(--border); color: var(--text); text-decoration: none; font-size: 13px; font-weight: 600; transition: background .18s ease, color .18s ease; }
@@ -102,8 +101,7 @@
 
     .site-footer { border-top: 1px solid var(--border); background: #101915; color: #e5f0e8; }
     .footer-inner { max-width: 1180px; margin: auto; padding: 34px 48px; display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; border-left: 1px solid #314238; border-right: 1px solid #314238; }
-    .footer-brand { font-size: 29px; font-weight: 700; line-height: 1; letter-spacing: -.07em; }
-    .footer-brand span { color: #5fed83; }
+    .footer-brand img { display: block; width: 205px; height: auto; }
     .footer-note { margin: 12px 0 0; color: #a6b9ac; font: 12px var(--font-mono); }
     .footer-links { display: flex; gap: 20px; }
     .footer-links a { color: #d8efe0; font-size: 13px; text-decoration: none; }
@@ -114,7 +112,8 @@
     @media (max-width: 780px) {
       .signal-inner { padding: 6px 16px; }
       .nav-inner { min-height: 62px; flex-wrap: wrap; }
-      .nav-brand { min-width: 0; flex: 1; padding: 0 16px; font-size: 21px; }
+      .nav-brand { min-width: 0; flex: 1; padding: 0 16px; }
+      .nav-logo { width: min(190px, 100%); }
       .nav-cta { min-height: 62px; padding: 0 16px; }
       .nav-links { order: 3; width: 100%; min-height: 42px; border-top: 1px solid var(--border); }
       .nav-links li { flex: 1; }
@@ -147,20 +146,20 @@
   </div>
   <nav class="site-nav" aria-label="Primary navigation">
     <div class="nav-inner">
-      <a href="/" class="nav-brand" aria-label="ReproDelta home"><img class="nav-mark" src="/assets/favicon.svg" alt="" />reprodelta<span class="brand-slash">/</span></a>
+      <a href="/" class="nav-brand" aria-label="ReproDelta home"><img class="nav-logo" src="{{ asset_url('brand-lockup.svg') }}" alt="" /></a>
       <ul class="nav-links" role="list">
         <li><a href="/">Home</a></li>
         <li><a href="/workspace">Review a change</a></li>
       </ul>
       <a href="/signin" class="nav-cta" id="nav-account">Sign in <span aria-hidden="true">↗</span></a>
-      <div class="nav-profile" id="nav-profile" hidden><img id="nav-avatar" alt="" src="/assets/favicon.svg" /><div class="nav-profile-copy"><span class="nav-profile-name" id="nav-profile-name"></span><span class="nav-profile-email" id="nav-profile-email"></span></div><button type="button" id="nav-signout">Sign out</button></div>
+      <div class="nav-profile" id="nav-profile" hidden><img id="nav-avatar" alt="" src="{{ asset_url('favicon.svg') }}" /><div class="nav-profile-copy"><span class="nav-profile-name" id="nav-profile-name"></span><span class="nav-profile-email" id="nav-profile-email"></span></div><button type="button" id="nav-signout">Sign out</button></div>
       {% if mock_llm_mode is defined and mock_llm_mode %}<span class="mock-mode">MODEL IN MOCK MODE</span>{% endif %}
     </div>
   </nav>
   <main id="main-content" tabindex="-1">{% block content %}{% endblock %}</main>
   <footer class="site-footer">
     <div class="footer-inner">
-      <div><div class="footer-brand">reprodelta<span>/</span></div><p class="footer-note">A bounded evidence workbench · NumPy 1.26.4 → 2.0.2</p></div>
+      <div><div class="footer-brand"><img src="{{ asset_url('brand-lockup-light.svg') }}" alt="ReproDelta" /></div><p class="footer-note">A bounded evidence workbench · NumPy 1.26.4 → 2.0.2</p></div>
       <div class="footer-links"><a href="/docs">API docs</a><a href="/health">Service health</a></div>
     </div>
   </footer>

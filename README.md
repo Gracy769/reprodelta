@@ -1,3 +1,5 @@
+<img src="app/static/brand-stacked.svg" alt="ReproDelta logo" width="320" />
+
 # ReproDelta
 
 The [30 October 2026 review and remediation record](docs/review-2026-10-30.md)
@@ -152,8 +154,9 @@ serve their JavaScript and CSS from this application. This keeps both pages
 working under the site's same-origin Content Security Policy. The local copies
 are [Swagger UI Dist 5.33.1](https://www.npmjs.com/package/swagger-ui-dist)
 and [ReDoc 2.5.4](https://www.npmjs.com/package/redoc); their licenses are
-included beside the assets in `app/static/api-docs/`. The project mark is a
-small SVG at `app/static/favicon.svg`, also used in the browser tab.
+included beside the assets in `app/static/api-docs/`. The selected ReproDelta
+mark is in `app/static/brand-mark.svg`; the site uses matching horizontal
+lockups and `app/static/favicon.svg` supplies the browser tab icon.
 
 The curated demo is configured for one Antideploy application at
 <https://reprodelta-lab.antideploy.app>. The root `Dockerfile` starts two local HTTP

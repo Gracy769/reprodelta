@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#091812" />
-  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+  <link rel="icon" href="{{ asset_url('favicon.svg') }}" type="image/svg+xml" />
   <link rel="stylesheet" href="{{ asset_url('auth.css') }}" />
   <title>{{ 'Create account' if mode == 'signup' else 'Sign in' }} — ReproDelta</title>
 </head>
@@ -12,7 +12,7 @@
   <a class="skip-link" href="#account-form">Skip to account form</a>
   <div class="auth-layout">
     <aside class="story-panel" aria-label="About ReproDelta">
-      <a class="brand" href="/"><img src="/assets/favicon.svg" alt="" /><span>reprodelta<span class="slash">/</span></span></a>
+      <a class="brand" href="/" aria-label="ReproDelta home"><img class="brand-lockup" src="{{ asset_url('brand-lockup-light.svg') }}" alt="" /></a>
       <div class="story-content">
         <p class="eyebrow"><span class="pulse" aria-hidden="true"></span> THE EVIDENCE WORKBENCH</p>
         <h1>When the code runs,<br /><em>but the answer moves.</em></h1>
@@ -28,7 +28,7 @@
         <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
         <div class="axis axis-a"><span>ENV A</span><strong>1.26.4</strong><i>float64</i></div>
         <div class="axis axis-b"><span>ENV B</span><strong>2.0.2</strong><i>float32</i></div>
-        <div class="delta-glyph">Δ</div>
+        <div class="delta-glyph"><img src="{{ asset_url('brand-mark.svg') }}" alt="" /></div>
         <div class="art-caption">SAME INPUT / DIFFERENT CONCLUSION</div>
       </div>
       <div class="story-foot">REPRODELTA / 2026 <span>CURATED NUMPY REPLAY</span></div>

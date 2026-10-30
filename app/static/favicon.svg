@@ -1,4 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="ReproDelta">
-  <rect width="64" height="64" rx="12" fill="#101915"/>
-  <path d="M32 9 57 53H7L32 9Zm0 16L21 45h22L32 25Z" fill="#5fed83" fill-rule="evenodd"/>
+  <rect width="64" height="64" rx="13" fill="#f9faf8"/>
+  <path d="M14 53V14M14 33c4-10 11-13 27-13" fill="none" stroke="#d5a29d" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="39" cy="40" r="13" fill="none" stroke="#82988d" stroke-width="7"/>
+  <path d="M52 9v46" fill="none" stroke="#82988d" stroke-width="7" stroke-linecap="round"/>
 </svg>

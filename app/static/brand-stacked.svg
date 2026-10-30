@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 720" role="img" aria-label="ReproDelta logo">
+  <rect width="720" height="720" rx="36" fill="#ffffff"/>
+  <g transform="translate(60 18)">
+    <path d="M125 532V110M125 310c40-91 124-130 262-130" fill="none" stroke="#d5a29d" stroke-width="68" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="350" cy="390" r="132" fill="none" stroke="#82988d" stroke-width="68"/>
+    <path d="M482 67v475" fill="none" stroke="#82988d" stroke-width="68" stroke-linecap="round"/>
+  </g>
+  <text x="360" y="652" text-anchor="middle" font-family="'Segoe UI',Arial,sans-serif" font-size="82" font-weight="650" letter-spacing="-4"><tspan fill="#647e72">Repro</tspan><tspan fill="#c28c86">Delta</tspan></text>
+</svg>

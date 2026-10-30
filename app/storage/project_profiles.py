@@ -34,6 +34,11 @@ def validation_matches_approval(profile: dict, approval: ProfileApproval, job: d
         and spec.get("old") == approval.old.model_dump(mode="json")
         and spec.get("new") == approval.new.model_dump(mode="json")
         and result.get("sample_validated") is True
+        and result.get("repeatable") is True
+        and isinstance(result.get("old_repeat"), dict)
+        and isinstance(result.get("new_repeat"), dict)
+        and (approval.validated_source_sha256 is None
+             or approval.validated_source_sha256 == result.get("source_sha256"))
         and result.get("profile_digest") == spec.get("profile_digest")
         and result.get("contract_hash") == spec.get("contract_hash")
         and result.get("source_sha") == spec.get("source_sha")
@@ -175,10 +180,13 @@ class ProjectProfileStore:
             ).fetchone()
             if not validation_matches_approval(row, approval, validation):
                 raise ValueError("A matching completed sample validation is required")
+            bound_approval = approval.model_copy(update={
+                "validated_source_sha256": validation["result_json"]["source_sha256"]
+            })
             result = conn.execute(
                 """UPDATE project_profile_versions SET status='approved',
                 approval_json=%s, approved_by=%s, approved_at=%s
                 WHERE id=%s RETURNING *""",
-                (Jsonb(approval.model_dump(mode="json")), approver, datetime.now(UTC), profile_id),
+                (Jsonb(bound_approval.model_dump(mode="json")), approver, datetime.now(UTC), profile_id),
             ).fetchone()
             return self._row(result)

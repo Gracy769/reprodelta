@@ -35,7 +35,6 @@ from app.providers import oracle_docker_runner
 from app.providers.e2b_runner import (
     EnvironmentBatchResult,
     ProjectAdapter,
-    execute_environment,
     execute_environment_batch,
 )
 from app.storage.project_profiles import ProjectProfileStore
@@ -132,6 +131,7 @@ def _approved_inputs(spec: ProjectRunSpec, owner_id: str, store: ProjectProfileS
     approval = ProfileApproval.model_validate(profile["approval_json"])
     if (
         approval.profile_digest != draft.digest
+        or approval.validated_source_sha256 != spec.source_sha256
         or approval.old.lock_sha256 != spec.old_environment_lock_sha256
         or approval.new.lock_sha256 != spec.new_environment_lock_sha256
     ):
@@ -192,7 +192,7 @@ def run_validation_job(
     queue: ProjectRunQueue,
     profiles: ProjectProfileStore,
     *,
-    execute=execute_environment,
+    execute_batch=execute_environment_batch,
     fetch_source=_fetch_validation_source,
     store_snapshot=_stored_snapshot,
 ) -> bool:
@@ -265,9 +265,9 @@ def run_validation_job(
             )
             if remaining < 1:
                 raise RunRejected("wall_budget_exhausted")
-            observed = _run_metered(queue, job_id, lease, spec.sandbox_usd_per_second, execute,
+            observed = _run_metered(queue, job_id, lease, spec.sandbox_usd_per_second, execute_batch,
                 files=files,
-                input_json=draft.sample_input,
+                inputs_json=[draft.sample_input, draft.sample_input],
                 adapter=adapter,
                 template_id=environment.template_id,
                 expected_numpy=environment.numpy_version,
@@ -279,7 +279,8 @@ def run_validation_job(
                 raise RunRejected("snapshot_changed")
             if observed.version != environment.numpy_version:
                 raise RunRejected("environment_result_mismatch")
-            if observed.input_sha256 != expected_input_sha256:
+            if (observed.input_sha256 != [expected_input_sha256, expected_input_sha256]
+                    or len(observed.outputs) != 2):
                 raise RunRejected("sample_result_mismatch")
             results.append(observed)
             spent = sum(item.duration_seconds for item in results)
@@ -291,7 +292,18 @@ def run_validation_job(
             raise RunRejected("cancelled")
         if time.monotonic() - started > spec.max_wall_seconds:
             raise RunRejected("wall_budget_exhausted")
-        old, new = [evaluate_output(item.output, draft.contract) for item in results]
+        old, old_repeat = [evaluate_output(item, draft.contract) for item in results[0].outputs]
+        new, new_repeat = [evaluate_output(item, draft.contract) for item in results[1].outputs]
+        repeatable = all((
+            old["conclusion"] == old_repeat["conclusion"],
+            new["conclusion"] == new_repeat["conclusion"],
+            numeric_matches(old["ratio"], old_repeat["ratio"], draft.contract),
+            numeric_matches(new["ratio"], new_repeat["ratio"], draft.contract),
+            old["dtype"] == old_repeat["dtype"],
+            new["dtype"] == new_repeat["dtype"],
+        ))
+        if not repeatable:
+            raise RunRejected("sample_not_repeatable")
         finding = {
             "kind": "profile_sample_validation",
             "sample_validated": True,
@@ -300,9 +312,12 @@ def run_validation_job(
             "source_sha256": source_digest,
             "profile_digest": spec.profile_digest,
             "contract_hash": spec.contract_hash,
-            "input_sha256": results[0].input_sha256,
+            "input_sha256": results[0].input_sha256[0],
             "old": old,
+            "old_repeat": old_repeat,
             "new": new,
+            "new_repeat": new_repeat,
+            "repeatable": True,
             "changed_conclusion": old["conclusion"] != new["conclusion"],
             "sandbox_seconds": round(spent, 3),
             "estimated_sandbox_cost_usd": round(spent * spec.sandbox_usd_per_second, 6),
@@ -637,8 +652,9 @@ def main() -> None:
             if job["job_kind"] == "profile_validation":
                 run_validation_job(
                     job, queue, profiles,
-                    execute=(oracle_docker_runner.execute_environment
-                             if _provider(settings) == "oracle_docker" else execute_environment),
+                    execute_batch=(oracle_docker_runner.execute_environment_batch
+                                   if _provider(settings) == "oracle_docker"
+                                   else execute_environment_batch),
                 )
             else:
                 run_claimed_job(

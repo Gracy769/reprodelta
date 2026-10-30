@@ -13,12 +13,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.domain.project_profile import PreparedEnvironment
 
 
-def pilot_lock_digest(version: str) -> str:
-    if version not in {"1.26.4", "2.0.2"}:
-        raise ValueError("Pilot validation supports only reviewed NumPy pins")
-    return hashlib.sha256(f"python==3.12\nnumpy=={version}\n".encode("ascii")).hexdigest()
-
-
 class ProfileValidationSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -40,11 +34,6 @@ class ProfileValidationSpec(BaseModel):
     def reviewed_boundary(self):
         if self.old.numpy_version != "1.26.4" or self.new.numpy_version != "2.0.2":
             raise ValueError("Pilot validation requires the reviewed NumPy pair")
-        if (
-            self.old.lock_sha256 != pilot_lock_digest(self.old.numpy_version)
-            or self.new.lock_sha256 != pilot_lock_digest(self.new.numpy_version)
-        ):
-            raise ValueError("Prepared environment lock does not match the pilot manifest")
         if not math.isfinite(self.sandbox_usd_per_second) or not math.isfinite(self.max_cost_usd):
             raise ValueError("Validation cost values must be finite")
         if self.max_sandbox_seconds * self.sandbox_usd_per_second > self.max_cost_usd:

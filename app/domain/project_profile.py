@@ -124,6 +124,7 @@ class ProfileApproval(BaseModel):
 
     profile_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
     validation_job_id: uuid.UUID
+    validated_source_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     old: PreparedEnvironment
     new: PreparedEnvironment
     review_note: str = Field(min_length=8, max_length=1000)

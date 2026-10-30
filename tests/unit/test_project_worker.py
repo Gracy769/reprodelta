@@ -8,9 +8,11 @@ from types import SimpleNamespace
 import pytest
 
 from app.domain.contract import FIXTURE_CONTRACT, InputField, InputSchema, OutputSelector
+from app.domain.project_profile import PreparedEnvironment, ProfileApproval
 from app.domain.project_run import ProjectRunSpec
 from app.orchestrator import project_worker
 from app.providers.e2b_runner import EnvironmentBatchResult
+from tests.integration.test_project_profiles import _draft
 
 
 def _job(candidate_budget=1):
@@ -58,6 +60,43 @@ class Queue:
     def finish(self, _job_id, _lease, *, status, result=None, error_code=None):
         self.final = (status, result, error_code)
         return True
+
+
+def test_worker_rejects_source_snapshot_not_bound_to_profile_approval():
+    draft = _draft()
+    validated_digest = "a" * 64
+    approved = ProfileApproval(
+        profile_digest=draft.digest, validation_job_id=uuid.uuid4(),
+        validated_source_sha256=validated_digest,
+        old=PreparedEnvironment(template_id="old", python_version="3.12",
+                                numpy_version="1.26.4", lock_sha256="b" * 64),
+        new=PreparedEnvironment(template_id="new", python_version="3.12",
+                                numpy_version="2.0.2", lock_sha256="c" * 64),
+        review_note="Validated source and adapter",
+    )
+    profile_id = uuid.uuid4()
+    profile = {
+        "id": str(profile_id), "status": "approved", "provider": draft.provider,
+        "repository": draft.repository, "profile_digest": draft.digest,
+        "contract_hash": draft.contract_hash,
+        "draft_json": draft.model_dump(mode="json"),
+        "approval_json": approved.model_dump(mode="json"),
+    }
+    store = SimpleNamespace(get=lambda owner, requested: profile)
+    spec = ProjectRunSpec(
+        profile_id=profile_id, provider=draft.provider, repository=draft.repository,
+        change_number=1, base_sha="d" * 40, head_sha="e" * 40,
+        source_sha256=validated_digest, profile_digest=draft.digest,
+        contract_hash=draft.contract_hash,
+        old_environment_lock_sha256=approved.old.lock_sha256,
+        new_environment_lock_sha256=approved.new.lock_sha256,
+        sandbox_usd_per_second=0.0001, max_cost_usd=0.2,
+    )
+    project_worker._approved_inputs(spec, "github:owner", store)
+    with pytest.raises(project_worker.RunRejected, match="environment_changed"):
+        project_worker._approved_inputs(
+            spec.model_copy(update={"source_sha256": "f" * 64}), "github:owner", store
+        )
 
 
 def test_disabled_worker_never_fetches_source_or_executes(monkeypatch):

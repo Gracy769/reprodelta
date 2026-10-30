@@ -14,7 +14,6 @@ from fastapi.testclient import TestClient
 
 from app.api import project_runs
 from app.api.connections import current_user
-from app.domain.profile_validation import pilot_lock_digest
 from app.domain.project_profile import PreparedEnvironment, ProfileApproval
 from app.domain.project_run import ProjectRunSpec
 from app.main import app
@@ -22,6 +21,7 @@ from app.orchestrator import project_replay_script
 from app.orchestrator.project_replay_export import build_project_replay_bundle
 from app.providers.e2b_runner import validate_snapshot
 from tests.integration.test_project_profiles import _draft
+from tests.lock_fixtures import fixture_lock_digest
 
 
 def _fixture():
@@ -36,15 +36,16 @@ def _fixture():
     }
     old = PreparedEnvironment(
         template_id="old", python_version="3.12", numpy_version="1.26.4",
-        lock_sha256=pilot_lock_digest("1.26.4"),
+        lock_sha256=fixture_lock_digest("1.26.4"),
     )
     new = PreparedEnvironment(
         template_id="new", python_version="3.12", numpy_version="2.0.2",
-        lock_sha256=pilot_lock_digest("2.0.2"),
+        lock_sha256=fixture_lock_digest("2.0.2"),
     )
     profile_id = uuid.uuid4()
     approval = ProfileApproval(
         profile_digest=draft.digest, validation_job_id=uuid.uuid4(),
+        validated_source_sha256=validate_snapshot(files),
         old=old, new=new, review_note="Operator approved this exact profile",
     )
     profile = {

@@ -176,6 +176,8 @@ async def _plan(
     _, source_digest = await immutable_snapshot(
         _host_get, provider, token, source_id, review["base_sha"]
     )
+    if source_digest != approval.validated_source_sha256:
+        raise HTTPException(409, "This source snapshot was not validated for the approved profile")
     if await change_refs(_host_get, provider, token, source_id, change_number) != (
         review["base_sha"], review["head_sha"]
     ):

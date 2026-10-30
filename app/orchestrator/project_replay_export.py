@@ -104,6 +104,7 @@ def build_project_replay_bundle(
         or draft.contract_hash != spec.contract_hash
         or draft.contract_hash != profile["contract_hash"]
         or approval.profile_digest != draft.digest
+        or approval.validated_source_sha256 != spec.source_sha256
         or approval.old.lock_sha256 != spec.old_environment_lock_sha256
         or approval.new.lock_sha256 != spec.new_environment_lock_sha256
     ):

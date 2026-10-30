@@ -7,9 +7,9 @@ from fastapi.testclient import TestClient
 from app.api import project_profiles
 from app.api.connections import current_user
 from app.config import Settings
-from app.domain.profile_validation import pilot_lock_digest
 from app.main import app
 from tests.integration.test_project_profiles import _draft
+from tests.lock_fixtures import fixture_lock_digest
 
 
 class Profiles:
@@ -66,9 +66,9 @@ def _body():
     return {
         "source_sha": "a" * 40,
         "old": {"template_id": "old", "python_version": "3.12", "numpy_version": "1.26.4",
-                "lock_sha256": pilot_lock_digest("1.26.4")},
+                "lock_sha256": fixture_lock_digest("1.26.4")},
         "new": {"template_id": "new", "python_version": "3.12", "numpy_version": "2.0.2",
-                "lock_sha256": pilot_lock_digest("2.0.2")},
+                "lock_sha256": fixture_lock_digest("2.0.2")},
         "idempotency_key": "validation-123",
     }
 
@@ -96,7 +96,7 @@ def test_validation_requires_operator_and_feature_gate(monkeypatch):
         assert response.json()["status"] == "queued"
         assert "idempotency_key" not in response.json()
         assert queue.submitted[0] == "github:owner"
-        assert queue.submitted[2].old.lock_sha256 == pilot_lock_digest("1.26.4")
+        assert queue.submitted[2].old.lock_sha256 == fixture_lock_digest("1.26.4")
     finally:
         app.dependency_overrides.clear()
 
@@ -126,7 +126,7 @@ def test_validation_history_is_owner_or_operator_only(monkeypatch):
         app.dependency_overrides.clear()
 
 
-def test_validation_rejects_unreviewed_environment_lock(monkeypatch):
+def test_validation_rejects_malformed_environment_lock_digest(monkeypatch):
     profiles, queue = Profiles(), Queue()
     app.dependency_overrides[project_profiles.get_profile_store] = lambda: profiles
     app.dependency_overrides[project_profiles.get_validation_queue] = lambda: queue
@@ -137,11 +137,11 @@ def test_validation_rejects_unreviewed_environment_lock(monkeypatch):
     ))
     try:
         body = _body()
-        body["old"]["lock_sha256"] = "f" * 64
+        body["old"]["lock_sha256"] = "f" * 63
         response = TestClient(app).post(
             f"/api/project-profiles/{profiles.row['id']}/validations", json=body
         )
-        assert response.status_code == 409
+        assert response.status_code == 422
         assert queue.submitted is None
     finally:
         app.dependency_overrides.clear()

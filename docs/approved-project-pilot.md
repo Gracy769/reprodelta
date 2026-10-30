@@ -19,10 +19,11 @@ on an Oracle VM and must remain disabled until its live security gates pass.
   consent to transfer a selected source snapshot to E2B.
 - A configured operator subject can queue sample validation against one immutable
   source commit and two fixed NumPy pilot templates. The separate E2B worker
-  rechecks the draft and consent, executes the sample in both templates, and
+  rechecks the draft and consent, executes the sample twice in both templates, and
   checks the returned input hash and environment version before recording
-  bounded observations and cost. Approval requires that exact completed
-  validation job ID and matching profile, contract, and environment digests.
+  repeatable bounded observations and cost. Approval requires that exact completed
+  validation job ID and matching profile, contract, source snapshot, and environment
+  digests. A new source snapshot requires a new profile validation and approval.
   `E2B_PROFILE_VALIDATION_ENABLED` defaults to `false` on the API and worker.
   This preapproval run does not open the broader project-run gate.
 - `/api/project-profiles/{id}/changes/{number}/eligibility` checks a complete

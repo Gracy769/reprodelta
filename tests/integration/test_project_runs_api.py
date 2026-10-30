@@ -2,13 +2,17 @@
 
 import uuid
 
+import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app.api import pages, project_runs
 from app.api.connections import current_user
 from app.config import Settings
+from app.domain.project_profile import PreparedEnvironment, ProfileApproval
 from app.domain.project_run import ProjectRunSpec
 from app.main import app
+from tests.integration.test_project_profiles import _draft
 
 
 def _spec():
@@ -52,6 +56,47 @@ def _body(spec):
         "approved_cost_ceiling_usd": spec.max_cost_usd,
         "source_transfer_approved": True, "idempotency_key": "safe-key-123",
     }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("validated_digest", ["a" * 64, None])
+async def test_run_plan_rejects_unvalidated_source_snapshot(monkeypatch, validated_digest):
+    draft = _draft()
+    profile_id = uuid.uuid4()
+    approval = ProfileApproval(
+        profile_digest=draft.digest, validation_job_id=uuid.uuid4(),
+        validated_source_sha256=validated_digest,
+        old=PreparedEnvironment(template_id="old", python_version="3.12",
+                                numpy_version="1.26.4", lock_sha256="b" * 64),
+        new=PreparedEnvironment(template_id="new", python_version="3.12",
+                                numpy_version="2.0.2", lock_sha256="c" * 64),
+        review_note="Validated source snapshot",
+    )
+    profile = {
+        "status": "approved", "approval_json": approval.model_dump(mode="json"),
+        "draft_json": draft.model_dump(mode="json"), "profile_digest": draft.digest,
+        "contract_hash": draft.contract_hash, "provider": draft.provider,
+        "repository": draft.repository,
+    }
+    class Profiles:
+        def get(self, owner, requested):
+            return profile
+
+    async def review(*args):
+        return {"base_sha": "d" * 40, "head_sha": "e" * 40}
+
+    async def snapshot(*args):
+        return {}, "f" * 64
+
+    monkeypatch.setattr(project_runs, "get_settings", lambda: Settings(
+        e2b_sandbox_usd_per_second=0.0001, e2b_project_run_cost_ceiling_usd=0.2,
+    ))
+    monkeypatch.setattr(project_runs, "_saved_token", lambda *args: "token")
+    monkeypatch.setattr(project_runs, "analyze", review)
+    monkeypatch.setattr(project_runs, "check_eligibility", lambda *args: {"eligible": True})
+    monkeypatch.setattr(project_runs, "immutable_snapshot", snapshot)
+    with pytest.raises(HTTPException, match="not validated"):
+        await project_runs._plan("github:owner", profile_id, 1, Profiles(), snapshot=True)
 
 
 def test_start_requires_exact_approval_and_hides_worker_capability(monkeypatch):

@@ -1,5 +1,9 @@
 # ReproDelta
 
+The [30 October 2026 review and remediation record](docs/review-2026-10-30.md)
+documents the approved-project lock, source-binding, and repeatability fixes,
+including the profile migration required before new approved-project runs.
+
 The [29 October 2026 review and remediation record](docs/review-2026-10-29.md)
 documents the source-admission, environment provenance, quota, session, and
 connected replay changes, including the required template and profile migration.

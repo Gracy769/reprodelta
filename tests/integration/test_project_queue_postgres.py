@@ -15,7 +15,7 @@ import pytest
 from psycopg import sql
 from psycopg.conninfo import make_conninfo
 
-from app.domain.profile_validation import ProfileValidationSpec, pilot_lock_digest
+from app.domain.profile_validation import ProfileValidationSpec
 from app.domain.project_profile import PreparedEnvironment, ProfileApproval
 from app.domain.project_share import redacted_project_share
 from app.storage.project_hypotheses import ProjectHypothesisStore
@@ -24,6 +24,7 @@ from app.storage.project_run_queue import ProjectRunQueue
 from app.storage.project_shares import ProjectShareStore
 from app.storage.project_snapshots import ProjectSnapshotStore
 from tests.integration.test_project_profiles import _draft
+from tests.lock_fixtures import fixture_lock_digest
 from tests.unit.test_project_run_queue import _spec
 
 
@@ -194,9 +195,9 @@ def test_postgres_approval_requires_matching_completed_validation(local_queue):
         repository=draft.repository, source_sha="a" * 40,
         profile_digest=draft.digest, contract_hash=draft.contract_hash,
         old=PreparedEnvironment(template_id="old", python_version="3.12",
-                                numpy_version="1.26.4", lock_sha256=pilot_lock_digest("1.26.4")),
+                                numpy_version="1.26.4", lock_sha256=fixture_lock_digest("1.26.4")),
         new=PreparedEnvironment(template_id="new", python_version="3.12",
-                                numpy_version="2.0.2", lock_sha256=pilot_lock_digest("2.0.2")),
+                                numpy_version="2.0.2", lock_sha256=fixture_lock_digest("2.0.2")),
         sandbox_usd_per_second=0.000046, max_cost_usd=0.1,
     )
     submitted = queue.submit_validation("github:owner", "validation-one", spec)
@@ -209,7 +210,8 @@ def test_postgres_approval_requires_matching_completed_validation(local_queue):
         store.approve("github:owner", uuid.UUID(profile["id"]), "github:approver", approval)
     claimed = queue.claim(allowed_kinds=("profile_validation",))
     result = {
-        "sample_validated": True, "profile_digest": draft.digest,
+        "sample_validated": True, "repeatable": True,
+        "old_repeat": {}, "new_repeat": {}, "profile_digest": draft.digest,
         "contract_hash": draft.contract_hash, "source_sha": spec.source_sha,
         "source_sha256": "b" * 64, "input_sha256": "c" * 64,
     }
@@ -224,6 +226,7 @@ def test_postgres_approval_requires_matching_completed_validation(local_queue):
         "github:owner", uuid.UUID(profile["id"]), "github:approver", approval)
     assert approved["status"] == "approved"
     assert approved["approval_json"]["validation_job_id"] == submitted["id"]
+    assert approved["approval_json"]["validated_source_sha256"] == "b" * 64
 
 
 def test_postgres_snapshots_are_encrypted_owner_scoped_and_expire(local_queue):

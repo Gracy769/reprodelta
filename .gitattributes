@@ -1,3 +1,5 @@
 *.sh text eol=lf
 docs/evidence/*.json text eol=lf
 docs/evidence/*.sha256 text eol=lf
+fixture/project/*.py text eol=lf
+evaluation/*.py text eol=lf

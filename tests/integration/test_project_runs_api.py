@@ -59,8 +59,12 @@ def _body(spec):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("validated_digest", ["a" * 64, None])
-async def test_run_plan_rejects_unvalidated_source_snapshot(monkeypatch, validated_digest):
+@pytest.mark.parametrize("validated_digest,reason_code", [
+    ("a" * 64, "source_snapshot_mismatch"),
+    (None, "source_validation_missing"),
+    ("f" * 64, None),
+])
+async def test_run_plan_checks_validated_source_snapshot(monkeypatch, validated_digest, reason_code):
     draft = _draft()
     profile_id = uuid.uuid4()
     approval = ProfileApproval(
@@ -88,15 +92,35 @@ async def test_run_plan_rejects_unvalidated_source_snapshot(monkeypatch, validat
     async def snapshot(*args):
         return {}, "f" * 64
 
+    async def refs(*args):
+        return "d" * 40, "e" * 40
+
     monkeypatch.setattr(project_runs, "get_settings", lambda: Settings(
         e2b_sandbox_usd_per_second=0.0001, e2b_project_run_cost_ceiling_usd=0.2,
     ))
     monkeypatch.setattr(project_runs, "_saved_token", lambda *args: "token")
     monkeypatch.setattr(project_runs, "analyze", review)
-    monkeypatch.setattr(project_runs, "check_eligibility", lambda *args: {"eligible": True})
+    monkeypatch.setattr(project_runs, "check_eligibility", lambda *args: {
+        "eligible": True, "mode": "approved_project_run", "reasons": [], "reason_codes": [],
+    })
     monkeypatch.setattr(project_runs, "immutable_snapshot", snapshot)
-    with pytest.raises(HTTPException, match="not validated"):
+    monkeypatch.setattr(project_runs, "change_refs", refs)
+    plan, spec = await project_runs._plan("github:owner", profile_id, 1, Profiles(), snapshot=False)
+    assert spec is None
+    if reason_code is None:
+        assert plan["eligible"] is True
+        assert plan["source_sha256"] == validated_digest
+        _, queued_spec = await project_runs._plan(
+            "github:owner", profile_id, 1, Profiles(), snapshot=True
+        )
+        assert queued_spec.source_sha256 == validated_digest
+        return
+    assert plan["eligible"] is False
+    assert plan["mode"] == "diff_review_only"
+    assert plan["reason_codes"] == [reason_code]
+    with pytest.raises(HTTPException) as rejected:
         await project_runs._plan("github:owner", profile_id, 1, Profiles(), snapshot=True)
+    assert rejected.value.status_code == 409
 
 
 def test_start_requires_exact_approval_and_hides_worker_capability(monkeypatch):

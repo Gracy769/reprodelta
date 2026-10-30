@@ -253,6 +253,34 @@ test('operator validation controls are only rendered after the approver endpoint
   assert(nodes.some(n => n.textContent?.includes('Source transfer consent')));
 });
 
+test('operator approval shows both repeats and hides legacy single-run validation', async () => {
+  const profile={id:'11111111-1111-4111-8111-111111111111',repository:'lab/project',version:1,
+    owner_id:'github:owner',profile_digest:'a'.repeat(64),contract_hash:'b'.repeat(64),
+    draft_json:{name:'Adapter',adapter_module:'package.adapter',adapter_function:'run',
+      dependency_path:'requirements.txt',sample_input:{signal:0.5},
+      contract:{output_selector:{field_name:'ratio'},conclusion:{operator:'gt',threshold:0.5}},
+      source_transfer_consent:true}};
+  let repeatable=false;
+  const ctx=boot(async (url) => ({ok:true,status:200,json:async () => url.endsWith('/operator/pending')
+    ? {profiles:[profile]} : {validations:[{id:'job',status:'completed',result_json:{
+        sample_validated:true,repeatable,source_sha:'c'.repeat(40),source_sha256:'d'.repeat(64),
+        old:{ratio:0.4},old_repeat:{ratio:0.4},new:{ratio:0.6},new_repeat:{ratio:0.6}},
+        spec_json:{old:{},new:{}}}]}}));
+  ctx.reviewTest.state.jwt='test-token';
+  await ctx.reviewTest.loadOperatorProfiles();
+  const card=all(ctx.elements.get('operator-profile-list')).find(n=>n.tagName==='details');
+  card.open=true;
+  card.listeners.toggle();
+  await new Promise(setImmediate);
+  assert(!all(card).some(n=>n.textContent==='Approve this project version ↗'));
+  repeatable=true;
+  card.listeners.toggle();
+  await new Promise(setImmediate);
+  assert(all(card).some(n=>n.textContent?.includes('Old repeat')));
+  assert(all(card).some(n=>n.textContent?.includes('New repeat')));
+  assert(all(card).some(n=>n.textContent==='Approve this project version ↗'));
+});
+
 test('public finding link requires preview and explicit acknowledgement', async () => {
   let posted=0;
   const ctx=boot(async (url,options={}) => ({ok:true,status:200,json:async () => {

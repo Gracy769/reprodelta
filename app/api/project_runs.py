@@ -171,18 +171,34 @@ async def _plan(
         "candidate_budget": candidate_budget,
         "candidate_seed": candidate_seed,
     }
-    if not eligibility["eligible"] or not snapshot or not rate_ready:
+    if not eligibility["eligible"] or not rate_ready:
+        return plan, None
+    if approval.validated_source_sha256 is None:
+        reason = "This profile predates source-bound validation; create and approve a new profile version."
+        if snapshot:
+            raise HTTPException(409, reason)
+        plan.update(eligible=False, mode="diff_review_only")
+        plan["reasons"].append(reason)
+        plan["reason_codes"].append("source_validation_missing")
         return plan, None
     _, source_digest = await immutable_snapshot(
         _host_get, provider, token, source_id, review["base_sha"]
     )
     if source_digest != approval.validated_source_sha256:
-        raise HTTPException(409, "This source snapshot was not validated for the approved profile")
+        reason = "This source snapshot was not validated for the approved profile"
+        if snapshot:
+            raise HTTPException(409, reason)
+        plan.update(eligible=False, mode="diff_review_only")
+        plan["reasons"].append(reason)
+        plan["reason_codes"].append("source_snapshot_mismatch")
+        return plan, None
     if await change_refs(_host_get, provider, token, source_id, change_number) != (
         review["base_sha"], review["head_sha"]
     ):
         raise HTTPException(409, "PR/MR changed during admission; review the latest revision")
     plan["source_sha256"] = source_digest
+    if not snapshot:
+        return plan, None
     spec = ProjectRunSpec(
         profile_id=profile_id,
         sandbox_provider=settings.project_sandbox_provider,

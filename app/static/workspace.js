@@ -438,10 +438,11 @@
       clear(finding);
       if (!job) { message.textContent = "No validation has run for this draft."; return; }
       message.textContent = `Validation ${job.id} · ${job.status}${job.error_code ? ` · ${job.error_code}` : ""}`;
-      if (job.status !== "completed" || job.result_json?.sample_validated !== true) return;
+      if (job.status !== "completed" || job.result_json?.sample_validated !== true || job.result_json?.repeatable !== true) return;
       const result = job.result_json;
       finding.append(text("p", `Sample validated at ${result.source_sha.slice(0, 12)}. Source SHA-256: ${result.source_sha256}. Review the measured outcome before approval.`));
-      finding.append(text("p", `Old: ${JSON.stringify(result.old || {})} · New: ${JSON.stringify(result.new || {})}`));
+      finding.append(text("p", `Old: ${JSON.stringify(result.old || {})} · Old repeat: ${JSON.stringify(result.old_repeat || {})}`));
+      finding.append(text("p", `New: ${JSON.stringify(result.new || {})} · New repeat: ${JSON.stringify(result.new_repeat || {})}`));
       const approval = text("form", "", "profile-form");
       const note = operatorField(approval, "Operator review note", "review_note", "What source, adapter, lock and result did you verify?");
       note.minLength = 8; note.maxLength = 1000;

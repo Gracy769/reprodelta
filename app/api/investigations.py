@@ -206,7 +206,8 @@ def _get_investigation_or_404(investigation_id: str) -> dict[str, Any]:
             detail=f"Investigation {investigation_id} not found",
         )
     owner = owner_context.get()
-    if owner is not None and stored.get("owner_id") != owner:
+    stored_owner = stored.get("owner_id")
+    if owner is not None and stored_owner and stored_owner != owner:
         raise HTTPException(status_code=404, detail="Investigation not found")
     record = _investigations.get(investigation_id)
     if record is None:
@@ -228,7 +229,10 @@ def _get_investigation_or_404(investigation_id: str) -> dict[str, Any]:
 
 def _budget_runner(investigation_id: str, runner: RunnerAdapter) -> BudgetRunner:
     saved = get_store().get_investigation(investigation_id)
-    limits = {key: value for key, value in saved["budget_json"].items() if key != "usage"}
+    if saved is None:
+        raise HTTPException(status_code=404, detail="Investigation not found")
+    budget_json = saved.get("budget_json") or {}
+    limits = {key: value for key, value in budget_json.items() if key != "usage"}
     ledger = BudgetLedger(BudgetConfig(**limits), get_store(), investigation_id)
     return BudgetRunner(runner, ledger)
 

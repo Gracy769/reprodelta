@@ -19,7 +19,9 @@ from urllib.parse import quote
 import httpx
 import jwt
 import psycopg
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, MultiFernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from fastapi import APIRouter, Depends, Header, HTTPException, Response
 from jwt import PyJWKClient
 from psycopg.rows import dict_row
@@ -44,15 +46,30 @@ def _database_dsn() -> str:
     return get_settings().database_url.replace("postgresql+asyncpg://", "postgresql://", 1)
 
 
-def _cipher() -> Fernet:
+def _cipher() -> MultiFernet:
     secret = get_settings().secret_key
     if secret == "change-me-in-production":
         raise HTTPException(503, "Token storage requires a configured SECRET_KEY")
-    key = base64.urlsafe_b64encode(hashlib.sha256(secret.encode()).digest())
-    return Fernet(key)
+    hkdf = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=b"reprodelta-source-token-v1",
+        info=b"fernet-encryption-key",
+    )
+    primary_key = base64.urlsafe_b64encode(hkdf.derive(secret.encode()))
+    legacy_key = base64.urlsafe_b64encode(hashlib.sha256(secret.encode()).digest())
+    return MultiFernet([Fernet(primary_key), Fernet(legacy_key)])
+
+
+
+_table_initialized: bool = False
 
 
 def _ensure_table(conn: psycopg.Connection) -> None:
+    global _table_initialized
+    if _table_initialized:
+        return
+    _table_initialized = True
     conn.execute(
         """CREATE TABLE IF NOT EXISTS connected_source_accounts (
             owner_id TEXT NOT NULL,

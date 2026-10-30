@@ -287,7 +287,8 @@ class InvestigationRunner:
             self.runner,
             on_progress=lambda event_type, payload: self._emit(investigation_id, event_type, payload),
         )
-        search_settings = self._store.get_investigation(investigation_id).get("budget_json", {}) if self._store else {}
+        inv_record = self._store.get_investigation(investigation_id) if self._store else None
+        search_settings = (inv_record or {}).get("budget_json", {})
         progress: SearchProgress = searcher.run_search(
             investigation_id, seed=search_settings.get("search_seed", 42),
             search_strategy=search_settings.get("search_strategy", "sweep"),

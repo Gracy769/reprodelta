@@ -7,7 +7,6 @@ import os
 import secrets
 from pathlib import Path
 
-
 HERE = Path(__file__).resolve().parent
 EXAMPLE = HERE / ".env.example"
 TARGET = HERE / ".env"

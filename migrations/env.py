@@ -8,7 +8,6 @@ The DATABASE_URL is read from the application config so the same
 from __future__ import annotations
 
 import asyncio
-import os
 from logging.config import fileConfig
 
 from alembic import context
@@ -16,15 +15,16 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-# Import all models so their metadata is populated before autogenerate.
-from app.storage.db import Base  # noqa: F401
 import app.storage.models  # noqa: F401  — registers all table metadata
+
+# Import all models so their metadata is populated before autogenerate.
+from app.config import get_settings as _get_settings
+from app.storage.db import Base  # noqa: F401
 
 # Alembic Config object, providing access to values in alembic.ini.
 config = context.config
 
 # Inject the DATABASE_URL from the app config (overrides the blank entry in alembic.ini).
-from app.config import get_settings as _get_settings
 config.set_main_option("sqlalchemy.url", _get_settings().database_url)
 
 # Interpret the config file for Python logging (if present).

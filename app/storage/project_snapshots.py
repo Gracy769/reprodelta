@@ -38,6 +38,9 @@ class ProjectSnapshotStore:
 
     @staticmethod
     def _ensure(conn):
+        if getattr(ProjectSnapshotStore, "_ensured", False):
+            return
+        ProjectSnapshotStore._ensured = True
         conn.execute("""CREATE TABLE IF NOT EXISTS project_source_snapshots (
             owner_id TEXT NOT NULL, source_sha256 TEXT NOT NULL,
             nonce BYTEA NOT NULL, ciphertext BYTEA NOT NULL,
@@ -96,7 +99,10 @@ class ProjectSnapshotStore:
             conn.execute("""INSERT INTO project_source_snapshots
                 (owner_id, source_sha256, nonce, ciphertext, created_at, expires_at)
                 VALUES (%s,%s,%s,%s,%s,%s)
-                ON CONFLICT(owner_id, source_sha256) DO NOTHING""",
+                ON CONFLICT(owner_id, source_sha256) DO UPDATE
+                SET expires_at = EXCLUDED.expires_at,
+                    nonce = EXCLUDED.nonce,
+                    ciphertext = EXCLUDED.ciphertext""",
                 (owner_id, digest, nonce, encrypted, now, now + timedelta(days=RETENTION_DAYS)),
             )
         return digest

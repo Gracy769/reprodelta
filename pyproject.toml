@@ -39,6 +39,7 @@ include = ["app*", "runner*"]
 
 [tool.ruff]
 line-length = 100
+extend-exclude = ["fixture/project"]
 target-version = "py312"
 
 [tool.ruff.lint]
@@ -50,7 +51,11 @@ quote-style = "double"
 indent-style = "space"
 
 [tool.pytest.ini_options]
+filterwarnings = [
+    "ignore:.*httpx.*:Warning",
+]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]

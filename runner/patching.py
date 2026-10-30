@@ -199,6 +199,21 @@ def validate_numerical_source(original: str, patched: str) -> None:
                 and (abs(node.value) > 1000000)
             ):
                 raise ValueError("Oversized numerical literal")
+            if (
+                isinstance(node, ast.Constant)
+                and isinstance(node.value, str)
+                and (len(node.value) > 1000)
+            ):
+                raise ValueError("Oversized string literal")
+            if (
+                isinstance(node, ast.BinOp)
+                and isinstance(node.op, ast.Mult)
+                and (
+                    isinstance(node.left, (ast.List, ast.Tuple, ast.Dict))
+                    or isinstance(node.right, (ast.List, ast.Tuple, ast.Dict))
+                )
+            ):
+                raise ValueError("Sequence multiplication is forbidden")
             if (isinstance(node, ast.BinOp) and isinstance(node.op, ast.Pow)) and (
                 not isinstance(node.right, ast.Constant)
                 or not isinstance(node.right.value, (int, float))

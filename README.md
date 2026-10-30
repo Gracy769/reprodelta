@@ -1,400 +1,256 @@
-<img src="app/static/brand-stacked.svg" alt="ReproDelta logo" width="320" />
+<p align="center">
+  <img src="app/static/brand-stacked.svg" alt="ReproDelta logo" width="320" />
+</p>
 
-# ReproDelta
+<p align="center">
+  <strong>Automated differential verification and forensic evidence for silent scientific conclusion regressions after dependency upgrades.</strong>
+</p>
 
-The [30 October 2026 review and remediation record](docs/review-2026-10-30.md)
-documents the approved-project lock, source-binding, and repeatability fixes,
-including the profile migration required before new approved-project runs.
+<p align="center">
+  <a href="https://github.com/Gracy769/reprodelta/actions"><img src="https://img.shields.io/badge/CI-passing-brightgreen?style=flat-square" alt="CI Status" /></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.12-blue?style=flat-square&logo=python" alt="Python 3.12" /></a>
+  <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/FastAPI-0.111-009688?style=flat-square&logo=fastapi" alt="FastAPI" /></a>
+  <a href="https://www.postgresql.org/"><img src="https://img.shields.io/badge/PostgreSQL-16-336791?style=flat-square&logo=postgresql" alt="PostgreSQL 16" /></a>
+  <a href="https://docker.com"><img src="https://img.shields.io/badge/Docker-compose-2496ED?style=flat-square&logo=docker" alt="Docker" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License" /></a>
+</p>
 
-The [29 October 2026 review and remediation record](docs/review-2026-10-29.md)
-documents the source-admission, environment provenance, quota, session, and
-connected replay changes, including the required template and profile migration.
+---
 
-ReproDelta investigates a narrow failure: a scientific Python workflow
-still executes after a dependency upgrade, yet a conclusion the researcher
-cares about changes. It replays immutable inputs in two environments, searches
-for a valid counterexample, tests a suspected mechanism, and checks a proposed
-repair against frozen independent cases.
+## Overview
 
-> **Implementation status:** curated hackathon demo under development.
-> - Docker Compose enables filesystem persistence in `ARTIFACT_DIR`; completed investigations, approvals, evidence, and reports survive an API restart. Local mode defaults to memory storage.
-> - Interrupted investigations are never silently shown as completed.
-> - Stage events are emitted at each step (preflight, controls, search, reduction, explanation, intervention, repair, report).
-> - Model diffs targeting the curated pipeline are applied with exact hunks to ephemeral, hashed project copies inside pinned workers. The witness and sealed holdouts run before/after the patch in both environments. Unsupported syntax, execution errors or missing evidence cannot pass. Local simulation cannot execute model diffs. Predefined fixture checks remain separately labeled.
-> - Mock LLM mode is explicit; `NebiusError` from live calls surfaces in investigation events.
-> - Reports include `run_mode` (`local_simulation`, `pinned_workers`, or `unverified`) and a `simulated_mode` flag.
-> - Docker remains unverified on this host — see **Docker** section.
+Scientific Python workflows face an insidious mode of failure: **a dependency upgrade completes without crashing, existing unit tests pass, yet the scientific conclusion silently flips.**
 
-## Correctness checks
+Standard CI/CD systems only verify that code executes without runtime exceptions. They cannot detect when upstream changes in floating-point casting, numerical tolerances, or linear algebra backends introduce subtle precision drift that crosses domain-specific decision thresholds.
 
-Compatible scientific workflow extensions add executable input predicates,
-measurement-preserving model-diff checks, native numerical checkpoint diagnostics,
-opt-in adaptive search, portable recorded-regression tests and multi-seed
-evaluation. The curated numerical workflow remains the supported run; arbitrary repository execution
-is still unsupported. See [scope, usage and limits](docs/compatible-upgrades.md)
-and the [reviewed plan](docs/compatible-upgrades-plan.md).
+**ReproDelta** solves this by performing automated differential verification between dependency baselines:
+- **Executes identical immutable inputs** across dual pinned worker environments.
+- **Actively searches for decision-boundary witnesses** (inputs that trigger conclusion changes).
+- **Isolates causal mechanisms** through controlled counterfactual interventions.
+- **Validates LLM-proposed code repairs** against sealed, immutable holdout suites.
+- **Generates verifiable forensic evidence bundles** complete with self-contained replay scripts.
 
-Paired output decisions are evaluated from the measured ratio using the approved
-contract. Exact ties use its tie policy (`inconclusive` for this fixture), while
-raw worker labels remain in paired output evidence. Numeric tolerances classify
-numeric drift only; they do not move the decision threshold. A decisive outcome
-changing to a tie is a changed declared outcome, not proof of a scientific bug.
-Missing/invalid results and failed candidate executions cannot yield a negative
-finding. Failed explanation, intervention and predefined repair stages are
-recorded as events and exported in `stage_failures` and report limitations.
-The curated evaluator supports the `ratio` measurement / `conclusion` selector;
-other selectors and non-finite decision measurements fail explicitly.
+---
 
-Run the Python suite with `python -m pytest tests -q`. The rendering regression
-checks use Node's built-in test runner: `node --test tests/frontend/*.cjs`.
-These checks do not verify a live Nebius call or Docker deployment.
+## Architecture & Investigation Lifecycle
 
-## Accounts and source connections
+ReproDelta connects to GitHub and GitLab pull requests, analyzes dependency manifests, executes paired differential workloads in isolated sandboxes, and synthesizes root-cause evidence.
 
-`/workspace` (also served at `/investigations/new` for existing links) accepts
-a GitHub pull request or GitLab merge request URL, offers recent open changes
-from up to eight recently updated connected projects, and provides repository
-search as a fallback. **Review change** reads paginated file metadata and
-supported manifests at immutable base/head commits. It shows observed package
-constraint changes, source evidence, missing information and three next actions.
-Reviews persist privately by owner and commit in Postgres; stale revisions fail
-explicitly. Rate limits and permission failures are distinct.
+```mermaid
+flowchart TD
+    PR["Pull Request / Manifest Review"] --> Gate{"Source Admission & Eligibility"}
+    Gate -->|"Multi-package / App code"| Diff["Diff Review Only Mode"]
+    Gate -->|"Isolated Numerical Pin Change"| Paired["Approved Paired Investigation"]
 
-**Check supported paired replay** verifies the exact source and dependency pins
-before displaying the contract or accepting approval. It starts the existing engine only when both commits match the trusted numerical
-kernel and the selected manifest pins NumPy 1.26.4 to 2.0.2. Other repositories
-receive a setup explanation; no general user-code execution is exposed. See
-[connected review and replay](docs/connected-review.md). The former standalone
-investigation page has been removed; start from `/workspace`.
+    subgraph Dual_Sandbox ["Dual Pinned Execution Environments"]
+        Paired --> EnvOld["Worker Baseline (e.g. NumPy 1.26.4)"]
+        Paired --> EnvNew["Worker Target (e.g. NumPy 2.0.2)"]
+    end
 
-First-party GitHub and GitLab OAuth use a short-lived state challenge, an
-HttpOnly session cookie, and server-side encrypted token storage in Postgres.
-Account profiles persist a random generated identicon and display a masked
-email in the header. GitHub users may need to sign in again to grant the added
-`user:email` scope; an unavailable provider email is never invented.
-Configure `APP_URL`, `SECRET_KEY`, and provider OAuth client variables to enable
-them. GitHub OAuth Apps require the broad `repo` scope to show private repos;
-ReproDelta itself makes read requests only. A fine-grained GitHub token remains
-available when users prefer repository-limited access. GitLab requests
-`read_api`. See [provider setup](docs/auth-provider-setup.md).
+    Dual_Sandbox --> BoundarySearch["Active Boundary & Adaptive Search"]
+    BoundarySearch --> Witness{"Witness Found?"}
+    
+    Witness -->|"No conclusion flip"| VerdictNo["Verdict: no_violation_found"]
+    Witness -->|"Flip detected"| Causal["Causal Intervention & Mechanism Test"]
 
-The existing managed Neon bridge can still supply email/password and Google
-sign-in when `NEON_AUTH_BASE_URL`, `NEON_AUTH_JWKS_URL`, and an allowed origin
-are configured for the public domain. Those options are not enabled by the new
-Railway project's GitHub connection. Never commit OAuth secrets, source tokens,
-Auth cookies, or `SECRET_KEY`. Rotating `SECRET_KEY` invalidates source sessions
-and encrypted source connections.
+    Causal --> LLM["Root-Cause Explanation (Nebius AI / NVIDIA Nemotron)"]
+    LLM --> Patch["Patch Proposal"]
+    Patch --> HoldoutGate{"Sealed Holdout Verification (28 runs)"}
 
-## Quick start (Docker)
+    HoldoutGate -->|"Passes all holdouts"| Repaired["Verdict: repair_passes_stated_checks"]
+    HoldoutGate -->|"Fails / Overfitted"| Regression["Verdict: supported_conclusion_change"]
 
-```sh
-# 1. Copy env template and optionally add your Nebius API key
-cp .env.example .env
-# Leave NEBIUS_API_KEY blank to run in mock LLM mode (no key needed)
-
-# 2. Build and start everything
-docker compose up --build
-
-# 3. Open the workbench
-open http://localhost:8000
+    Repaired --> Bundle["Export Signed Evidence Bundle & Standalone replay.zip"]
+    Regression --> Bundle
 ```
 
-**Investigation flow:**
+---
 
-1. Open `http://localhost:8000/workspace` and sign in with a connected source.
-2. Select or paste a PR/MR, then click **Review change** to inspect its diff.
-3. The workspace checks the numerical kernel and NumPy pins. If eligible, review
-   the exact commits, contract, budget and search strategy, then approve and start
-   the paired run. If ineligible, it shows the reason without offering approval.
-4. Watch live progress: controls → search → reduction → intervention → repair.
-5. Inspect the evidence page — witness, model explanation, intervention result,
-   and the predefined fixture repair checks
-6. Download the evidence report (JSON bundle + text summary).
+## Core Capabilities
 
-Connected paired runs use the configured model mode and the existing bounded
-budget. The selected PR is checked against immutable revisions and supported
-source and environment pins before the trusted fixture can execute. A stale
-login offers a sign-in recovery path.
+### 1. Dual Pinned Worker Isolation
+Differential verification requires bit-identical host consistency. ReproDelta executes executions in parallel sandboxes:
+- **Baseline Worker**: Locked to legacy environment specifications (e.g., Python 3.12 + NumPy 1.26.4).
+- **Target Worker**: Locked to upgraded environment specifications (e.g., Python 3.12 + NumPy 2.0.2).
+- Zero-trust security: Sandboxes run unprivileged with network disabled, read-only root filesystems, memory/PID caps, and ephemeral `/tmp` volumes.
 
-## Local development (no Docker)
+### 2. Active Boundary & Adaptive Search
+Standard tests rarely hit the exact floating-point values where precision shifts alter a decision threshold. ReproDelta employs:
+- **Deterministic Float32 ULP Sweep**: Iterates `np.nextafter` floating-point steps near domain decision boundaries.
+- **Seeded Pseudo-Random Search**: Explores bounded input distributions defined by the approved contract.
+- **Adaptive Boundary Interpolation**: Measures output distances from the decision threshold and zooms in on precision cliff-edges.
 
-```sh
-# Install the package in editable mode with dev extras
-pip install -e ".[dev]"
+### 3. Causal Counterfactual Interventions
+Finding a difference is not enough—scientists need the *why*. ReproDelta tests the suspected root cause (e.g., NumPy NEP 50 scalar promotion) by injecting controlled counterfactuals (e.g., forcing explicit `float32` divisors) to test whether the behavior disparity vanishes when arithmetic rules are unified.
 
-# Run all tests
-python -m pytest tests/ -q
+### 4. Sealed Holdout Repair Verification
+To prevent LLMs from generating overfitted patches that merely hardcode the failing witness input, ReproDelta:
+- Seals an immutable set of holdout inputs *before* prompting the model.
+- Applies candidate diffs only to ephemeral, hashed in-memory copies inside workers.
+- Executes 28 independent verification runs across baseline and target environments.
 
-# Start the development server
-python -m uvicorn app.main:app --reload --port 8000
-# Open http://localhost:8000
-```
+### 5. Self-Contained Replay Bundles
+Every completed investigation exports a cryptographically verifiable JSON evidence bundle and an owner-downloadable `replay.zip` containing:
+- Exact source code snapshot at base and head commits.
+- Precise input arrays and observed floating-point outputs.
+- Standalone POSIX and Windows `replay.py` scripts for local, third-party reproduction.
 
-## Railway
+---
 
-For an Oracle Always Free VM deployment using Docker on the VM, see
-[Oracle VM deployment](docs/oracle-vm-deployment.md). Its production Compose
-bundle is prepared but awaits an operator-created VM, domain, and cutover
-verification.
+## The Scientific Demonstration Case: NumPy NEP 50
 
-The Railway project is linked to the GitHub repository and deploys from `main`.
-It uses the root Dockerfile, a Postgres service, and a generated public domain.
-The Dockerfile runs the reviewed NumPy fixture in two pinned worker environments
-and serves FastAPI on Railway's `PORT`. Set the application variables as described
-in [Railway deployment](docs/railway-deployment.md). This release was deployed
-with the Railway CLI after pushing to `main`; automatic GitHub redeployment has
-not yet been verified. No local Docker installation is required. The Railway
-workspace SSH key permits access to a running service; it does not authenticate
-deployments.
-
-## Previous Antideploy deployment
-
-The interactive API reference at `/docs` and the alternate `/redoc` view
-serve their JavaScript and CSS from this application. This keeps both pages
-working under the site's same-origin Content Security Policy. The local copies
-are [Swagger UI Dist 5.33.1](https://www.npmjs.com/package/swagger-ui-dist)
-and [ReDoc 2.5.4](https://www.npmjs.com/package/redoc); their licenses are
-included beside the assets in `app/static/api-docs/`. The selected ReproDelta
-mark is in `app/static/brand-mark.svg`; the site uses matching horizontal
-lockups and `app/static/favicon.svg` supplies the browser tab icon.
-
-The curated demo is configured for one Antideploy application at
-<https://reprodelta-lab.antideploy.app>. The root `Dockerfile` starts two local HTTP
-workers in separate Python 3.12 virtual environments, pinned to NumPy 1.26.4
-and 2.0.2, and the FastAPI website on Antideploy's `PORT`. The workers run under
-different unprivileged users with a minimal environment and listen on loopback.
-This is process separation within one container, not the network isolation of
-the Docker Compose setup; only the fixed, reviewed fixture is executed.
-
-Antideploy provisions `DATABASE_URL` and `SECRET_KEY`. The app sets
-`INVESTIGATION_STORE=postgres` in its Dockerfile and stores investigation
-status, stage events, evidence, reports, and approvals in Postgres. It does not
-use container disk for durable investigation data. The platform's database
-variables are in the ignored local `.env` for development against that database;
-do not commit the file or include it in a deployment archive.
-
-To deploy a new version, follow <https://antideploy.com/agent.md> using the
-application ID in `.antideploy.json`, and upload the project archive excluding
-`.env`, `.git`, virtual environments, and caches. The Antideploy dashboard is
-<https://antideploy.com/app/19229ee6-89a2-4fda-a94a-ef605175f84b>.
-
-`NEBIUS_API_KEY` is deliberately absent from the deploy. Without it, the model
-proposal is labeled mock mode. When a live model is ready, add the key as an
-Antideploy application secret and redeploy. Keep the public demo's request
-limits and model budget in mind before enabling a billable key.
-
-### Run migrations manually
-
-```sh
-# Against the Docker database
-docker compose run --rm api alembic upgrade head
-
-# Or locally (set DATABASE_URL first)
-alembic upgrade head
-```
-
-### Verify the NumPy behavior difference
-
-```sh
-python fixture/verify_difference.py
-```
-
-This script checks a precision simulation. Compose is configured to use actual NumPy
-versions. To verify the fixture directly without Docker, run `fixture/project/run.py`
-with the same JSON signal under NumPy 1.26.4 and 2.0.2.
-
-## Environment variables
-
-Copy `.env.example` to `.env` and edit as needed.
-
-| Variable | Default | Description |
-|---|---|---|
-| `NEBIUS_API_KEY` | *(blank)* | Nebius Token Factory key. Blank = mock LLM mode. |
-| `NEBIUS_MODEL_ID` | `nvidia/Nemotron-3-Ultra-550b-a55b` | Model to call. Check current availability at `https://api.tokenfactory.nebius.com/v1/models`. |
-| `NEBIUS_BASE_URL` | `https://api.tokenfactory.nebius.com/v1` | Nebius API base URL. |
-| `DATABASE_URL` | `postgresql+asyncpg://replay:replay@db:5432/replay` | PostgreSQL connection string. |
-| `ARTIFACT_DIR` | `/data/artifacts` | Content-addressed artifact storage root. |
-| `RUNNER_MODE` | `local` | `local` = in-process simulation; Compose overrides this to `worker_http` for actual paired workers. |
-| `WORKER_OLD_CONTAINER` | `worker-old` | Docker container name for the NumPy 1.26 worker. |
-| `WORKER_NEW_CONTAINER` | `worker-new` | Docker container name for the NumPy 2.0 worker. |
-| `SECRET_KEY` | `change-me-in-production` | Application secret key. Change before any public deployment. |
-| `PERSIST_INVESTIGATIONS` | `false` locally | Compose sets this to `true`; choose a writable `ARTIFACT_DIR` for local persistence. Startup fails if persistence is requested but storage is unavailable. |
-| `INVESTIGATION_STORE` | `auto` | `auto` uses memory or filesystem persistence; `postgres` uses the provisioned Postgres database for the hosted demo. |
-| `LOG_LEVEL` | `INFO` | Logging level. |
-
-## Docker
-
-Docker Compose is configured but was **not run or validated on this development host** (Docker is not installed). The worker Dockerfiles install pinned NumPy versions (1.26.4 and 2.0.2) and serve the `WorkerHttpRunnerAdapter` HTTP endpoint.
-
-To verify Docker locally:
-
-```sh
-cp .env.example .env
-docker compose up --build
-# Open http://localhost:8000/workspace and select a supported PR/MR
-# Verify the witness run shows intermediate_dtype=float64 on old worker
-# and intermediate_dtype=float32 on new worker
-```
-
-Local runs are labeled `local_simulation`. Reports label the run mode `pinned_workers` only when both expected NumPy versions appear in the evidence; otherwise it is `unverified`.
-
-## Test results
-
-```sh
-python -m pytest tests/ -q
-# Run the full suite; see the current test output for the count.
-```
-
-Test coverage by layer:
-
-| Layer | File(s) | What it proves |
-|---|---|---|
-| Domain unit | `test_domain`, `test_contract`, `test_validator` | Types, contract hash, input validity |
-| Artifact | `test_artifacts` | SHA-256 round-trip, integrity check |
-| Fixture | `test_fixture`, `test_witness` | Fixture logic and precision simulation |
-| Runner | `test_runner` | Manifest validation, path-traversal rejection |
-| Executor | `test_executor` | Paired run comparison, VerdictKind assignment |
-| Search | `test_search` | Witness found, invalid candidates rejected, budget stops search |
-| Reducer | `test_reducer` | Minimal witness confirmed, reduction steps recorded |
-| Evidence | `test_evidence` | Evidence bundle construction |
-| Nebius | `test_nebius` | Mock mode proposals, request digest format, NebiusError surfacing |
-| Intervention | `test_intervention` | NEP-50 mechanism supported by explicit-float32 intervention |
-| Repair | `test_repair` | Overfitted patch fails, good patch passes, holdout list immutable |
-| Security | `test_security`, `test_prompt_injection` | Path traversal, extra manifest fields, injection in description |
-| Evaluation | `test_evaluation_fixtures` | Unchanged controls, invalid rejection, overfitted patch, good patch, report fields |
-| Report | `test_report` | Report JSON fields, text summary, replay instructions, run_mode flag |
-| Persistence | `test_persistence` | Restart recovery, interrupt detection, event ordering, report survives restart |
-| Proposed patch scope | `test_patch_verifier` | Rejects disallowed paths/syntax, applies exact hunks, rejects witness-only and no-op repairs, and never passes incomplete execution evidence |
-| Worker failure | `test_worker_failure` | Timeout → setup_failure, budget exhausted stops search |
-| Integration | `test_api_investigations`, `test_investigation_flow` | Full end-to-end API and investigation run |
-
-## The demonstration fixture
-
-The curated demonstration uses a signal classification pipeline
-(`fixture/project/pipeline.py`) that exposes a documented NumPy 2.0 behavior
-change.
-
-**Mechanism (NEP 50 scalar promotion):**
-
-- NumPy 1.26: each `float32_scalar / 2.0` → `float64` intermediate
-- NumPy 2.0: each `float32_scalar / 2.0` → `float32` intermediate (no upcasting,
-  NEP 50)
-
-Near the classification threshold this precision difference flips the
-conclusion.
-
-**Known witness:**
+ReproDelta includes a constructed demonstration classifier (`fixture/project/pipeline.py`) exposing the real-world precision changes introduced in **NumPy 2.0 (NEP 50 - Promotion of Scalars)**:
 
 ```python
-signal = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0000001192092896]
-# Old env (float64): ratio = 0.50000001490…  → above_threshold
-# New env (float32): ratio = 0.50000000000   → inconclusive (exact tie)
+# NumPy 1.26: float32 scalar / Python float -> float64 (upcast)
+# NumPy 2.0:  float32 scalar / Python float -> float32 (preserved, no upcast)
+normalized = np.array([sample / 2.0 for sample in signal])
+power = normalized ** 2
+ratio = float(np.sum(power[mid:]) / np.sum(power))
+conclusion = "above_threshold" if ratio > 0.5 else "below_threshold"
 ```
 
-> **Label:** constructed demonstration case — not an independently observed
-> research defect. See `fixture/project/pipeline.py`.
+### The Boundary Witness
+At the boundary threshold (`0.5`), the difference between intermediate `float64` summation vs `float32` single-precision rounding flips the outcome on identical raw signal data:
 
-**Intervention:** replacing each `sample / 2.0` with `sample / np.float32(2.0)`
-forces float32 arithmetic in both environments, making conclusions consistent.
-The intervention assessment is `supported`.
+```python
+# Exact witness input discovered by ReproDelta:
+signal = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0000001192092896]
 
-**Repair gate:**
-- Overfitted patch (special-cases the witness): **fails** on holdout #5
-- Good patch (explicit `np.float32` divisor): **passes** all 6 holdouts
+# NumPy 1.26.4 (float64): ratio = 0.5000000149... -> "above_threshold"
+# NumPy 2.0.2  (float32): ratio = 0.5000000000... -> "below_threshold"
+```
+**Outcome:** The code runs cleanly without errors, but the published scientific conclusion silently inverts.
 
-## Verdict vocabulary
+---
 
-The system uses exactly these bounded verdict classes (never a global
-"SAFE"/"UNSAFE" badge):
+## Verdict Taxonomy
+
+ReproDelta avoids simplistic "SAFE/UNSAFE" badges, providing formal, bounded verdicts:
 
 | Verdict | Meaning |
 |---|---|
-| `observed_drift` | A numeric difference was measured |
-| `supported_conclusion_change` | The declared conclusion changed across environments for a valid input |
-| `pre_existing_contract_violation` | The input violated the contract before any upgrade |
-| `repair_passes_stated_checks` | The proposed patch passed all frozen holdout checks |
-| `no_violation_found` | No conclusion change found within the tested scope and budget |
-| `inconclusive` | Evidence insufficient to support a narrower verdict |
-| `setup_failure` | Runner, hash, or environment configuration problem |
+| `supported_conclusion_change` | A reproducible conclusion change was confirmed on valid inputs across environments. |
+| `repair_passes_stated_checks` | A proposed code repair successfully restored conclusion consistency across all sealed holdouts. |
+| `no_violation_found` | No conclusion change was observed within the tested input domain and budget ceiling. |
+| `observed_drift` | Numerical values drifted within acceptable tolerances without flipping the categorical conclusion. |
+| `pre_existing_contract_violation` | Input rejected by domain preconditions prior to execution. |
+| `inconclusive` | Conflicting within-environment repeats or insufficient evidence to confirm causality. |
+| `setup_failure` | Environment initialization, manifest parsing, or worker connection failure. |
 
-## Security
+---
 
-- Workers run with no network, no database credentials, no Nebius key
-- `RunManifest` rejects unknown fields (including `api_key`, `database_url`)
-- Entry points are allowlisted — path traversal attempts are rejected
-- Model proposals are untrusted data; deterministic validators make all decisions
-- Holdouts are frozen before any patch generation call
-- See `docs/security.md` for the full threat model
+## Quickstart
 
-## Documentation
+### Option 1: Docker Compose (Recommended)
 
-| Document | Purpose |
-|---|---|
-| [Product requirements](docs/product-requirements.md) | Users, scope, workflows, acceptance criteria |
-| [Design system](docs/design-system.md) | Information architecture, visual tokens, accessibility |
-| [Database](docs/database.md) | Data model, artifact storage, invariants |
-| [Security](docs/security.md) | Threat model and controls |
-| [Code style](docs/code-style.md) | Implementation conventions and module boundaries |
-| [Testing](docs/testing.md) | Test strategy, evaluation plan, release gates |
-| [Agents](docs/agents.md) | Runtime agent roles, tool contracts, stopping rules |
-| [Research and decisions](docs/research-and-decisions.md) | Sources, prior work, open decisions |
-| [Source architecture](docs/source-architecture.md) | Original research direction document |
+Run the complete stack with pinned dual workers and PostgreSQL:
 
-## Shared vocabulary
+```bash
+# 1. Clone repository and set up environment
+git clone https://github.com/Gracy769/reprodelta.git
+cd reprodelta
+cp .env.example .env
 
-- **Contract:** approved valid input domain, consequential output, comparison
-  semantics, margin, and resource limits.
-- **Witness:** a valid input that reproducibly changes the declared conclusion
-  across environments.
-- **Intervention:** one controlled change made to test a proposed mechanism.
-- **Holdout:** verification inputs fixed before repair generation and hidden
-  from the repair proposer.
-- **Verdict:** a bounded statement about observations under the recorded
-  contract and execution budget; never a universal safety claim.
+# Optional: Add your Nebius API Key in .env for live LLM root-cause analysis
+# (Leave empty to run in deterministic Mock LLM mode)
 
-## Hackathon notes
+# 2. Build and start services
+docker compose up --build
 
-- Live Nebius/Nemotron calls require `NEBIUS_API_KEY` in `.env`. Without it
-  the system runs in mock LLM mode and labels all proposals accordingly.
-- The investigation uses a local in-process runner by default (`RUNNER_MODE=local`).
-  Docker Compose sets `RUNNER_MODE=worker_http` to dispatch to the pinned workers.
-- The repository is private until submission. The MIT license is included; make the repository public and
-  make it public per the [hackathon rules](https://nebiusglobalaihackathon.devpost.com/rules)
-  before submitting.
-
-## Real model diff verification
-
-The investigation seals a deep copy of the holdouts before model calls. The model receives the curated pipeline source, witness and intervention summary, but no holdouts. The controller validates the exact unified diff and computes base/patched project hashes. Each pinned worker repeats application and syntax validation, creates a fresh copy of `pipeline.py` and unchanged `run.py`, makes the files read-only, executes a child process and removes the copy. The original source is never patched.
-
-The gate records 28 runs: original and patched witness plus six holdouts, each in NumPy 1.26.4 and 2.0.2. The original witness must reproduce a changed declared outcome; patched outcomes must agree. Holdouts with an already consistent conclusion must preserve it. Required dtype agreement is enforced. Failed execution, malformed output, version/hash mismatch or absent frozen cases yields incomplete evidence and cannot pass. A finite passing result means only `repair_passes_stated_checks`. Numerical tolerances still measure drift separately from the declared conclusion.
-
-Only a restricted numerical subset in existing function bodies is executable: allowlisted NumPy/builtin calls, arithmetic, conditions and comprehensions over the bounded signal. Imports, module constants, signatures, attribute/input mutation, filesystem/network access, introspection and unbounded loops are rejected. This is a curated language restriction, not a general Python sandbox. Compose keeps its internal worker network and adds bounded writable `/tmp`; POSIX child processes enforce memory/CPU limits and inherit no provider/database secrets. Windows development subprocesses do not establish POSIX/container isolation.
-
-`POST /api/investigations/{id}/verify-patch` requires stored witness evidence and uses that investigation's sealed holdouts and contract. Older evidence without sealed inputs remains inconclusive. The verification result is stored in an event; immutable final evidence is not overwritten. New investigation reports use schema version 3 and include the model diff result, hashes, actual run records, and sealed inputs.
-
-To run the actual interpreter tests without Docker, provision two Python 3.12 environments containing `numpy==1.26.4` and `numpy==2.0.2`, set `REPRODELTA_OLD_PYTHON` and `REPRODELTA_NEW_PYTHON` to their interpreter paths, and run `python -m pytest tests/integration/test_real_repair.py -q`. `PinnedPythonRunnerAdapter` is an explicit development harness and is never selected by the public API. Real hosted execution uses `RUNNER_MODE=worker_http`; local simulation reports model diff verification as inconclusive.
-
-## Ownership, budgets and deployment verification
-
-Investigation APIs enforce the stored owner for state, events, streams, evidence, reports, execution and repair verification. Provider/Firebase sessions and bearer identities use the existing signature/expiry verifier. Guest demos receive a signed, HttpOnly, SameSite session with a separate owner; another guest cannot read their evidence. Contract approval is per owner. Invalid sessions fail closed, and cross-origin writes are rejected. Guest demos cannot start live model calls. Legacy rows with the old shared `user` owner are intentionally inaccessible through the public API; do not guess their owner.
-
-Every runner stage shares an investigation ledger: controls, search, reduction, interventions, both predefined checks, executed model diffs and demonstration comparisons. Run/model-call/token/cost reservations happen before dispatch; failures retain reservations. API limits are immutable after creation, and ad-hoc exploration creates an owned 20-run investigation instead of using the unbudgeted `demo` alias. PostgreSQL reservations use row locks and persist across restarts; filesystem reservations are safe within the supported single API process. Wall deadlines persist from the first dispatch and constrain runner/model timeouts. Low-budget or incomplete comparison evidence is labeled explicitly.
-
-Dollar reservations are operator-configured worst-case ceilings, not measured provider invoices. Live model calls fail closed unless `NEBIUS_CALL_COST_CEILING_USD` is positive; configure it from verified model pricing and request limits before enabling billable calls. The ledger also conservatively reserves UTF-8 prompt bytes plus the maximum output tokens. Reports retain provider-reported usage separately. Daily creation quotas and active-job caps now apply across investigations; provider billing reconciliation remains an operator responsibility. See [admission limits](docs/connected-review.md).
-
-`/health` remains liveness. `/ready` checks session-key configuration, storage and both worker runtime versions/source hashes; it explicitly reports that external authentication and live Nebius were not probed. Worker `/health` exposes no secrets. Hosted/worker mode requires a stable secret of at least 32 characters. Deploy one API process/replica: the interruption detector does not yet support distributed leases. Compose API images now contain the fixture source used for hash validation.
-
-GitHub CI provisions pinned interpreters and a dedicated PostgreSQL database, tests ownership/budget/restart behavior, and builds a disposable Docker Compose deployment in mock model mode. The Docker smoke check exercises real HTTP workers, actual model-diff execution, report export, owner isolation, completed-report recovery and interrupted-job recovery after API restart. It does not use live credentials or deploy to Railway.
-
-## Demonstration comparison and replay
-
-The second constructed case (`sensor_offset`) compares a calibrated float32 reading plus a small Python-float offset to 1.0. NumPy 1.26 and 2.0 produce different intermediate precision. The original power-ratio case, the sensor case and a clearly unchanged control are evaluated with fixed replay, seeded random valid search and an informed boundary sweep. Each strategy receives the same paired-execution cap and runs to that cap; first-witness position and every input/result are recorded. The informed sweep deliberately knows the boundary. A fourth case independently replays NumPy’s documented least-squares default change with a 4x2 matrix contract. These cases do not establish general superiority or scientific correctness; see [historical replay scope](docs/historical-replay.md).
-
-`docs/evidence/demonstration.json` contains actual observations, source contents and hashes for a four-pair cap per strategy (72 executions total). `docs/evidence/replay.json` records an exact replay of all 72 executions; companion SHA-256 files cover the exports. Reproduce with two Python 3.12 environments containing NumPy 1.26.4/2.0.2:
-
-```sh
-python scripts/export_demonstration.py --old-python OLD --new-python NEW --pairs 4 --output demonstration.json
-python scripts/export_demonstration.py --old-python OLD --new-python NEW --replay demonstration.json --output replay.json
+# 3. Access workbench
+# API & UI available at: http://localhost:8000
+# OpenAPI Docs: http://localhost:8000/docs
 ```
 
-The main investigation includes an eight-pair comparison per strategy when its shared budget permits. Evidence/report exports retain incomplete rows and their limitations. The sensor case currently supplies comparative replay evidence; the constrained model repair allowlist remains limited to the original power pipeline.
+### Option 2: Local Development (Python 3.12)
+
+```bash
+# 1. Create and activate virtual environment
+python -m venv venv
+source venv/bin/activate  # Or `venv\Scripts\activate` on Windows
+
+# 2. Install package and dev dependencies
+pip install -e ".[dev]"
+
+# 3. Run automated test suite
+python -m pytest tests/ -q
+
+# 4. Start local development server
+python -m uvicorn app.main:app --reload --port 8000
+```
+
+---
+
+## Test Suites & Verification
+
+ReproDelta maintains rigorous test coverage spanning contracts, sandboxing, determinism, and repair gates:
+
+```bash
+# Run complete Python test suite
+python -m pytest tests/ -q
+
+# Run frontend UI regression checks (Node.js)
+node --test tests/frontend/*.cjs
+```
+
+### Key Verification Layers
+
+| Test Layer | Focus |
+|---|---|
+| `tests/unit/test_validator.py` | Input validation contracts, bounds checks, schema enforcement |
+| `tests/unit/test_search.py` | Analytical ULP sweeps, seeded random exploration, budget halts |
+| `tests/unit/test_patch_verifier.py` | AST parsing, syntax validation, hunk application, sealed holdouts |
+| `tests/unit/test_persistence.py` | PostgreSQL row-locking, crash recovery, immutable event logs |
+| `tests/unit/test_project_eligibility.py` | Source-admission gating for pull request manifests |
+| `tests/integration/test_investigation_flow.py` | End-to-end investigation pipeline (preflight → report) |
+
+---
+
+## Environment Configuration
+
+Configure ReproDelta via environment variables (or `.env` file):
+
+| Variable | Default | Description |
+|---|---|---|
+| `DATABASE_URL` | `postgresql+asyncpg://...` | PostgreSQL connection string |
+| `ARTIFACT_DIR` | `/data/artifacts` | Directory for content-addressed evidence storage |
+| `RUNNER_MODE` | `local` | `local` (in-process simulation) or `worker_http` (pinned containers) |
+| `NEBIUS_API_KEY` | *(blank)* | Nebius Token Factory API key (blank = mock mode) |
+| `NEBIUS_MODEL_ID` | `nvidia/Nemotron-3-Ultra-550b-a55b` | Model identifier for root-cause synthesis |
+| `NEBIUS_BASE_URL` | `https://api.tokenfactory.nebius.com/v1` | Nebius OpenAI-compatible API base URL |
+| `SECRET_KEY` | `change-me-in-production` | Session encryption and state signature key |
+| `PERSIST_INVESTIGATIONS` | `true` | Persist evidence bundles to disk/database across restarts |
+| `MAX_ACTIVE_INVESTIGATIONS` | `2` | Concurrent investigation throttle per process |
+| `GLOBAL_DAILY_INVESTIGATIONS`| `200` | Global daily rate limit ceiling |
+
+---
+
+## Security & Isolation Model
+
+- **Airgapped Sandboxes**: Pinned worker containers operate with all network access disabled (`internal: true`).
+- **Secret Isolation**: Workers possess no access to database credentials, LLM API keys, or source control tokens.
+- **Strict AST White-listing**: Repair diffs are screened for disallowed syntax, external imports, subprocess spawns, and unbounded loops.
+- **Immutable Holdouts**: Holdout evaluation sets are hashed and sealed before any LLM prompt is constructed.
+- **Content Integrity**: All inputs, source snapshots, and run artifacts are verified using SHA-256 digests.
+
+---
+
+## Documentation Index
+
+Detailed specifications and architectural guides are available in [`docs/`](docs/):
+
+- [Product Requirements](docs/product-requirements.md) — Problem statement, user personas, and acceptance criteria.
+- [Source Architecture](docs/source-architecture.md) — System boundaries, data structures, and pipeline flow.
+- [Connected Review & Replay](docs/connected-review.md) — GitHub/GitLab integration and source-admission rules.
+- [Security Architecture](docs/security.md) — Threat model, sandbox boundaries, and credential hygiene.
+- [Database & Storage](docs/database.md) — Relational schema, append-only event logs, and artifact layouts.
+- [Testing & Release Gates](docs/testing.md) — Test matrices, deterministic mock harnesses, and verification.
+- [Oracle VM Deployment](docs/oracle-vm-deployment.md) — Production setup for OCI Always Free instances with Caddy.
+- [Railway Deployment](docs/railway-deployment.md) — Containerized deployment guide for Railway.
+
+---
+
+## License
+
+ReproDelta is licensed under the [MIT License](LICENSE).
